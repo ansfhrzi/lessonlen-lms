@@ -1,0 +1,744 @@
+<script>
+/* ============================================================
+   LessonLen — js_menu
+   Sidebar menu GURU: pintasan layar + daftar kelas (v1.13.0)
+
+   LAPORAN LAPANGAN 24 Agu 2026 — 305 detik pemakaian nyata:
+
+       getBeranda        5x   22,4 dtk   31% waktu
+       getStrukturKelas  6x   21,5 dtk   30% waktu
+
+   Guru TIDAK bolak-balik ke beranda karena ingin melihatnya. Ia
+   lewat beranda karena itulah SATU-SATUNYA jalan ke menu lain —
+   tombol Kelola Kelas, Kelola Murid, dan Rekap semuanya hanya ada
+   di sana.
+
+   Cache beranda (v1.12.8) mengobati gejala; jaraknya 39–55 detik
+   sehingga cache 30 detik selalu keburu kedaluwarsa. Sidebar
+   mengobati SEBABNYA: dengan menu tetap, kunjungan beranda yang
+   sekadar numpang lewat menjadi NOL.
+
+   Usul guru sendiri: "mungkin perlu dibuat sidebar, supaya tidak
+   bolak balik ke beranda" + "daftar kelas saya juga ditampilkan".
+
+   ------------------------------------------------------------
+   BUKAN pengganti js_nav.
+
+   `js_nav` adalah sidebar ISI SATU KELAS (pertemuan & item) untuk
+   MURID yang sedang belajar. Berkas ini sidebar ANTAR LAYAR untuk
+   GURU. Keduanya memakai kelas CSS yang sama (`.tata-nav`,
+   `.sisi-nav`, laci HP, tirai) supaya tidak ada gaya baru yang
+   perlu dirawat — dan supaya keduanya tidak pernah tampil
+   bersamaan, `menuRangka()` hanya dipanggil dari layar guru.
+   ============================================================ */
+
+var Menu = {
+  aktif: null,        /* kunci rute yang sedang dibuka */
+  kelas: null,        /* daftar kelas, dipakai bersama antar layar */
+  diisi: 0,           /* stempel waktu pengisian `kelas` */
+  /* Di beranda sidebar MENUNGGU benih dari getBeranda alih-alih
+     memanggil getDaftarKelas sendiri (v1.15.2). */
+  tungguBenih: false,
+  /* `kelas` berisi benih 3 kolom, bukan daftar utuh (v1.15.7). */
+  ringkas: false
+};
+
+/* Daftar kelas berubah jauh lebih jarang daripada beranda: guru
+   membuat kelas beberapa kali setahun. 5 menit aman, dan tetap
+   dibatalkan seketika oleh aksi yang mengubahnya. */
+var UMUR_MENU_KELAS = 300000;
+
+/* Pintasan layar guru. Urutannya mengikuti alur mengajar:
+   lihat ringkasan → susun materi → kelola murid → nilai → rekap. */
+var MENU_GURU = [
+  { kunci: 'beranda', tautan: '#/beranda',        ikon: '🏠', label: 'Beranda' },
+  { kunci: 'kelas',   tautan: '#/kelas',          ikon: '📚', label: 'Kelola Kelas' },
+  { kunci: 'murid',   tautan: '#/murid',          ikon: '👥', label: 'Kelola Murid' },
+  { kunci: 'lkpd',    tautan: '#/nilai-lkpd',     ikon: '✏️', label: 'Nilai LKPD' },
+  { kunci: 'kelompok',tautan: '#/nilai-kelompok', ikon: '👨‍👩‍👦', label: 'Tugas Kelompok' },
+  { kunci: 'quiz',    tautan: '#/koreksi-quiz',   ikon: '🎯', label: 'Koreksi Quiz' },
+  { kunci: 'rekap',   tautan: '#/rekap',          ikon: '📊', label: 'Rekap Nilai' }
+];
+
+/**
+ * Buang daftar kelas yang tersimpan.
+ *
+ * WAJIB dipanggil oleh setiap aksi yang mengubah daftar kelas:
+ * membuat, mengubah, menduplikat, menghapus kelas.
+ *
+ * Dipanggil dari berkas lain, jadi pemanggilnya WAJIB memakai
+ * penjaga `typeof` (§6.2 no. 82).
+ */
+function bataliMenuKelas() {
+  Menu.kelas = null;
+  Menu.diisi = 0;
+  Menu.ringkas = false;
+  /* Janji yang sedang berjalan ikut dibuang: hasilnya sudah basi
+     sebelum sampai (v1.13.3). */
+  if (typeof _menuBuangJanji === 'function') _menuBuangJanji();
+  /* Struktur bentangan ikut basi bila kelas berubah (v1.15.0). */
+  if (typeof _menuBuangStruktur === 'function') _menuBuangStruktur();
+}
+
+/**
+ * Pasang tata letak sidebar + kembalikan wadah isi halaman.
+ *
+ * Dipakai menggantikan `$('#isi-halaman', app)` pada layar guru:
+ *
+ *     var app = render('tpl-dashboard');
+ *     pasangTopbar(app);
+ *     var isi = menuRangka(app, 'kelas');
+ *
+ * @param {Element} app    hasil render('tpl-dashboard')
+ * @param {string}  aktif  kunci menu yang sedang dibuka
+ * @returns {Element} wadah untuk isi halaman
+ */
+function menuRangka(app, aktif) {
+  Menu.aktif = aktif || null;
+
+  var luar = document.getElementById('isi-halaman');
+  if (!luar) return app;
+
+  luar.innerHTML =
+    '<div class="tata-nav">' +
+      '<aside class="sisi-nav" id="sisi-menu">' + _menuIsi() + '</aside>' +
+      '<div class="isi-nav" id="isi-menu"></div>' +
+    '</div>' +
+    '<div class="tirai-sisi" id="tirai-menu" onclick="menuTutup()"></div>';
+
+  _menuPasangKlik();
+
+  /* Kelas yang SEDANG diakses terbentang sendiri (v1.15.0) —
+     permintaan guru: "buka lipatan untuk kelas yang sedang di
+     akses". Tanpa ini guru harus mengeklik panah tiap kali berpindah
+     layar, padahal kelasnya sudah jelas dari alamat. */
+  var aktifKls = _menuKelasAktif();
+  if (aktifKls) {
+    MenuBentang = aktifKls;
+    _menuMuatStruktur(aktifKls);
+  }
+
+  /* Daftar kelas dimuat di latar; sidebar sudah tampil lebih dulu
+     dengan pintasannya, jadi guru tidak menunggu apa pun.
+     *
+     * DI BERANDA sidebar sengaja MENUNGGU (v1.13.4): `getBeranda`
+     * yang sedang berjalan akan membenihi daftar kelas lewat
+     * `benihiKelasSidebar()`, sehingga panggilan kedua tidak pernah
+     * perlu terjadi. Tanpa penundaan ini keduanya berangkat pada
+     * detik yang sama — persis yang terlihat di log 11.38.50. */
+  if (aktif === 'beranda') {
+    /* 🔴 v1.15.2 — SEBELUMNYA setTimeout 1200 ms. Log lapangan:
+     *
+     *     09.27.18  getBeranda      6,748 dtk
+     *     09.27.19  getDaftarKelas  4,447 dtk   ← timer keburu habis
+     *
+     * Timer habis SEBELUM benihnya datang, jadi panggilan kedua tetap
+     * terjadi — persis yang hendak dihapus v1.13.4.
+     *
+     * Ini kali keempat menebak angka waktu dan meleset. Kini sidebar
+     * MENUNGGU SINYAL, bukan menunggu detik: beranda memanggil
+     * `benihiKelasSidebar()` saat datanya tiba, atau
+     * `lepasBenihSidebar()` bila gagal (§6.2 no. 116). */
+    Menu.tungguBenih = true;
+  } else {
+    Menu.tungguBenih = false;
+    _menuMuatKelas();
+  }
+
+  return document.getElementById('isi-menu');
+}
+
+/** Tombol pembuka laci untuk layar sempit — taruh di kepala halaman. */
+function menuTombolLaci() {
+  return '<button class="btn btn-hantu btn-kecil tombol-laci" ' +
+    'onclick="menuBuka()">☰ Menu</button>';
+}
+
+function menuBuka() {
+  var s = document.getElementById('sisi-menu');
+  var t = document.getElementById('tirai-menu');
+  if (s) s.classList.add('tampil');
+  if (t) t.classList.add('tampil');
+}
+
+function menuTutup() {
+  var s = document.getElementById('sisi-menu');
+  var t = document.getElementById('tirai-menu');
+  if (s) s.classList.remove('tampil');
+  if (t) t.classList.remove('tampil');
+}
+
+/**
+ * Pindah layar dari sidebar (v1.13.1).
+ *
+ * Satu-satunya jalan keluar sidebar. Memakai `pergiKe()` — fungsi
+ * router aplikasi — bukan `location.href` maupun `<a href>`, sebab
+ * aplikasi berjalan di dalam iframe sandbox Apps Script yang
+ * alamatnya berbeda dari alamat aplikasi.
+ *
+ * Laci ditutup lebih dulu supaya layar tujuan tidak muncul di balik
+ * panel yang masih terbuka pada ponsel.
+ */
+function menuPergi(el) {
+  menuTutup();
+  var tujuan = el && el.getAttribute('data-tautan');
+  if (tujuan && typeof pergiKe === 'function') pergiKe(tujuan);
+}
+
+/**
+ * Delegasi klik sidebar untuk tombol lipat (v1.15.0).
+ *
+ * Panah bentang & lipat pertemuan TIDAK memakai `menuPergi` — ia
+ * tidak berpindah layar. Dipasang sekali pada wadah sidebar, bukan
+ * lewat onclick tiap tombol, supaya penggambaran ulang isi kelas
+ * tidak perlu memasang penangan lagi.
+ */
+function _menuPasangKlik() {
+  var sb = document.getElementById('sisi-menu');
+  if (!sb) return;
+  sb.onclick = function (e) {
+    /* Paling dalam lebih dulu (§6.2 no. 109). */
+    var lp = e.target.closest('[data-lipat-ptm]');
+    if (lp) { menuLipatPtm(lp.getAttribute('data-lipat-ptm')); return; }
+    var bt = e.target.closest('[data-bentang]');
+    if (bt) { menuBentangKelas(bt.getAttribute('data-bentang')); return; }
+  };
+}
+
+/* ---------------------------------------------- isi sidebar */
+
+function _menuIsi() {
+  var h =
+    '<div class="sisi-kepala">' +
+      '<button class="tutup-laci" onclick="menuTutup()" ' +
+        'aria-label="Tutup menu">✕</button>' +
+      '<div class="tebal">Menu</div>' +
+      '<div class="kecil lembut">' +
+        esc(State.user ? State.user.nama : '') + '</div>' +
+    '</div>' +
+    '<div class="sisi-daftar">';
+
+  /* 🔴 v1.13.1 — WAJIB <button> + pergiKe(), BUKAN <a href="#/...">.
+   *
+   * DILAPORKAN DARI LAPANGAN: mengeklik menu membawa guru ke
+   *
+   *     …googleusercontent.com/userCodeAppPanel?createOAuthDialog=true#/kelas/KLS-0056
+   *
+   * Aplikasi ini berjalan di dalam IFRAME sandbox Apps Script.
+   * Alamat iframe itu bukan alamat aplikasi, jadi tautan hash biasa
+   * menavigasi iframe-nya sendiri ke URL `userCodeAppPanel` — bukan
+   * mengubah rute aplikasi.
+   *
+   * Seluruh aplikasi memang sudah memakai `pergiKe()` lewat tombol
+   * (`data-tautan`); `js_menu` satu-satunya yang memakai `<a href>`,
+   * dan itulah sebabnya hanya sidebar yang rusak.
+   *
+   * §6.2 no. 105. */
+  MENU_GURU.forEach(function (m) {
+    h += '<button type="button" class="menu-tautan' +
+         (Menu.aktif === m.kunci ? ' aktif' : '') +
+         '" data-tautan="' + esc(m.tautan) + '" onclick="menuPergi(this)">' +
+         '<span class="menu-ikon">' + m.ikon + '</span>' +
+         '<span class="menu-teks">' + esc(m.label) + '</span></button>';
+  });
+
+  h += '</div>' + _menuBlokKelas();
+  return h;
+}
+
+/**
+ * Daftar kelas di dalam sidebar — permintaan guru.
+ *
+ * Tiap kelas menuju langsung ke layar pertemuannya, sehingga guru
+ * tidak perlu singgah di Kelola Kelas untuk memilih.
+ */
+function _menuBlokKelas() {
+  var h = '<div class="sisi-kepala" style="border-top:1px solid var(--garis)">' +
+            '<div class="tebal kecil">Kelas Saya</div></div>' +
+          '<div class="sisi-daftar" id="menu-kelas">';
+
+  if (Menu.kelas === null) {
+    /* Belum termuat — kerangka abu-abu, bukan ruang kosong yang
+       membuat sidebar tampak rusak (§6.2 no. 84). */
+    h += '<div class="rangka mb-8" style="height:32px"></div>' +
+         '<div class="rangka mb-8" style="height:32px"></div>' +
+         '<div class="rangka" style="height:32px"></div>';
+  } else {
+    h += _menuDaftarKelas();
+  }
+  return h + '</div>';
+}
+
+/* ---------------------------------------------- bentangan kelas
+
+   v1.15.0 — permintaan guru: "pada side bar kelas saya, tampilkan
+   semua sub bagiannya sampai di daftar itemnya. tapi buat lipatan.
+   biar gak bolak balik kembali ke halaman utama kelas. buka lipatan
+   untuk kelas yang sedang di akses".
+
+   Struktur satu kelas (bab → pertemuan → item) diambil dari
+   `getStrukturKelas` — API yang sama dengan layar Kelola Pertemuan,
+   jadi tidak ada payload baru. Hasilnya disimpan per kelas supaya
+   membuka-tutup lipatan tidak memanggil server lagi.                  */
+
+/* Struktur per kelas: { kelasId: {data, diisi} } */
+var MenuStruktur = {};
+
+/* Kelas mana yang sedang dibentangkan di sidebar. Hanya SATU —
+   membentangkan delapan kelas sekaligus mengembalikan masalah yang
+   justru hendak dihindari (§6.2 no. 111). */
+var MenuBentang = null;
+
+/* Pertemuan yang dilipat DI DALAM kelas yang terbentang.
+   {pertemuan_id: true} = disembunyikan. Bawaannya terbuka: guru
+   sudah memilih satu kelas, jadi isinya memang yang ia cari. */
+var MenuLipatPtm = {};
+
+var UMUR_MENU_STRUKTUR = 300000;
+
+/** Kelas mana yang sedang dibuka guru, dibaca dari alamat. */
+function _menuKelasAktif() {
+  var h = (typeof location !== 'undefined' && location.hash) || '';
+  var m = h.match(/^#\/kelas\/([^\/]+)/);
+  if (m) return m[1];
+  /* Layar pertemuan & penilaian item menyimpan kelasnya di State. */
+  if (typeof State !== 'undefined' && State.kelasAktif) {
+    return State.kelasAktif.kelas_id || null;
+  }
+  return null;
+}
+
+/** Buang struktur tersimpan — dipanggil bataliMenuKelas(). */
+function _menuBuangStruktur() {
+  MenuStruktur = {};
+  MenuLipatPtm = {};
+}
+
+/**
+ * Buang struktur SATU kelas (v1.15.3).
+ *
+ * WAJIB dipanggil setiap aksi yang mengubah susunan kelas: menyimpan
+ * bab/pertemuan/item, menggeser urutan, menghapus, menyalin.
+ * Tanpa ini `layarPertemuan()` menggambar ulang dari cache dan
+ * perubahan yang baru disimpan guru tidak terlihat — jauh lebih
+ * buruk daripada satu panggilan berlebih (§6.2 no. 68).
+ *
+ * Dipanggil dari js_editor, jadi WAJIB lewat penjaga `typeof`.
+ */
+function bataliStrukturKelas(kelasId) {
+  if (kelasId) delete MenuStruktur[kelasId];
+  else MenuStruktur = {};
+}
+
+/**
+ * Bentangkan / kuncupkan satu kelas di sidebar.
+ * Memuat strukturnya bila belum ada, lalu menggambar ulang.
+ */
+function menuBentangKelas(kelasId) {
+  if (MenuBentang === kelasId) {
+    MenuBentang = null;                 /* klik lagi = kuncupkan */
+    _menuGambarKelas();
+    return;
+  }
+  MenuBentang = kelasId;
+  MenuLipatPtm = {};                    /* kelas lain, lipatan direset */
+  _menuGambarKelas();
+  _menuMuatStruktur(kelasId);
+}
+
+/** Lipat/buka satu pertemuan di dalam kelas yang terbentang. */
+function menuLipatPtm(pertemuanId) {
+  MenuLipatPtm[pertemuanId] = !MenuLipatPtm[pertemuanId];
+  _menuGambarKelas();
+}
+
+function _menuGambarKelas() {
+  var el = document.getElementById('menu-kelas');
+  if (!el) return;
+  el.innerHTML = _menuDaftarKelas();
+  _menuGulirKeAktif();
+}
+
+/**
+ * Gulirkan sidebar ke kelas yang sedang dibentangkan (v1.15.4).
+ *
+ * 🔴 DILAPORKAN LAPANGAN: "selama ini saya klik kelas yang paling
+ * bawah, lalu saya harus scroll ke bawah lagi".
+ *
+ * Sidebar punya penggulirnya sendiri (`.sisi-nav { overflow-y: auto }`)
+ * dan digambar ulang dari nol setiap kali guru berpindah layar —
+ * jadi gulirnya kembali ke atas. Bagi guru dengan 8 kelas, kelas
+ * yang baru saja diklik justru hilang dari pandangan tepat setelah
+ * diklik.
+ *
+ * Digulirkan ke blok kelasnya, bukan ke item yang jauh di dalam
+ * bentangan: yang dicari guru adalah judul kelasnya, dan dari situ
+ * seluruh isinya terbentang ke bawah.
+ *
+ * `scrollIntoView` dipakai TANPA `behavior: 'smooth'` — animasi saat
+ * halaman baru saja digambar terlihat seperti kedipan, dan
+ * sebagiannya tidak didukung WebView Apps Script.
+ */
+function _menuGulirKeAktif() {
+  if (!MenuBentang) return;
+
+  var sb = document.getElementById('sisi-menu');
+  if (!sb) return;
+
+  var blok = sb.querySelector('.menu-kelas-blok.bentang');
+  if (!blok) return;
+
+  /* Hanya menggulir bila blok itu memang di luar pandangan —
+     menggulir yang sudah terlihat membuat sidebar tersentak
+     tiap kali guru melipat satu pertemuan. */
+  var rSb = sb.getBoundingClientRect();
+  var rBl = blok.getBoundingClientRect();
+  var terlihat = rBl.top >= rSb.top && rBl.top <= rSb.bottom - 40;
+  if (terlihat) return;
+
+  /* Ditempatkan di ATAS wilayah pandang, bukan di tengah: isinya
+     terbentang ke bawah, jadi ruang di bawahnyalah yang berguna. */
+  sb.scrollTop += (rBl.top - rSb.top) - 8;
+}
+
+/* Janji struktur yang sedang berjalan, per kelas — mencegah dua
+   permintaan serentak (§6.2 no. 107). */
+var _janjiStruktur = {};
+
+function _menuMuatStruktur(kelasId) {
+  strukturKelasBersama(kelasId)
+    .then(function () { _menuGambarKelas(); })
+    .catch(function () { _menuGambarKelas(); });
+}
+
+/**
+ * Struktur kelas yang DIPAKAI BERSAMA sidebar dan layar (v1.15.3).
+ *
+ * 🔴 LAPORAN LAPANGAN 25 Agu 2026 — klik kelas di sidebar:
+ *
+ *     09.48.46  getStrukturKelas  3,219 dtk
+ *     09.48.46  getStrukturKelas  3,223 dtk   ← detik yang SAMA
+ *
+ * Sidebar memuat struktur untuk bentangannya, sementara
+ * `layarPertemuan()` memuat struktur YANG SAMA PERSIS untuk isinya.
+ * Dua eksekusi Apps Script, dua kali biaya lantai, data identik.
+ *
+ * Pola yang sama dengan `daftarKelasBersama()` (§6.2 no. 107):
+ * hasil disimpan, dan permintaan serentak berbagi satu janji.
+ *
+ * @returns {Promise<Object>} payload getStrukturKelas
+ */
+function strukturKelasBersama(kelasId, paksa) {
+  if (!kelasId) return Promise.reject(new Error('kelasId kosong'));
+
+  var c = MenuStruktur[kelasId];
+  if (!paksa && c && c.data &&
+      (Date.now() - c.diisi) < UMUR_MENU_STRUKTUR) {
+    return Promise.resolve(c.data);
+  }
+  if (_janjiStruktur[kelasId]) return _janjiStruktur[kelasId];
+  if (typeof callApi !== 'function') {
+    return Promise.reject(new Error('callApi tidak ada'));
+  }
+
+  _janjiStruktur[kelasId] = callApi('getStrukturKelas', [kelasId],
+                                    { diam: true })
+    .then(function (d) {
+      MenuStruktur[kelasId] = { data: d, diisi: Date.now() };
+      delete _janjiStruktur[kelasId];
+      return d;
+    })
+    .catch(function (e) {
+      delete _janjiStruktur[kelasId];
+      MenuStruktur[kelasId] = { data: null, diisi: Date.now() };
+      /* Galat diteruskan: layar yang memakai struktur ini untuk
+         ISINYA harus tahu, jangan dikira kelasnya memang kosong. */
+      throw e;
+    });
+
+  return _janjiStruktur[kelasId];
+}
+
+/* Ikon per tipe item — sama dengan yang dipakai layar lain. */
+var IKON_ITEM_MENU = { materi: '\uD83D\uDCC4', lkpd: '\uD83D\uDCDD',
+                       quiz: '\uD83C\uDFAF', refleksi: '\uD83E\uDE9E',
+                       tugas_kelompok: '\uD83D\uDC65' };
+
+/* Ke mana tiap tipe item membawa GURU. Berbeda dari murid: guru
+   mengelola/menilai, murid mengerjakan.
+ *
+ * 🔴 v1.15.1 — DILAPORKAN LAPANGAN: "tidak bisa klik item materi di
+ * sidebar". Semula materi sengaja dibuat mati karena ia tidak punya
+ * layar penilaian tersendiri.
+ *
+ * Itu keputusan yang keliru. Guru tidak membedakan "punya layar
+ * penilaian" dari "dapat dibuka" — yang ia lihat hanyalah satu item
+ * dalam daftar yang tidak bereaksi. Materi memang tetap dikelola
+ * lewat editor di layar pertemuan, jadi tautannya diarahkan KE
+ * PERTEMUANNYA. Satu klik tetap lebih dekat daripada kembali ke
+ * halaman utama kelas (§6.2 no. 114).
+ *
+ * @param {Object} it  item
+ * @param {string} pid pertemuan_id — tujuan bagi tipe tanpa layar
+ *                     penilaian sendiri
+ */
+function _menuTautanItem(it, pid) {
+  if (it.tipe === 'lkpd') return '#/lkpd-kelas/' + it.item_id;
+  if (it.tipe === 'quiz') return '#/soal/' + it.item_id;
+  if (it.tipe === 'tugas_kelompok') return '#/nilai-kelompok/' + it.item_id;
+  if (it.tipe === 'refleksi') return '#/rekap-refleksi/' + it.item_id;
+  /* materi: dikelola lewat editor di layar pertemuan */
+  return pid ? '#/pertemuan/' + pid : '';
+}
+
+/** Isi bentangan satu kelas: bab → pertemuan → item. */
+function _menuIsiKelas(kelasId) {
+  var c = MenuStruktur[kelasId];
+
+  if (!c) {
+    return '<div class="menu-bentang">' +
+      '<div class="rangka mb-8" style="height:22px"></div>' +
+      '<div class="rangka" style="height:22px"></div></div>';
+  }
+  if (!c.data) {
+    return '<div class="menu-bentang kecil lembut" style="padding:6px 10px">' +
+      'Isi kelas gagal dimuat.</div>';
+  }
+
+  var mp = c.data.materi_pokok || [];
+  var yatim = c.data.yatim || [];
+  if (!mp.length && !yatim.length) {
+    return '<div class="menu-bentang kecil lembut" style="padding:6px 10px">' +
+      'Belum ada pertemuan.</div>';
+  }
+
+  var h = '<div class="menu-bentang">';
+
+  function blokPtm(p, nomor) {
+    var lipat = MenuLipatPtm[p.pertemuan_id] === true;
+    var items = p.item || [];
+    var b = '<div class="menu-ptm">' +
+      '<button type="button" class="menu-ptm-judul" ' +
+        'data-lipat-ptm="' + esc(p.pertemuan_id) + '" ' +
+        'aria-expanded="' + (lipat ? 'false' : 'true') + '">' +
+        '<span class="panah' + (lipat ? '' : ' turun') + '">\u203A</span>' +
+        '<span class="menu-teks">' + esc(nomor + ' ' + p.judul) + '</span>' +
+        (p.status !== 'publish'
+          ? '<span class="menu-draf">draf</span>' : '') +
+      '</button>';
+
+    if (!lipat) {
+      if (!items.length) {
+        b += '<div class="menu-kosong">belum ada item</div>';
+      } else {
+        b += items.map(function (it) {
+          var tautan = _menuTautanItem(it, p.pertemuan_id);
+          return '<button type="button" class="menu-item-baris' +
+            (tautan ? '' : ' mati') + '" ' +
+            (tautan ? 'data-tautan="' + esc(tautan) +
+                      '" onclick="menuPergi(this)" '
+                    : 'disabled ') +
+            'title="' + esc(it.judul) + '">' +
+            '<span class="menu-ikon">' +
+              (IKON_ITEM_MENU[it.tipe] || '\uD83D\uDCCC') + '</span>' +
+            '<span class="menu-teks">' + esc(it.judul) + '</span>' +
+            (it.status !== 'publish'
+              ? '<span class="menu-draf">draf</span>' : '') +
+            '</button>';
+        }).join('');
+      }
+    }
+    return b + '</div>';
+  }
+
+  mp.forEach(function (m) {
+    h += '<div class="menu-bab">' + esc(m.urutan + '. ' + m.judul) + '</div>';
+    (m.pertemuan || []).forEach(function (p) {
+      h += blokPtm(p, m.urutan + '.' + p.urutan);
+    });
+  });
+  if (yatim.length) {
+    h += '<div class="menu-bab">(tanpa bab)</div>';
+    yatim.forEach(function (p) { h += blokPtm(p, String(p.urutan)); });
+  }
+
+  return h + '</div>';
+}
+
+function _menuDaftarKelas() {
+  if (!Menu.kelas || !Menu.kelas.length) {
+    return '<div class="kecil lembut" style="padding:8px 10px">' +
+           'Belum ada kelas. Buat lewat <b>Kelola Kelas</b>.</div>';
+  }
+  return Menu.kelas.map(function (k) {
+    var nama = (typeof namaKelasLengkap === 'function')
+      ? namaKelasLengkap(k) : (k.nama_kelas || '');
+    var bentang = MenuBentang === k.kelas_id;
+
+    /* Panah TERSENDIRI untuk membentangkan, judul untuk berpindah:
+       guru sering ingin melihat isinya tanpa meninggalkan layar yang
+       sedang dikerjakan — dan sebaliknya (§6.2 no. 109). */
+    var b = '<div class="menu-kelas-blok' + (bentang ? ' bentang' : '') + '">' +
+      '<button type="button" class="btn-bentang-kelas" ' +
+        'data-bentang="' + esc(k.kelas_id) + '" ' +
+        'aria-expanded="' + (bentang ? 'true' : 'false') + '" ' +
+        'title="' + (bentang ? 'Sembunyikan isi kelas'
+                             : 'Tampilkan isi kelas') + '">' +
+        '<span class="panah' + (bentang ? ' turun' : '') + '">\u203A</span>' +
+      '</button>' +
+      /* <button>, bukan <a href> — lihat catatan v1.13.1 di _menuIsi(). */
+      '<button type="button" class="menu-tautan menu-kelas-baris' +
+        (bentang ? ' aktif' : '') + '" ' +
+      'data-tautan="#/kelas/' + esc(k.kelas_id) + '" ' +
+      'onclick="menuPergi(this)" title="' + esc(nama) + '">' +
+      '<span class="menu-ikon">📘</span>' +
+      '<span class="menu-teks">' + esc(nama) + '</span></button>';
+
+    if (bentang) b += _menuIsiKelas(k.kelas_id);
+    return b + '</div>';
+  }).join('');
+}
+
+/**
+ * Muat daftar kelas bila belum ada / sudah kedaluwarsa.
+ *
+ * Memakai `getDaftarKelas` — API yang di log lapangan hanya 1,0–2,5
+ * detik dan membaca NOL sel (biaya lantai murni). Hasilnya dipakai
+ * ulang antar layar, jadi berpindah menu tidak memanggilnya lagi.
+ */
+function _menuMuatKelas() {
+  /* Masih menunggu benih dari getBeranda — jangan menembak sendiri. */
+  if (Menu.tungguBenih) return;
+  /* Lewat _menuGambarKelas() supaya gulir otomatis ikut jalan —
+     inilah jalur yang dipakai saat guru MASUK ke layar, dan justru
+     di situ gulirnya paling dibutuhkan (v1.15.4). */
+  daftarKelasBersama()
+    .then(function () { _menuGambarKelas(); })
+    .catch(function () {});
+}
+
+/* Janji yang sedang berjalan — mencegah dua pemanggil serentak
+   menembakkan dua permintaan. */
+var _janjiKelas = null;
+
+/**
+ * Daftar kelas yang DIPAKAI BERSAMA sidebar dan layar (v1.13.3).
+ *
+ * 🔴 LAPORAN LAPANGAN: `getDaftarKelas` dipanggil 4x dalam 82 detik,
+ * dua di antaranya pada DETIK YANG SAMA:
+ *
+ *     11.24.29  getBeranda       +  getDaftarKelas   ← sidebar
+ *     11.24.51  getDaftarMurid   +  getDaftarKelas   ← sidebar & layar
+ *
+ * Sidebar memuat daftar kelas untuk dirinya sendiri, sementara layar
+ * Kelola Kelas / Kelola Murid / Rekap memuat daftar yang SAMA untuk
+ * isinya. Dua eksekusi Apps Script terpisah, masing-masing membayar
+ * biaya lantai penuh — padahal datanya identik.
+ *
+ * Fungsi ini satu-satunya pintu: hasilnya disimpan, dan permintaan
+ * yang datang selagi yang pertama berjalan ikut menunggu janji yang
+ * sama alih-alih menembak lagi (§6.2 no. 107).
+ *
+ * @returns {Promise<Array>} daftar kelas
+ */
+function daftarKelasBersama(paksa) {
+  /* `Menu.ringkas` = isinya benih dari getBeranda (3 kolom saja).
+     Cukup untuk sidebar, TIDAK cukup untuk layar yang menampilkan
+     jumlah murid & pertemuan — ambil yang utuh (v1.15.7). */
+  if (!paksa && Menu.kelas && !Menu.ringkas &&
+      (Date.now() - Menu.diisi) < UMUR_MENU_KELAS) {
+    return Promise.resolve(Menu.kelas);
+  }
+  if (_janjiKelas) return _janjiKelas;          /* sudah ada yang jalan */
+  if (typeof callApi !== 'function') return Promise.resolve([]);
+
+  _janjiKelas = callApi('getDaftarKelas', [], { diam: true })
+    .then(function (list) {
+      Menu.kelas = list || [];
+      Menu.diisi = Date.now();
+      Menu.ringkas = false;        /* data utuh dari getDaftarKelas */
+      _janjiKelas = null;
+      return Menu.kelas;
+    })
+    .catch(function (e) {
+      /* Gagal memuat TIDAK boleh merusak layar utama — sidebar hanya
+         alat bantu. Tetapi galatnya WAJIB diteruskan: layar yang
+         memakai daftar ini untuk isinya harus tahu (§6.2 no. 84). */
+      _janjiKelas = null;
+      Menu.kelas = [];
+      var el = document.getElementById('menu-kelas');
+      if (el) {
+        el.innerHTML = '<div class="kecil lembut" style="padding:8px 10px">' +
+          'Daftar kelas gagal dimuat.</div>';
+      }
+      throw e;
+    });
+
+  return _janjiKelas;
+}
+
+/**
+ * Lepas sidebar dari penungguan benih (v1.15.2).
+ *
+ * Dipanggil beranda bila `getBeranda` GAGAL. Tanpa ini sidebar
+ * menunggu selamanya dan daftar kelasnya tidak pernah terisi —
+ * kegagalan senyap yang lebih buruk daripada satu panggilan
+ * berlebih (§6.2 no. 84).
+ */
+function lepasBenihSidebar() {
+  if (!Menu.tungguBenih) return;
+  Menu.tungguBenih = false;
+  _menuMuatKelas();
+}
+
+/** Buang daftar & janji yang tertunda — dipakai bataliMenuKelas(). */
+function _menuBuangJanji() { _janjiKelas = null; }
+
+/**
+ * Isi daftar kelas sidebar dari data yang SUDAH ada (v1.13.4).
+ *
+ * 🔴 LAPORAN LAPANGAN — log sesudah v1.13.3:
+ *
+ *     11.38.50  getBeranda      5,615 dtk
+ *     11.38.50  getDaftarKelas  3,011 dtk   ← detik yang SAMA
+ *
+ * `getDaftarKelas` memang sudah turun 4x → 1x. Tetapi satu-satunya
+ * yang tersisa itu pun sebenarnya TIDAK PERLU: `getBeranda` sudah
+ * mengirim `d.kelas` berisi kelas_id, nama_kelas, dan mapel — persis
+ * yang dibutuhkan sidebar.
+ *
+ * Jadi alih-alih memanggil API kedua, sidebar dibenihi dari jawaban
+ * yang sudah di tangan. Saat guru membuka Kelola Kelas, layar itu
+ * tetap memanggil `getDaftarKelas` untuk dirinya sendiri — ia butuh
+ * `fase`, `kompetensi_keahlian`, dan `status` yang tidak ada di
+ * beranda — dan hasilnya yang lebih lengkap MENIMPA benih ini.
+ *
+ * §6.2 no. 108: sebelum menambah panggilan, periksa apakah datanya
+ * sudah ada di jawaban yang lain.
+ *
+ * @param {Array} list  d.kelas dari getBeranda
+ */
+function benihiKelasSidebar(list) {
+  Menu.tungguBenih = false;
+  if (!list || !list.length) return;
+  if (Menu.kelas && Menu.kelas.length) return;   /* sudah ada yang lebih baik */
+
+  Menu.kelas = list.map(function (k) {
+    return { kelas_id: k.kelas_id, nama_kelas: k.nama_kelas,
+             mapel: k.mapel };
+  });
+  Menu.diisi = Date.now();
+  /* 🔴 v1.15.7 — DILAPORKAN LAPANGAN: kartu Kelola Kelas menampilkan
+     "undefined murid / undefined pertemuan".
+   *
+   * Benih ini hanya memuat TIGA kolom — cukup untuk sidebar, tetapi
+   * layar Kelola Kelas juga butuh jml_murid, jml_pertemuan, fase,
+   * kompetensi_keahlian, dan status. Sejak v1.13.4 keduanya berbagi
+   * `Menu.kelas`, jadi layar itu menggambar dari data separuh.
+   *
+   * Ditandai RINGKAS supaya `daftarKelasBersama()` tahu bahwa isinya
+   * belum lengkap dan tetap mengambil yang utuh (§6.2 no. 121). */
+  Menu.ringkas = true;
+  _menuGambarKelas();
+}
+</script>

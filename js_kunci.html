@@ -1,0 +1,355 @@
+<script>
+/* ============================================================
+   LessonLen — js_kunci
+   Guru: membuka kunci item untuk murid tertentu (v1.8.0)
+
+   DUA PINTU MASUK ke pekerjaan yang sama:
+
+     dari MURID  — "Andi sakit dua minggu, ketinggalan apa saja?"
+                   panelKunciMurid(userId, kelasId)
+     dari ITEM   — "siapa yang belum bisa akses quiz ini?"
+                   panelKunciItem(itemId)
+
+   Keduanya memakai API dan alur yang sama; yang berbeda hanya arah
+   pertanyaannya. Guru berpikir dengan dua cara itu bergantian, dan
+   memaksanya lewat satu pintu berarti ia harus menerjemahkan sendiri.
+
+   MEMBUKA BISA DIBATALKAN. Salah pilih murid pasti terjadi, dan
+   tanpa tombol Kunci Ulang satu-satunya jalan keluar adalah
+   menyunting Sheet dengan tangan.
+   ============================================================ */
+
+var IKON_KUNCI = { materi: '📄', lkpd: '📝', quiz: '🎯',
+                   refleksi: '🪞', tugas_kelompok: '👥' };
+
+/* ---------------------------------------------- pintu 1: dari MURID */
+
+/**
+ * Panel "item apa saja yang terkunci untuk murid ini".
+ *
+ * @param {string} userId
+ * @param {string} kelasId
+ * @param {Function=} sesudah  dipanggil setelah ada perubahan
+ */
+function panelKunciMurid(userId, kelasId, sesudah) {
+  callApi('getKunciMurid', [userId, kelasId], { diam: true })
+    .then(function (d) { _gambarKunciMurid(d, sesudah); })
+    .catch(function () {});
+}
+
+function _gambarKunciMurid(d, sesudah) {
+  var r = d.rekap;
+
+  var isi =
+    '<div class="kartu kartu-rapat mb-16">' +
+      '<div class="tebal">' + esc(d.murid.nama) + '</div>' +
+      '<div class="kecil lembut">' + esc(d.murid.username) + '</div>' +
+    '</div>';
+
+  /* Yang SUDAH dibuka ditempatkan di atas: itulah yang paling
+     mungkin ingin guru periksa ulang atau batalkan. */
+  if (d.dibuka_paksa.length) {
+    isi += '<h3 class="mb-8">Sudah dibuka <span class="lencana ' +
+      'lencana-sukses">' + r.jml_dibuka + '</span></h3>' +
+      '<div class="kolom sela-kecil mb-16">' +
+      d.dibuka_paksa.map(function (i) {
+        return '<div class="baris-antara kartu kartu-rapat" ' +
+          'style="flex-wrap:wrap;gap:8px">' +
+          '<div class="tumbuh" style="min-width:0">' +
+            '<div class="kecil tebal">' +
+              (IKON_KUNCI[i.tipe] || '📌') + ' ' + esc(i.judul) + '</div>' +
+            '<div class="kecil lembut">Pertemuan ' + i.pertemuan_urutan +
+              (i.alasan_paksa ? ' · ' + esc(i.alasan_paksa) : '') +
+            '</div>' +
+          '</div>' +
+          '<button class="btn btn-bahaya-hantu btn-kecil" ' +
+            'data-kunci-ulang="' + esc(i.item_id) + '" ' +
+            'data-judul="' + esc(i.judul) + '">Kunci Ulang</button>' +
+        '</div>';
+      }).join('') + '</div>';
+  }
+
+  if (!d.terkunci.length) {
+    isi += '<div class="kartu kartu-rapat">' +
+      '<span class="kecil lembut">✅ Tidak ada item yang terkunci ' +
+      'untuk murid ini.</span></div>';
+  } else {
+    isi += '<h3 class="mb-8">Masih terkunci <span class="lencana ' +
+      'lencana-peringatan">' + r.jml_terkunci + '</span></h3>' +
+      '<p class="bantuan mb-8">Centang yang ingin dibuka. Murid akan ' +
+      'menerima notifikasi.</p>' +
+      '<div class="kotak-pilih" id="kotak-kunci">' +
+      d.terkunci.map(function (i) {
+        return '<label class="pilih-baris">' +
+          '<input type="checkbox" value="' + esc(i.item_id) + '">' +
+          '<span class="tumbuh" style="min-width:0">' +
+            '<span class="kecil tebal">' +
+              (IKON_KUNCI[i.tipe] || '📌') + ' ' + esc(i.judul) + '</span><br>' +
+            '<span class="kecil lembut">Pertemuan ' + i.pertemuan_urutan +
+              ' — ' + esc(i.pertemuan_judul) +
+              /* Pertemuan yang terkunci perlu disebut: membuka satu
+                 item di dalamnya TIDAK membuka pertemuannya. */
+              (i.pertemuan_terbuka ? '' :
+                ' · <b>pertemuan masih terkunci</b>') +
+              (i.wajib ? '' : ' · opsional') +
+            '</span>' +
+          '</span></label>';
+      }).join('') + '</div>' +
+      '<div class="baris-antara mt-8">' +
+        '<button class="btn btn-teks btn-kecil" id="kunci-semua">' +
+          'Pilih semua</button>' +
+        '<span class="kecil lembut" id="kunci-jml">0 dipilih</span>' +
+      '</div>' +
+      '<div class="grup mt-16"><label>Alasan membuka</label>' +
+        '<input class="isian" id="kunci-alasan" maxlength="200" ' +
+        'placeholder="mis. sakit 2 minggu, susulan">' +
+        '<span class="bantuan">Wajib diisi. Tercatat di log dan ' +
+        'terlihat saat Anda meninjau ulang.</span></div>';
+  }
+
+  panel('Buka Kunci — ' + d.murid.nama, isi,
+    '<button class="btn btn-hantu" data-tutup="1">Tutup</button>' +
+    (d.terkunci.length
+      ? '<button class="btn" id="kunci-buka">Buka Akses</button>' : ''));
+
+  _pasangAksiKunci({
+    kelasId: d.kelas_id,
+    modeMurid: true,
+    userId: d.murid.user_id,
+    muatUlang: function () {
+      panelKunciMurid(d.murid.user_id, d.kelas_id, sesudah);
+    },
+    sesudah: sesudah
+  });
+}
+
+/* ---------------------------------------------- pintu 2: dari ITEM */
+
+/**
+ * Panel "murid mana saja yang terkunci pada item ini".
+ */
+function panelKunciItem(itemId, sesudah) {
+  callApi('getKunciItem', [itemId], { diam: true })
+    .then(function (d) { _gambarKunciItem(d, sesudah); })
+    .catch(function () {});
+}
+
+function _gambarKunciItem(d, sesudah) {
+  var it = d.item, r = d.rekap;
+
+  var isi =
+    '<div class="kartu kartu-rapat mb-16">' +
+      '<div class="tebal">' + (IKON_KUNCI[it.tipe] || '📌') + ' ' +
+        esc(it.judul) + '</div>' +
+      '<div class="kecil lembut">' +
+        labelKelas({ nama_kelas: it.nama_kelas, mapel: it.mapel }) +
+        (it.pertemuan_urutan ? ' · Pertemuan ' + it.pertemuan_urutan : '') +
+      '</div>' +
+    '</div>' +
+
+    '<div class="baris sela-kecil mb-16" style="flex-wrap:wrap">' +
+      '<span class="pil">✅ ' + r.jml_terbuka + ' sudah terbuka</span>' +
+      '<span class="pil">🔓 ' + r.jml_dibuka + ' dibuka guru</span>' +
+      '<span class="pil">🔒 ' + r.jml_terkunci + ' terkunci</span>' +
+    '</div>';
+
+  if (d.dibuka_paksa.length) {
+    isi += '<h3 class="mb-8">Sudah Anda buka</h3>' +
+      '<div class="kolom sela-kecil mb-16">' +
+      d.dibuka_paksa.map(function (m) {
+        return '<div class="baris-antara kartu kartu-rapat" ' +
+          'style="flex-wrap:wrap;gap:8px">' +
+          '<div class="tumbuh" style="min-width:0">' +
+            '<div class="kecil tebal">' + esc(m.nama) + '</div>' +
+            '<div class="kecil lembut">' + esc(m.username) +
+              (m.alasan_paksa ? ' · ' + esc(m.alasan_paksa) : '') +
+            '</div>' +
+          '</div>' +
+          '<button class="btn btn-bahaya-hantu btn-kecil" ' +
+            'data-kunci-ulang-murid="' + esc(m.user_id) + '" ' +
+            'data-nama="' + esc(m.nama) + '">Kunci Ulang</button>' +
+        '</div>';
+      }).join('') + '</div>';
+  }
+
+  if (!d.terkunci.length) {
+    isi += '<div class="kartu kartu-rapat">' +
+      '<span class="kecil lembut">✅ Tidak ada murid yang terkunci ' +
+      'pada item ini.</span></div>';
+  } else {
+    isi += '<h3 class="mb-8">Masih terkunci <span class="lencana ' +
+      'lencana-peringatan">' + r.jml_terkunci + '</span></h3>' +
+      '<p class="bantuan mb-8">Centang murid yang ingin dibukakan ' +
+      'akses. Mereka akan menerima notifikasi.</p>' +
+      '<input class="isian mb-8" id="kunci-cari" ' +
+        'placeholder="Cari nama murid…">' +
+      '<div class="kotak-pilih" id="kotak-kunci">' +
+      d.terkunci.map(function (m) {
+        return '<label class="pilih-baris" data-nama="' +
+          esc((m.nama + ' ' + m.username).toLowerCase()) + '">' +
+          '<input type="checkbox" value="' + esc(m.user_id) + '">' +
+          '<span class="tumbuh" style="min-width:0">' +
+            '<span class="kecil tebal">' + esc(m.nama) + '</span><br>' +
+            '<span class="kecil lembut">' + esc(m.username) + '</span>' +
+          '</span></label>';
+      }).join('') + '</div>' +
+      '<div class="baris-antara mt-8">' +
+        '<button class="btn btn-teks btn-kecil" id="kunci-semua">' +
+          'Pilih semua</button>' +
+        '<span class="kecil lembut" id="kunci-jml">0 dipilih</span>' +
+      '</div>' +
+      '<div class="grup mt-16"><label>Alasan membuka</label>' +
+        '<input class="isian" id="kunci-alasan" maxlength="200" ' +
+        'placeholder="mis. ikut lomba LKS, susulan">' +
+        '<span class="bantuan">Wajib diisi. Tercatat di log dan ' +
+        'terlihat saat Anda meninjau ulang.</span></div>';
+  }
+
+  panel('Buka Kunci — ' + it.judul, isi,
+    '<button class="btn btn-hantu" data-tutup="1">Tutup</button>' +
+    (d.terkunci.length
+      ? '<button class="btn" id="kunci-buka">Buka Akses</button>' : ''));
+
+  _pasangAksiKunci({
+    itemId: it.item_id,
+    modeMurid: false,
+    muatUlang: function () { panelKunciItem(it.item_id, sesudah); },
+    sesudah: sesudah
+  });
+}
+
+/* ---------------------------------------------- aksi bersama
+
+   Kedua panel memakai penangan yang SAMA. Yang berbeda hanya apa
+   yang dicentang: mode murid mencentang ITEM, mode item mencentang
+   MURID. Menyalin penangannya jadi dua berarti dua tempat yang harus
+   dijaga selaras — pola bug v1.6.5.                                  */
+
+function _pasangAksiKunci(opsi) {
+  var kotak = $('#kotak-kunci');
+
+  if (kotak) {
+    function hitung() {
+      var n = $$('input:checked', kotak).length;
+      var el = $('#kunci-jml');
+      if (el) el.textContent = n + ' dipilih';
+    }
+    kotak.onchange = hitung;
+
+    $('#kunci-semua').onclick = function () {
+      var semua = $$('input', kotak);
+      var adaKosong = semua.some(function (c) { return !c.checked; });
+      semua.forEach(function (c) {
+        if (c.closest('.pilih-baris').style.display !== 'none') {
+          c.checked = adaKosong;
+        }
+      });
+      hitung();
+    };
+
+    var cari = $('#kunci-cari');
+    if (cari) cari.oninput = function () {
+      var q = (this.value || '').toLowerCase();
+      $$('.pilih-baris', kotak).forEach(function (l) {
+        l.style.display = l.dataset.nama.indexOf(q) !== -1 ? '' : 'none';
+      });
+    };
+
+    $('#kunci-buka').onclick = function () {
+      var ids = $$('input:checked', kotak).map(function (c) { return c.value; });
+      var alasan = $('#kunci-alasan').value.trim();
+
+      if (!ids.length) {
+        toast(opsi.modeMurid ? 'Pilih minimal satu item.'
+                             : 'Pilih minimal satu murid.', 'peringatan');
+        return;
+      }
+      if (!alasan) {
+        toast('Alasan wajib diisi.', 'peringatan');
+        $('#kunci-alasan').focus();
+        return;
+      }
+
+      var tombol = this;
+
+      /* Mode murid: satu murid × beberapa item → panggil per item.
+         Mode item : satu item × beberapa murid → satu panggilan.
+
+         Dibedakan di sini, bukan di server: API bukaKunciBanyak()
+         memang berbentuk (banyak murid, satu item). */
+      var kerja = opsi.modeMurid
+        ? ids.reduce(function (rantai, itemId) {
+            return rantai.then(function (n) {
+              return callApi('bukaKunciBanyak',
+                             [[opsi.userId], itemId, alasan], { diam: true })
+                .then(function () { return n + 1; });
+            });
+          }, Promise.resolve(0))
+            .then(function (n) { return { dibuka: n, jml_gagal: 0 }; })
+        : callApi('bukaKunciBanyak', [ids, opsi.itemId, alasan],
+                  { tombol: tombol });
+
+      /* Penjaga anti-klik-ganda: mode murid memakai banyak panggilan
+         berurutan, jadi tombolnya dimatikan manual (§6.2 no. 21). */
+      if (opsi.modeMurid) {
+        tombol.disabled = true;
+        tampilkanMuat(true, 'Membuka ' + ids.length + ' akses…');
+      }
+
+      kerja.then(function (hasil) {
+        if (opsi.modeMurid) tampilkanMuat(false);
+        _panelKotor = false;
+        tutupPanel(false);
+
+        if (hasil.jml_gagal) {
+          /* Kegagalan sebagian DILAPORKAN, bukan didiamkan. */
+          dialog({
+            judul: 'Sebagian gagal dibuka',
+            pesan: '<b>' + hasil.dibuka + '</b> berhasil dibuka, ' +
+                   '<b>' + hasil.jml_gagal + '</b> gagal.',
+            html: '<div class="kotak-peringatan kartu kartu-rapat">' +
+                  '<div class="kecil">' +
+                  (hasil.gagal || []).map(esc).join('<br>') +
+                  '</div></div>',
+            tanpaBatal: true, labelYa: 'Mengerti'
+          }).then(function () {
+            if (opsi.sesudah) opsi.sesudah();
+          });
+          return;
+        }
+
+        toast(hasil.dibuka + ' akses dibuka. Murid diberi tahu.', 'sukses');
+        if (opsi.sesudah) opsi.sesudah();
+      }).catch(function () {
+        if (opsi.modeMurid) { tampilkanMuat(false); tombol.disabled = false; }
+      });
+    };
+  }
+
+  /* --- Kunci Ulang (batalkan pembukaan) --- */
+  var wadah = $('.panel-isi');
+  if (!wadah) return;
+
+  wadah.addEventListener('click', function (e) {
+    var b = e.target.closest('[data-kunci-ulang]');
+    var m = e.target.closest('[data-kunci-ulang-murid]');
+    if (!b && !m) return;
+
+    var userId = b ? opsi.userId : m.dataset.kunciUlangMurid;
+    var itemId = b ? b.dataset.kunciUlang : opsi.itemId;
+    var nama = b ? b.dataset.judul : m.dataset.nama;
+
+    konfirmasi('Kunci Ulang',
+      'Akses <b>' + esc(nama) + '</b> dikembalikan ke aturan normal. ' +
+      'Pekerjaan dan nilai yang sudah masuk <b>tidak dihapus</b>.',
+      { labelYa: 'Kunci Ulang', bahaya: true }).then(function (ya) {
+        if (!ya) return;
+        callApi('kunciUlangItem', [userId, itemId]).then(function () {
+          toast('Akses dikunci ulang.', 'sukses');
+          opsi.muatUlang();
+          if (opsi.sesudah) opsi.sesudah();
+        });
+      });
+  });
+}
+</script>

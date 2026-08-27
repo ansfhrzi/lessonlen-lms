@@ -1,0 +1,41 @@
+<template id="tpl-baca">
+  <div>
+    <div id="topbar-slot"></div>
+
+    <div class="wadah" style="padding-bottom:20px">
+     <div class="tata-nav">
+      <aside class="sisi-nav" id="sisi-nav"></aside>
+      <div class="isi-nav">
+
+      <div id="baca-laci"></div>
+      <div class="baca-kepala">
+        <button class="tautan-balik" id="baca-balik">‹ Kembali ke Pertemuan</button>
+        <div class="baris-antara">
+          <div style="min-width:0">
+            <div class="baca-judul" id="baca-judul">Memuat…</div>
+            <div class="kecil lembut" id="baca-sub"></div>
+          </div>
+          <span class="lencana" id="baca-cacah">1 / 1</span>
+        </div>
+        <div class="jejak-bagian mt-8" id="baca-jejak"></div>
+      </div>
+
+      <div class="isi-baca" id="baca-isi"></div>
+
+      <div class="baca-kaki">
+        <button class="btn btn-hantu" id="baca-mundur">← Sebelumnya</button>
+        <div class="durasi-bar sembunyi" id="baca-durasi">
+          <div class="durasi-isi" id="baca-durasi-isi"></div>
+        </div>
+        <div class="tumbuh"></div>
+        <button class="btn" id="baca-maju">✓ Selesai &amp; Lanjut</button>
+      </div>
+
+      <div id="baca-antar-item"></div>
+
+      </div>
+     </div>
+     <div class="tirai-sisi" id="tirai-sisi" onclick="navTutup()"></div>
+    </div>
+  </div>
+</template>

@@ -1,0 +1,2300 @@
+<script>
+/* ============================================================
+   LessonLen — js_editor
+   Layar pertemuan, item, dan editor konten kaya
+   ============================================================ */
+
+var IKON_TIPE = { materi: '📄', lkpd: '📝', quiz: '🎯', refleksi: '🪞',
+                  tugas_kelompok: '👥' };
+var NAMA_TIPE = { materi: 'Materi', lkpd: 'LKPD', quiz: 'Quiz',
+                  refleksi: 'Refleksi',
+                  tugas_kelompok: 'Tugas Kelompok' };
+
+/* ---------------------------------------------- layar pertemuan */
+
+function layarPertemuan(kelasId, segar) {
+  /* `segar` = struktur baru saja diubah; buang cache bersamanya
+     supaya perubahan guru langsung terlihat (v1.15.3). */
+  if (segar && typeof bataliStrukturKelas === 'function') {
+    bataliStrukturKelas(kelasId);
+  }
+  var app = render('tpl-dashboard');
+  pasangTopbar(app);
+  /* Sidebar menu guru (v1.13.2). Layar ini dituju LANGSUNG dari
+     daftar kelas di sidebar — tanpa ini sidebarnya lenyap tepat
+     setelah dipakai. */
+  var isi = (typeof menuRangka === 'function')
+    ? menuRangka(app, 'kelas') : $('#isi-halaman', app);
+  isi.innerHTML = rangkaMuat(72, 4);
+
+  /* Dipakai bersama sidebar (v1.15.3) — keduanya butuh struktur yang
+     SAMA PERSIS; tanpa ini keduanya menembak getStrukturKelas pada
+     detik yang sama. Penjaga typeof: jalur lama tetap bekerja bila
+     js_menu belum tersalin. */
+  (typeof strukturKelasBersama === 'function'
+    ? strukturKelasBersama(kelasId)
+    : callApi('getStrukturKelas', [kelasId], { diam: true }))
+    .then(function (d) {
+      State.kelasAktif = d.kelas;
+      State.strukturKelas = d;
+      gambarStruktur(isi, kelasId, d);
+    })
+    .catch(function () {
+      isi.innerHTML = kosongkan('⚠️', 'Tidak dapat memuat kelas',
+        'Periksa koneksi Anda, lalu coba lagi.',
+        '<button class="btn btn-hantu btn-kecil mt-16" ' +
+        'onclick="router()">Coba Lagi</button>');
+    });
+}
+
+/* Materi pokok mana yang sedang terbuka — bertahan antar penggambaran
+   ulang supaya guru tidak kehilangan tempatnya setelah menyimpan. */
+var MP_TERBUKA = {};
+
+/* Penanda bahwa guru SUDAH pernah menyentuh pelipatan pada kelas ini.
+   Tanpa penanda ini, "buka bab pertama otomatis" tidak bisa membedakan
+   layar yang baru dibuka dari guru yang sengaja melipat semuanya —
+   akibatnya bab pertama membuka diri lagi dan tampak tidak bisa
+   dilipat sama sekali. */
+var MP_DISENTUH = null;
+
+function gambarStruktur(isi, kelasId, d) {
+  var k = d.kelas;
+  var mp = d.materi_pokok || [];
+  var yatim = d.yatim || [];
+
+  /* semua pertemuan, datar — dipakai panel salin & pemindahan */
+  var semuaPtm = [];
+  mp.forEach(function (m) {
+    m.pertemuan.forEach(function (p) { semuaPtm.push(p); });
+  });
+
+  /* Bab pertama dibuka otomatis HANYA saat kelas ini pertama kali
+     digambar, supaya halaman tidak tampak kosong. Setelah guru
+     menyentuh pelipatan, pilihannya dihormati sepenuhnya. */
+  if (MP_DISENTUH !== kelasId) {
+    MP_DISENTUH = kelasId;
+    MP_TERBUKA = {};
+    if (mp.length) MP_TERBUKA[mp[0].mp_id] = true;
+  }
+
+  var jmlPtm = semuaPtm.length + yatim.length;
+
+  isi.innerHTML =
+    '<button class="tautan-balik" onclick="pergiKe(\'#/kelas\')">‹ Kelola Kelas</button>' +
+    '<div class="baris-antara mb-16">' +
+      '<div style="min-width:0">' +
+        '<h1>' + esc(k.nama_kelas) + '</h1>' +
+        '<p class="lembut kecil">' + esc(k.mapel) + ' · ' +
+          mp.length + ' materi pokok · ' + jmlPtm + ' pertemuan</p>' +
+      '</div>' +
+      '<div class="baris sela-kecil">' +
+        (jmlPtm ? '<button class="btn btn-hantu btn-kecil" id="btn-salin">' +
+                  'Salin ke Kelas Lain</button>' : '') +
+        '<button class="btn btn-hantu btn-kecil" id="btn-kerangka">' +
+          '✨ Kerangka AI</button>' +
+        '<button class="btn" id="btn-mp-baru">+ Materi Pokok</button>' +
+      '</div>' +
+    '</div>' +
+    (yatim.length ? kotakYatim(yatim) : '') +
+    (mp.length
+      ? '<div class="kolom" id="daftar-mp">' +
+          mp.map(function (m, i) {
+            return kartuMateriPokok(m, i, mp.length);
+          }).join('') + '</div>'
+      : kosongkan('📚', 'Belum ada Materi Pokok',
+          'Materi Pokok adalah bab besar yang memuat beberapa pertemuan. ' +
+          'Buat satu untuk mulai menyusun kelas ini.'));
+
+  $('#btn-mp-baru', isi).onclick = function () { formMateriPokok(kelasId, null); };
+  var bs = $('#btn-salin', isi);
+  if (bs) bs.onclick = function () { panelSalin(kelasId, semuaPtm.concat(yatim)); };
+  $('#btn-kerangka', isi).onclick = function () {
+    /* Bab yang SUDAH ada ikut dikirim: panel menanyakan apakah hasil
+       kerangka digabung ke situ atau dibuat bab baru (v1.8.4). */
+    panelKerangkaAI(kelasId, k,
+      function () { layarPertemuan(kelasId, true); },
+      mp.map(function (m) {
+        return { mp_id: m.mp_id, judul: m.judul };
+      }));
+  };
+
+  isi.onclick = function (e) {
+    var b;
+    /* --- materi pokok --- */
+    if ((b = e.target.closest('[data-mp-lipat]'))) {
+      var id = b.dataset.mpLipat;
+      MP_TERBUKA[id] = !MP_TERBUKA[id];
+      gambarStruktur(isi, kelasId, d);
+    }
+    else if ((b = e.target.closest('[data-mp-edit]')))
+      formMateriPokok(kelasId, b.dataset.mpEdit);
+    else if ((b = e.target.closest('[data-mp-hapus]')))
+      hapusMateriPokokKonfirmasi(kelasId, b.dataset.mpHapus, b.dataset.judul);
+    else if ((b = e.target.closest('[data-mp-naik]')))
+      geserMateriPokok(kelasId, b.dataset.mpNaik, -1);
+    else if ((b = e.target.closest('[data-mp-turun]')))
+      geserMateriPokok(kelasId, b.dataset.mpTurun, 1);
+    else if ((b = e.target.closest('[data-ptm-baru]')))
+      formPertemuan(kelasId, null, b.dataset.ptmBaru);
+    /* --- pertemuan --- */
+    else if ((b = e.target.closest('[data-buka]')))
+      pergiKe('#/pertemuan/' + b.dataset.buka);
+    else if ((b = e.target.closest('[data-edit-ptm]')))
+      formPertemuan(kelasId, b.dataset.editPtm, null);
+    else if ((b = e.target.closest('[data-hapus-ptm]')))
+      hapusPertemuanKonfirmasi(b.dataset.hapusPtm, b.dataset.judul);
+    else if ((b = e.target.closest('[data-pindah-ptm]')))
+      panelPindahPertemuan(kelasId, b.dataset.pindahPtm, b.dataset.judul, mp);
+    else if ((b = e.target.closest('[data-naik]')))
+      geserPertemuanDalamMp(kelasId, b.dataset.mp, b.dataset.naik, -1);
+    else if ((b = e.target.closest('[data-turun]')))
+      geserPertemuanDalamMp(kelasId, b.dataset.mp, b.dataset.turun, 1);
+  };
+}
+
+/* Pertemuan yang materi pokoknya hilang — sisa data lama. Ditampilkan
+   agar guru sadar dan bisa memindahkannya, bukan disembunyikan. */
+function kotakYatim(yatim) {
+  return '<div class="kartu panel-tindakan mb-16">' +
+    '<div class="tebal mb-8">⚠️ ' + yatim.length +
+      ' pertemuan belum masuk Materi Pokok</div>' +
+    '<p class="kecil lembut mb-8">Pertemuan ini tidak terlihat murid. ' +
+      'Jalankan <code>migrasiHierarki()</code> di editor Apps Script, ' +
+      'atau pindahkan satu per satu.</p>' +
+    '<div class="kolom sela-kecil">' +
+      yatim.map(function (p) {
+        return '<div class="baris-antara">' +
+          '<span class="kecil">' + esc(p.judul) + '</span>' +
+          '<button class="btn btn-hantu btn-kecil" data-pindah-ptm="' +
+            esc(p.pertemuan_id) + '" data-judul="' + esc(p.judul) +
+            '">Pindahkan</button></div>';
+      }).join('') +
+    '</div></div>';
+}
+
+var IKON_JENIS = { biasa: '📘', ujian: '🧪', refleksi: '🪞' };
+var NAMA_JENIS = { biasa: 'Pertemuan', ujian: 'Ujian / UH', refleksi: 'Refleksi Bab' };
+
+function kartuMateriPokok(m, idx, total) {
+  var buka = !!MP_TERBUKA[m.mp_id];
+  var rincian = [];
+  if (m.jml_pertemuan) rincian.push(m.jml_pertemuan + ' pertemuan');
+  if (m.jml_item) rincian.push(m.jml_item + ' item');
+  if (m.jml_draf) rincian.push(m.jml_draf + ' draf');
+
+  return '<div class="kartu kartu-mp' +
+      (m.status !== 'publish' ? ' draf' : '') + '">' +
+
+    /* --- kepala: judul + tombol lipat --- */
+    '<div class="baris-antara" style="gap:12px">' +
+      '<button class="btn-lipat-mp" data-mp-lipat="' + esc(m.mp_id) + '" ' +
+        'aria-expanded="' + (buka ? 'true' : 'false') + '">' +
+        '<span class="kaki-lipat">' + (buka ? '▾' : '▸') + '</span>' +
+        '<span class="nomor-mp">' + m.urutan + '</span>' +
+        '<span style="min-width:0;text-align:left">' +
+          '<span class="tebal" style="font-size:1.05rem">' +
+            esc(m.judul) + '</span>' +
+          '<br><span class="kecil lembut">' +
+            (rincian.length ? rincian.join(' · ') : 'belum ada isi') +
+            (m.wajib ? '' : ' · opsional') + '</span>' +
+        '</span>' +
+      '</button>' +
+      (m.status === 'publish'
+        ? '<span class="lencana lencana-sukses">terbit</span>'
+        : '<span class="lencana lencana-peringatan">draf</span>') +
+    '</div>' +
+
+    /* --- tindakan materi pokok --- */
+    '<div class="baris sela-kecil mt-8" style="flex-wrap:wrap">' +
+      '<button class="btn btn-hantu btn-kecil" data-mp-edit="' +
+        esc(m.mp_id) + '">Ubah</button>' +
+      '<button class="btn btn-teks btn-kecil" data-mp-naik="' + esc(m.mp_id) +
+        '" title="Naikkan"' + (idx === 0 ? ' disabled' : '') + '>↑</button>' +
+      '<button class="btn btn-teks btn-kecil" data-mp-turun="' + esc(m.mp_id) +
+        '" title="Turunkan"' + (idx === total - 1 ? ' disabled' : '') + '>↓</button>' +
+      '<button class="btn btn-teks btn-kecil" data-mp-hapus="' + esc(m.mp_id) +
+        '" data-judul="' + esc(m.judul) + '">Hapus</button>' +
+    '</div>' +
+
+    /* --- isi: daftar pertemuan --- */
+    (buka
+      ? '<div class="isi-mp mt-16">' +
+          (m.pertemuan.length
+            ? '<div class="kolom sela-kecil">' +
+                m.pertemuan.map(function (p, i) {
+                  return barisPertemuanGuru(p, m, i, m.pertemuan.length);
+                }).join('') + '</div>'
+            : '<p class="kecil lembut" style="padding:8px 0">' +
+              'Belum ada pertemuan di materi pokok ini.</p>') +
+          '<button class="btn btn-hantu btn-kecil mt-8" data-ptm-baru="' +
+            esc(m.mp_id) + '">+ Pertemuan</button>' +
+        '</div>'
+      : '') +
+    '</div>';
+}
+
+function barisPertemuanGuru(p, m, idx, total) {
+  var rincian = [];
+  if (p.jml_materi)   rincian.push(p.jml_materi + ' materi');
+  if (p.jml_lkpd)     rincian.push('LKPD');
+  if (p.jml_quiz)     rincian.push('Quiz');
+  if (p.jml_refleksi) rincian.push('Refleksi');
+
+  var jenis = p.jenis || 'biasa';
+
+  return '<div class="kartu-ptm' + (p.status !== 'publish' ? ' draf' : '') +
+      (jenis !== 'biasa' ? ' jenis-' + esc(jenis) : '') + '">' +
+    '<div class="baris-antara mb-8" style="gap:10px">' +
+      '<div class="baris" style="min-width:0;gap:10px">' +
+        '<span class="nomor-ptm">' + m.urutan + '.' + p.urutan + '</span>' +
+        '<div style="min-width:0">' +
+          '<div class="tebal">' +
+            (jenis !== 'biasa' ? (IKON_JENIS[jenis] || '') + ' ' : '') +
+            esc(p.judul) + '</div>' +
+          '<div class="kecil lembut">' +
+            (jenis !== 'biasa' ? NAMA_JENIS[jenis] + ' · ' : '') +
+            (rincian.length ? rincian.join(' · ') : 'belum ada item') +
+            (p.jml_draf ? ' · ' + p.jml_draf + ' draf' : '') +
+            (p.wajib ? '' : ' · opsional') +
+          '</div>' +
+        '</div>' +
+      '</div>' +
+      (p.status === 'publish'
+        ? '<span class="lencana lencana-sukses">terbit</span>'
+        : '<span class="lencana lencana-peringatan">draf</span>') +
+    '</div>' +
+    '<div class="baris sela-kecil" style="flex-wrap:wrap">' +
+      '<button class="btn btn-kecil" data-buka="' + esc(p.pertemuan_id) + '">' +
+        'Kelola Item</button>' +
+      '<button class="btn btn-hantu btn-kecil" data-edit-ptm="' +
+        esc(p.pertemuan_id) + '">Ubah</button>' +
+      '<button class="btn btn-teks btn-kecil" data-naik="' +
+        esc(p.pertemuan_id) + '" data-mp="' + esc(m.mp_id) +
+        '" title="Naikkan"' + (idx === 0 ? ' disabled' : '') + '>↑</button>' +
+      '<button class="btn btn-teks btn-kecil" data-turun="' +
+        esc(p.pertemuan_id) + '" data-mp="' + esc(m.mp_id) +
+        '" title="Turunkan"' + (idx === total - 1 ? ' disabled' : '') + '>↓</button>' +
+      '<button class="btn btn-teks btn-kecil" data-pindah-ptm="' +
+        esc(p.pertemuan_id) + '" data-judul="' + esc(p.judul) +
+        '" title="Pindah ke Materi Pokok lain">⇄</button>' +
+      '<button class="btn btn-teks btn-kecil" data-hapus-ptm="' +
+        esc(p.pertemuan_id) + '" data-judul="' + esc(p.judul) + '">Hapus</button>' +
+    '</div></div>';
+}
+
+/* ---------------------------------------------- materi pokok: form */
+
+function formMateriPokok(kelasId, mpId) {
+  var muat = mpId
+    ? callApi('getDetailMateriPokok', [mpId], { diam: true })
+    : Promise.resolve({});
+
+  muat.then(function (m) {
+    m = m || {};
+    panel(mpId ? 'Ubah Materi Pokok' : 'Materi Pokok Baru',
+      '<div class="grup"><label>Judul *</label>' +
+        '<input class="isian" id="m-judul" value="' + esc(m.judul || '') +
+        '" placeholder="mis. Konfigurasi VLAN dan Trunking"></div>' +
+      '<div class="grup"><label>Tujuan Pembelajaran</label>' +
+        '<textarea class="isian" id="m-tujuan" rows="3" ' +
+        'placeholder="Peserta didik mampu…">' +
+        esc(m.tujuan_pembelajaran || '') + '</textarea>' +
+        '<span class="bantuan">Dipakai AI sebagai konteks saat membuat materi.</span></div>' +
+      '<div class="grup"><label>Deskripsi</label>' +
+        '<textarea class="isian" id="m-desk" rows="2">' +
+        esc(m.deskripsi || '') + '</textarea></div>' +
+      '<div class="grup"><label class="baris sela-kecil" style="cursor:pointer">' +
+        '<input type="checkbox" id="m-wajib"' +
+        (m.wajib !== false ? ' checked' : '') + '> Wajib diselesaikan</label>' +
+        '<span class="bantuan">Bila tidak wajib, materi pokok ini tidak ' +
+        'mengunci materi pokok berikutnya.</span></div>' +
+      '<div class="grup"><label>Status</label>' +
+        '<select class="isian" id="m-status">' +
+          '<option value="draft">Draf — belum terlihat murid</option>' +
+          '<option value="publish"' + (m.status === 'publish' ? ' selected' : '') +
+          '>Terbit — dapat diakses murid</option>' +
+        '</select>' +
+        '<span class="bantuan">Materi pokok draf menyembunyikan seluruh ' +
+        'pertemuan di dalamnya, sekalipun pertemuannya sudah terbit.</span></div>',
+
+      '<button class="btn btn-hantu" data-tutup="1">Batal</button>' +
+      '<button class="btn" id="btn-simpan-mp">Simpan</button>'
+    );
+
+    $('#btn-simpan-mp').onclick = function () {
+      var d = {
+        mp_id: mpId || '',
+        kelas_id: kelasId,
+        judul: $('#m-judul').value.trim(),
+        tujuan_pembelajaran: $('#m-tujuan').value.trim(),
+        deskripsi: $('#m-desk').value.trim(),
+        wajib: $('#m-wajib').checked,
+        status: $('#m-status').value
+      };
+      if (!d.judul) { toast('Judul wajib diisi.', 'peringatan'); return; }
+
+      callApi('simpanMateriPokok', [d], { tombol: $('#btn-simpan-mp') })
+        .then(function (r) {
+          tutupPanel(false);
+          toast(r.baru ? 'Materi Pokok dibuat.' : 'Perubahan disimpan.', 'sukses');
+          if (r.mp_id) MP_TERBUKA[r.mp_id] = true;
+          layarPertemuan(kelasId, true);
+        });
+    };
+  });
+}
+
+function hapusMateriPokokKonfirmasi(kelasId, mpId, judul) {
+  konfirmasi('Hapus Materi Pokok',
+    '<b>' + esc(judul) + '</b> beserta <b>seluruh pertemuan, item, soal, ' +
+    'dan progres murid</b> di dalamnya akan dihapus permanen.<br><br>' +
+    'Bila hanya ingin menyembunyikannya dari murid, ubah statusnya ' +
+    'menjadi <b>draf</b> saja.',
+    { labelYa: 'Hapus Permanen', bahaya: true }).then(function (ya) {
+      if (!ya) return;
+      callApi('hapusMateriPokok', [mpId]).then(function (r) {
+        toast('Materi Pokok dihapus (' + r.pertemuan_terhapus +
+              ' pertemuan, ' + r.item_terhapus + ' item).', 'sukses');
+        delete MP_TERBUKA[mpId];
+        layarPertemuan(kelasId, true);
+      });
+    });
+}
+
+function geserMateriPokok(kelasId, mpId, arah) {
+  callApi('geserMateriPokok', [mpId, arah], { diam: true })
+    .then(function () { layarPertemuan(kelasId, true); });
+}
+
+/* ---------------------------------------------- pindah antar materi pokok */
+
+function panelPindahPertemuan(kelasId, pid, judul, daftarMp) {
+  if (!daftarMp || daftarMp.length < 2) {
+    dialog({ judul: 'Butuh Materi Pokok Lain',
+             pesan: 'Buat minimal dua Materi Pokok untuk bisa memindahkan ' +
+                    'pertemuan di antaranya.',
+             tanpaBatal: true, labelYa: 'Mengerti' });
+    return;
+  }
+
+  panel('Pindahkan Pertemuan',
+    '<p class="bantuan mb-16"><b>' + esc(judul) + '</b> akan dipindahkan ' +
+      'beserta seluruh item dan progres muridnya. Nomor urutnya menyesuaikan ' +
+      'materi pokok tujuan.</p>' +
+    '<div class="grup"><label>Materi Pokok tujuan</label>' +
+      '<select class="isian" id="pindah-tujuan">' +
+        daftarMp.map(function (m) {
+          return '<option value="' + esc(m.mp_id) + '">' + m.urutan + '. ' +
+                 esc(m.judul) + '</option>';
+        }).join('') +
+      '</select></div>',
+
+    '<button class="btn btn-hantu" data-tutup="1">Batal</button>' +
+    '<button class="btn" id="btn-pindah-jalan">Pindahkan</button>'
+  );
+
+  $('#btn-pindah-jalan').onclick = function () {
+    var tujuan = $('#pindah-tujuan').value;
+    callApi('pindahPertemuan', [pid, tujuan], { tombol: $('#btn-pindah-jalan') })
+      .then(function (r) {
+        tutupPanel(false);
+        toast(r.dipindah ? 'Pertemuan dipindahkan.'
+                         : 'Pertemuan sudah ada di materi pokok itu.',
+              r.dipindah ? 'sukses' : 'info');
+        MP_TERBUKA[tujuan] = true;
+        layarPertemuan(kelasId, true);
+      });
+  };
+}
+
+/* ---------------------------------------------- pertemuan */
+
+function geserPertemuanDalamMp(kelasId, mpId, pid, arah) {
+  var d = State.strukturKelas;
+  var m = null;
+  (d && d.materi_pokok || []).forEach(function (x) {
+    if (x.mp_id === mpId) m = x;
+  });
+  if (!m) return;
+
+  /* aturUrutanPertemuan menomori ulang sesuai posisi dalam larik,
+     jadi cukup kirim urutan baru untuk materi pokok INI saja */
+  var ids = m.pertemuan.map(function (p) { return p.pertemuan_id; });
+  var i = ids.indexOf(pid);
+  var j = i + arah;
+  if (i < 0 || j < 0 || j >= ids.length) return;
+  var t = ids[i]; ids[i] = ids[j]; ids[j] = t;
+
+  callApi('aturUrutanPertemuan', [kelasId, ids], { diam: true })
+    .then(function () { layarPertemuan(kelasId, true); });
+}
+
+function formPertemuan(kelasId, pertemuanId, mpId) {
+  var muat = pertemuanId
+    ? callApi('getDetailPertemuan', [pertemuanId], { diam: true })
+        .then(function (d) { return d.pertemuan; })
+    : Promise.resolve({});
+
+  muat.then(function (p) {
+    p = p || {};
+    var jenis = p.jenis || 'biasa';
+
+    panel(pertemuanId ? 'Ubah Pertemuan' : 'Pertemuan Baru',
+      '<div class="grup"><label>Jenis</label>' +
+        '<select class="isian" id="p-jenis">' +
+          '<option value="biasa"' + (jenis === 'biasa' ? ' selected' : '') +
+            '>📘 Pertemuan biasa</option>' +
+          '<option value="ujian"' + (jenis === 'ujian' ? ' selected' : '') +
+            '>🧪 Ujian / Ulangan Harian</option>' +
+          '<option value="refleksi"' + (jenis === 'refleksi' ? ' selected' : '') +
+            '>🪞 Refleksi Bab</option>' +
+        '</select>' +
+        '<span class="bantuan">Ujian dan Refleksi Bab tetap berupa pertemuan — ' +
+        'hanya penanda agar mudah dikenali murid.</span></div>' +
+      '<div class="grup"><label>Judul *</label>' +
+        '<input class="isian" id="p-judul" value="' + esc(p.judul || '') +
+        '" placeholder="mis. Konsep Dasar VLAN"></div>' +
+      '<div class="grup"><label>Tujuan Pembelajaran</label>' +
+        '<textarea class="isian" id="p-tujuan" rows="3" ' +
+        'placeholder="Peserta didik mampu…">' +
+        esc(p.tujuan_pembelajaran || '') + '</textarea>' +
+        '<span class="bantuan">Dipakai AI saat membuat materi.</span></div>' +
+      '<div class="grup"><label>Deskripsi</label>' +
+        '<textarea class="isian" id="p-desk" rows="2">' +
+        esc(p.deskripsi || '') + '</textarea></div>' +
+      '<div class="grup"><label class="baris sela-kecil" style="cursor:pointer">' +
+        '<input type="checkbox" id="p-wajib"' +
+        (p.wajib !== false ? ' checked' : '') + '> Wajib diselesaikan</label>' +
+        '<span class="bantuan">Bila tidak wajib, pertemuan ini tidak ' +
+        'mengunci pertemuan berikutnya.</span></div>' +
+      '<div class="grup"><label class="baris sela-kecil" style="cursor:pointer">' +
+        '<input type="checkbox" id="p-ketat"' +
+        (p.urut_ketat !== false ? ' checked' : '') + '> Urutan ketat</label>' +
+        '<span class="bantuan">Materi harus dibaca berurutan; LKPD dan Quiz ' +
+        'terbuka setelah semua materi wajib selesai.</span></div>' +
+      '<div class="grup"><label>Status</label>' +
+        '<select class="isian" id="p-status">' +
+          '<option value="draft">Draf — belum terlihat murid</option>' +
+          '<option value="publish"' + (p.status === 'publish' ? ' selected' : '') +
+          '>Terbit — dapat diakses murid</option>' +
+        '</select></div>',
+
+      '<button class="btn btn-hantu" data-tutup="1">Batal</button>' +
+      '<button class="btn" id="btn-simpan-ptm">Simpan</button>'
+    );
+
+    $('#btn-simpan-ptm').onclick = function () {
+      var d = {
+        pertemuan_id: pertemuanId || '',
+        judul: $('#p-judul').value.trim(),
+        jenis: $('#p-jenis').value,
+        tujuan_pembelajaran: $('#p-tujuan').value.trim(),
+        deskripsi: $('#p-desk').value.trim(),
+        wajib: $('#p-wajib').checked,
+        urut_ketat: $('#p-ketat').checked,
+        status: $('#p-status').value
+      };
+      /* mp_id hanya dikirim saat MEMBUAT; kepindahan antar materi pokok
+         punya jalurnya sendiri (pindahPertemuan) karena item & progress
+         ikut berpindah */
+      if (pertemuanId) { /* edit: biarkan mp_id apa adanya */ }
+      else if (mpId)   { d.mp_id = mpId; }
+      else             { d.kelas_id = kelasId; }
+
+      if (!d.judul) { toast('Judul wajib diisi.', 'peringatan'); return; }
+
+      callApi('simpanPertemuan', [d], { tombol: $('#btn-simpan-ptm') })
+        .then(function (r) {
+          tutupPanel(false);
+          toast(r.baru ? 'Pertemuan dibuat.' : 'Perubahan disimpan.', 'sukses');
+          if (mpId) MP_TERBUKA[mpId] = true;
+          layarPertemuan(kelasId, true);
+        });
+    };
+  });
+}
+
+function hapusPertemuanKonfirmasi(pid, judul) {
+  konfirmasi('Hapus Pertemuan',
+    '<b>' + esc(judul) + '</b> beserta seluruh item, soal, dan progres murid ' +
+    'akan dihapus permanen.',
+    { labelYa: 'Hapus', bahaya: true }).then(function (ya) {
+      if (!ya) return;
+      callApi('hapusPertemuan', [pid]).then(function (r) {
+        toast('Pertemuan dihapus (' + r.item_terhapus + ' item).', 'sukses');
+        layarPertemuan(State.kelasAktif.kelas_id, true);
+      });
+    });
+}
+
+/* ---------------------------------------------- salin antar kelas */
+
+function panelSalin(kelasId, listPertemuan) {
+  (typeof daftarKelasBersama === 'function'
+    ? daftarKelasBersama()
+    : callApi('getDaftarKelas', [], { diam: true })).then(function (semuaKelas) {
+    var lain = semuaKelas.filter(function (k) { return k.kelas_id !== kelasId; });
+
+    if (!lain.length) {
+      dialog({ judul: 'Tidak Ada Kelas Lain',
+               pesan: 'Buat kelas lain terlebih dahulu untuk menyalin pertemuan.',
+               tanpaBatal: true, labelYa: 'Mengerti' });
+      return;
+    }
+
+    panel('Salin Pertemuan',
+      '<p class="bantuan mb-16">Pertemuan beserta seluruh item dan soal akan ' +
+      'disalin sebagai <b>draf</b> ke kelas tujuan.</p>' +
+      '<h3 class="mb-8">1. Pilih pertemuan</h3>' +
+      '<div class="kotak-pilih mb-16" id="pilih-ptm">' +
+        listPertemuan.map(function (p) {
+          return '<label class="pilih-baris">' +
+            '<input type="checkbox" value="' + esc(p.pertemuan_id) + '">' +
+            '<span class="tumbuh"><span class="kecil tebal">' + p.urutan + '. ' +
+            esc(p.judul) + '</span><br><span class="kecil lembut">' +
+            p.jml_item + ' item</span></span></label>';
+        }).join('') +
+      '</div>' +
+      '<h3 class="mb-8">2. Pilih kelas tujuan</h3>' +
+      '<div class="kotak-pilih" id="pilih-kelas">' +
+        lain.map(function (k) {
+          return '<label class="pilih-baris">' +
+            '<input type="checkbox" value="' + esc(k.kelas_id) + '">' +
+            '<span class="tumbuh"><span class="kecil tebal">' +
+            esc(namaKelasLengkap(k)) + '</span><br>' +
+            '<span class="kecil lembut">' +
+            k.jml_pertemuan + ' pertemuan</span></span></label>';
+        }).join('') +
+      '</div>',
+
+      '<button class="btn btn-hantu" data-tutup="1">Batal</button>' +
+      '<button class="btn" id="btn-salin-jalan">Salin</button>'
+    );
+
+    $('#btn-salin-jalan').onclick = function () {
+      var ptm = $$('#pilih-ptm input:checked').map(function (c) { return c.value; });
+      var kls = $$('#pilih-kelas input:checked').map(function (c) { return c.value; });
+      if (!ptm.length) { toast('Pilih minimal satu pertemuan.', 'peringatan'); return; }
+      if (!kls.length) { toast('Pilih minimal satu kelas tujuan.', 'peringatan'); return; }
+
+      callApi('salinPertemuan', [ptm, kls], { tombol: $('#btn-salin-jalan') })
+        .then(function (r) {
+          tutupPanel(false);
+          dialog({
+            judul: 'Salin Selesai',
+            pesan: r.pertemuan + ' pertemuan, ' + r.item + ' item, dan ' +
+                   r.soal + ' soal berhasil disalin ke ' + kls.length + ' kelas. ' +
+                   'Semuanya berstatus <b>draf</b> — tinjau lalu terbitkan.',
+            tanpaBatal: true, labelYa: 'Mengerti'
+          }).then(function () { layarPertemuan(kelasId, true); });
+        });
+    };
+  });
+}
+
+/* ---------------------------------------------- RUTE: item pertemuan */
+
+daftarRute('pertemuan', function (arg) {
+  if (!State.user || State.user.role !== 'guru') { pergiKe('#/beranda'); return; }
+  var pid = arg && arg[0];
+  if (!pid) { pergiKe('#/kelas'); return; }
+
+  var app = render('tpl-dashboard');
+  pasangTopbar(app);
+  /* Sidebar menu guru (v1.13.2) — menyusun item satu pertemuan
+     adalah pekerjaan panjang; guru harus tetap bisa berpindah. */
+  var isi = (typeof menuRangka === 'function')
+    ? menuRangka(app, 'kelas') : $('#isi-halaman', app);
+  isi.innerHTML = rangkaMuat(66, 3);
+
+  callApi('getDetailPertemuan', [pid], { diam: true }).then(function (d) {
+    State.pertemuanAktif = d.pertemuan;
+    State.kelasAktif = d.kelas;
+    var p = d.pertemuan, list = d.item;
+
+    isi.innerHTML =
+      '<button class="tautan-balik" onclick="pergiKe(\'#/kelas/' +
+        esc(d.kelas.kelas_id) + '\')">‹ ' + esc(d.kelas.nama_kelas) + '</button>' +
+      '<div class="kepala-halaman">' +
+        '<h1>Pertemuan ' + p.urutan + ' — ' + esc(p.judul) + '</h1>' +
+        (p.tujuan_pembelajaran
+          ? '<p class="lembut kecil">🎯 ' + esc(p.tujuan_pembelajaran) + '</p>' : '') +
+      '</div>' +
+      _peringatanTerbit(p, list) +
+      '<div class="baris sela-kecil mb-16" style="flex-wrap:wrap">' +
+        '<button class="btn" data-tambah="materi">📄 Materi</button>' +
+        '<button class="btn btn-hantu" data-tambah="lkpd">📝 LKPD</button>' +
+        '<button class="btn btn-hantu" data-tambah="quiz">🎯 Quiz</button>' +
+        '<button class="btn btn-hantu" data-tambah="refleksi">🪞 Refleksi</button>' +
+        '<button class="btn btn-hantu" data-tambah="tugas_kelompok">' +
+          '👥 Tugas Kelompok</button>' +
+      '</div>' +
+      (list.length
+        ? '<div class="kolom sela-kecil">' + list.map(function (it, idx) {
+            return barisItemGuru(it, idx, list.length);
+          }).join('') + '</div>'
+        : kosongkan('🧩', 'Belum ada item',
+            'Tambahkan materi, LKPD, atau quiz ke pertemuan ini.'));
+
+    isi.onclick = function (e) {
+      var b;
+      if ((b = e.target.closest('[data-tambah]')))
+        bukaEditorItem(pid, null, b.dataset.tambah);
+      else if ((b = e.target.closest('[data-edit-item]')))
+        bukaEditorItem(pid, b.dataset.editItem, null);
+      else if ((b = e.target.closest('[data-hapus-item]')))
+        hapusItemKonfirmasi(b.dataset.hapusItem, b.dataset.judul, pid);
+      else if ((b = e.target.closest('[data-naik-item]')))
+        geserItem(pid, list, b.dataset.naikItem, -1);
+      else if ((b = e.target.closest('[data-turun-item]')))
+        geserItem(pid, list, b.dataset.turunItem, 1);
+      else if ((b = e.target.closest('[data-nilai-lkpd]')))
+        pergiKe('#/lkpd-kelas/' + b.dataset.nilaiLkpd);
+      else if ((b = e.target.closest('[data-kelola-soal]')))
+        pergiKe('#/soal/' + b.dataset.kelolaSoal);
+      else if ((b = e.target.closest('[data-nilai-quiz]')))
+        pergiKe('#/nilai-quiz/' + b.dataset.nilaiQuiz);
+      else if ((b = e.target.closest('[data-rekap-refleksi]')))
+        pergiKe('#/rekap-refleksi/' + b.dataset.rekapRefleksi);
+      else if ((b = e.target.closest('[data-kelola-kelompok]')))
+        pergiKe('#/nilai-kelompok/' + b.dataset.kelolaKelompok);
+      else if ((b = e.target.closest('[data-pratinjau-item]')))
+        pratinjauItem(b.dataset.pratinjauItem, b.dataset.tipe);
+      else if ((b = e.target.closest('[data-buka-kunci]')))
+        panelKunciItem(b.dataset.bukaKunci);
+    };
+  });
+});
+
+/**
+ * Peringatan bila item sudah terbit tetapi WADAHNYA belum.
+ *
+ * Murid hanya melihat item bila KETIGA tingkat terbit:
+ *
+ *     Materi Pokok (bab) → Pertemuan → Item
+ *
+ * Sebelum v1.9.5 layar guru hanya menampilkan status ITEM. Guru
+ * menerbitkan quiz, melihat lencana "terbit", lalu bingung ketika
+ * murid melaporkan quiz terkunci — pesan yang muncul di sisi murid
+ * berbunyi "Pertemuan tidak ditemukan", yang sama sekali tidak
+ * menunjuk sebabnya.
+ *
+ * Peringatan ini hanya muncul bila memang ADA item terbit yang
+ * tertahan; pertemuan draf yang seluruh itemnya juga draf tidak
+ * diganggu — itu keadaan normal saat menyusun.
+ */
+function _peringatanTerbit(p, list) {
+  var adaItemTerbit = (list || []).some(function (i) {
+    return i.status === 'publish';
+  });
+  if (!adaItemTerbit) return '';
+
+  var sebab = [];
+  if (p.mp_status === 'draft') {
+    sebab.push('Materi Pokok <b>' + esc(p.mp_judul || 'ini') +
+               '</b> masih draf');
+  }
+  if (p.status !== 'publish') sebab.push('Pertemuan ini masih draf');
+  if (!sebab.length) return '';
+
+  return '<div class="kotak-peringatan kartu mb-16">' +
+    '<div class="tebal kecil mb-4">⚠ Item terbit, tetapi murid belum ' +
+    'dapat melihatnya</div>' +
+    '<div class="kecil">' + sebab.join(' · ') + '. Murid akan melihat ' +
+    'pesan <i>"Pertemuan tidak ditemukan"</i> bila membuka tautannya.' +
+    '<br>Terbitkan ' +
+    (p.mp_status === 'draft' ? 'Materi Pokok lewat <b>Kelola Kelas → Ubah</b> pada bab' : '') +
+    (p.mp_status === 'draft' && p.status !== 'publish' ? ' dan ' : '') +
+    (p.status !== 'publish' ? 'Pertemuan lewat tombol <b>Ubah</b> di atas' : '') +
+    '.</div></div>';
+}
+
+function barisItemGuru(i, idx, total) {
+  var info = [];
+  if (i.tipe === 'materi') info.push(i.jml_bagian + ' bagian');
+  if (i.tipe === 'quiz')   info.push(i.jml_soal + ' soal', 'KKM ' + (i.kkm || 75));
+  if (!i.wajib) info.push('opsional');
+
+  return '<div class="baris-item' + (i.status !== 'publish' ? ' draf' : '') + '">' +
+    '<span class="ikon-tipe ' + i.tipe + '">' + IKON_TIPE[i.tipe] + '</span>' +
+    '<div class="tumbuh" style="min-width:0">' +
+      '<div class="tebal kecil">' + esc(i.judul) +
+        (i.sumber_ai
+          ? ' <span class="lencana' + (i.ai_ditinjau ? ' lencana-sukses' : ' lencana-peringatan') +
+            '">✨ AI' + (i.ai_ditinjau ? '' : ' belum ditinjau') + '</span>'
+          : '') + '</div>' +
+      '<div class="kecil lembut">' + NAMA_TIPE[i.tipe] +
+        (info.length ? ' · ' + info.join(' · ') : '') +
+        (i.status !== 'publish' ? ' · draf' : '') + '</div>' +
+    '</div>' +
+    '<div class="baris" style="gap:2px">' +
+      /* Pratinjau tersedia untuk SELURUH tipe dan SEGALA status —
+         justru item draf yang paling perlu diperiksa sebelum terbit
+         (v1.9.2). */
+      '<button class="btn btn-teks btn-kecil" data-pratinjau-item="' +
+        esc(i.item_id) + '" data-tipe="' + esc(i.tipe) +
+        '" title="Lihat isinya tanpa membuka editor">👁</button>' +
+      (i.tipe === 'lkpd' && i.status === 'publish'
+        ? '<button class="btn btn-hantu btn-kecil" data-nilai-lkpd="' +
+          esc(i.item_id) + '" title="Lihat pengumpulan murid">📥 Penilaian</button>'
+        : '') +
+      (i.tipe === 'quiz'
+        ? '<button class="btn btn-hantu btn-kecil" data-kelola-soal="' +
+          esc(i.item_id) + '" title="Kelola bank soal">🎯 Soal</button>' +
+          (i.status === 'publish'
+            ? '<button class="btn btn-hantu btn-kecil" data-nilai-quiz="' +
+              esc(i.item_id) + '" title="Lihat hasil murid">📊 Penilaian</button>'
+            : '')
+        : '') +
+      /* Rekap refleksi diakses dari itemnya sendiri, sejajar dengan
+         Penilaian LKPD & Quiz — bukan dari tombol terpisah di kepala
+         halaman kelas. */
+      (i.tipe === 'refleksi' && i.status === 'publish'
+        ? '<button class="btn btn-hantu btn-kecil" data-rekap-refleksi="' +
+          esc(i.item_id) + '" title="Lihat jawaban murid">🪞 Penilaian</button>'
+        : '') +
+      /* Kelompok dibentuk SEBELUM item diterbitkan — tombolnya tidak
+         menunggu status publish, tidak seperti LKPD & Quiz. Guru
+         menyiapkan susunan dulu, baru menerbitkan. */
+      (i.tipe === 'tugas_kelompok'
+        ? '<button class="btn btn-hantu btn-kecil" data-kelola-kelompok="' +
+          esc(i.item_id) + '" title="Kelola kelompok & nilai">' +
+          '👥 Kelompok</button>'
+        : '') +
+      /* Buka kunci hanya berguna setelah item terbit — sebelum itu
+         tidak ada murid yang bisa membukanya sama sekali. */
+      (i.status === 'publish'
+        ? '<button class="btn btn-teks btn-kecil" data-buka-kunci="' +
+          esc(i.item_id) + '" title="Buka akses untuk murid tertentu">' +
+          '🔓</button>'
+        : '') +
+      /* tombol batas dikelabukan, seperti pada daftar pertemuan —
+         tanpa ini guru mengira geseran gagal padahal memang mentok */
+      '<button class="btn btn-teks btn-kecil" data-naik-item="' +
+        esc(i.item_id) + '" title="Naikkan"' +
+        (idx === 0 ? ' disabled' : '') + '>↑</button>' +
+      '<button class="btn btn-teks btn-kecil" data-turun-item="' +
+        esc(i.item_id) + '" title="Turunkan"' +
+        (idx === total - 1 ? ' disabled' : '') + '>↓</button>' +
+      '<button class="btn btn-kecil" data-edit-item="' +
+        esc(i.item_id) + '">Ubah</button>' +
+      '<button class="btn btn-teks btn-kecil" data-hapus-item="' +
+        esc(i.item_id) + '" data-judul="' + esc(i.judul) + '">✕</button>' +
+    '</div></div>';
+}
+
+function geserItem(pid, list, itemId, arah) {
+  var ids = list.map(function (i) { return i.item_id; });
+  var i = ids.indexOf(itemId), j = i + arah;
+  if (i < 0 || j < 0 || j >= ids.length) return;
+  var t = ids[i]; ids[i] = ids[j]; ids[j] = t;
+  callApi('aturUrutanItem', [pid, ids], { diam: true })
+    .then(function () { router(); });
+}
+
+function hapusItemKonfirmasi(itemId, judul, pid) {
+  konfirmasi('Hapus Item',
+    '<b>' + esc(judul) + '</b> beserta soal dan progres murid akan dihapus.',
+    { labelYa: 'Hapus', bahaya: true }).then(function (ya) {
+      if (!ya) return;
+      callApi('hapusItem', [itemId]).then(function () {
+        toast('Item dihapus.', 'sukses');
+        router();
+      });
+    });
+}
+
+/* ---------------------------------------------- EDITOR ITEM */
+
+function bukaEditorItem(pertemuanId, itemId, tipeBaru) {
+  var muat = itemId
+    ? callApi('getDetailItem', [itemId], { diam: true }).then(function (d) { return d.item; })
+    : Promise.resolve({ tipe: tipeBaru, wajib: true, kkm: 75,
+                        max_percobaan: 3, acak_soal: true, acak_opsi: true,
+                        tampilkan_pembahasan: true });
+
+  muat.then(function (it) {
+    var tipe = it.tipe;
+    var app = render('tpl-editor');
+    pasangTopbar(app);
+
+    $('#ed-judul-layar', app).textContent =
+      (itemId ? 'Ubah ' : 'Tambah ') + NAMA_TIPE[tipe];
+    $('#ed-balik', app).onclick = function () {
+      pergiKe('#/pertemuan/' + pertemuanId);
+    };
+
+    $('#ed-judul', app).value = it.judul || '';
+    $('#ed-tujuan', app).value = it.tujuan_pembelajaran || '';
+    $('#ed-wajib', app).checked = it.wajib !== false;
+    $('#ed-status', app).value = it.status || 'draft';
+
+    /* panel khusus per tipe */
+    var khusus = $('#ed-khusus', app);
+    if (tipe === 'quiz') {
+      khusus.innerHTML =
+        '<div class="kartu mb-16"><h3 class="mb-8">Pengaturan Quiz</h3>' +
+        '<div class="grid-2">' +
+          '<div class="grup"><label>KKM</label><input class="isian" id="q-kkm" ' +
+            'type="number" min="0" max="100" value="' + (it.kkm || 75) + '"></div>' +
+          '<div class="grup"><label>Maks Percobaan</label><input class="isian" ' +
+            'id="q-coba" type="number" min="1" max="10" value="' +
+            (it.max_percobaan || 3) + '"></div>' +
+        '</div>' +
+        '<div class="grup"><label>Batas Pengumpulan (opsional)</label>' +
+          '<input class="isian" id="q-batas" type="datetime-local" value="' +
+          (it.batas_waktu ? String(it.batas_waktu).slice(0, 16) : '') + '">' +
+          '<span class="bantuan">Lewat batas tetap bisa mengerjakan, ' +
+          'nilai penuh, ditandai "terlambat" — sama seperti LKPD.</span></div>' +
+        '<label class="baris sela-kecil mb-8" style="cursor:pointer">' +
+          '<input type="checkbox" id="q-acak-soal"' +
+          (it.acak_soal !== false ? ' checked' : '') + '> Acak urutan soal</label>' +
+        '<label class="baris sela-kecil mb-8" style="cursor:pointer">' +
+          '<input type="checkbox" id="q-acak-opsi"' +
+          (it.acak_opsi !== false ? ' checked' : '') + '> Acak urutan opsi</label>' +
+        '<label class="baris sela-kecil" style="cursor:pointer">' +
+          '<input type="checkbox" id="q-bahas"' +
+          (it.tampilkan_pembahasan !== false ? ' checked' : '') +
+          '> Tampilkan pembahasan setelah selesai</label>' +
+        '<p class="bantuan mt-8">Soal dikelola terpisah setelah item disimpan ' +
+        '(Tahap 6).</p></div>';
+    } else if (tipe === 'refleksi') {
+      khusus.innerHTML = panelRefleksi(it.konten);
+    } else if (tipe === 'materi') {
+      khusus.innerHTML =
+        '<div class="grup"><label>Durasi Baca Minimal per Bagian (detik)</label>' +
+        '<input class="isian" id="m-durasi" type="number" min="0" value="' +
+        (it.min_durasi_detik || 0) + '">' +
+        '<span class="bantuan">0 = tombol Selesai langsung aktif.</span></div>';
+    } else {
+      khusus.innerHTML =
+        '<div class="grup"><label>Batas Waktu Pengumpulan (opsional)</label>' +
+        '<input class="isian" id="l-batas" type="datetime-local" value="' +
+        (it.batas_waktu ? String(it.batas_waktu).slice(0, 16) : '') + '">' +
+        '<span class="bantuan">Lewat batas tetap bisa mengumpulkan, ' +
+        'ditandai "terlambat".</span></div>';
+    }
+
+    /* Refleksi memakai `konten` untuk menyimpan JSON pertanyaan, bukan
+       HTML. Editor kaya disembunyikan supaya guru tidak menimpanya. */
+    if (tipe === 'refleksi') {
+      var blok = $('#ed-blok-konten', app);
+      if (blok) blok.classList.add('sembunyi');
+      pasangAlatRefleksi(app);
+    }
+
+    /* editor konten */
+    var ed = $('#ed-isi', app);
+    ed.innerHTML = it.konten ? kontenKeEditor(it.konten) : '';
+    ed.setAttribute('data-placeholder',
+      tipe === 'lkpd' ? 'Tulis petunjuk kerja LKPD di sini…'
+                      : 'Tulis materi di sini…');
+
+    pasangAlatEditor(app, ed);
+    pasangModeHtml(app, ed);
+    perbaruiCacahBagian(app, ed);
+    ed.addEventListener('input', function () { perbaruiCacahBagian(app, ed); });
+
+    /* Panel generator AI — materi, LKPD, dan tugas kelompok (v1.7.6).
+       Hanya aktif bila item sudah tersimpan: AI perlu membaca konteks
+       pertemuan dan Tujuan Pembelajaran dari server. */
+    var BISA_AI = { materi: 1, lkpd: 1, tugas_kelompok: 1, refleksi: 1 };
+    if (BISA_AI[tipe]) {
+      var panelGen = $('#ed-gen', app);
+      panelGen.classList.remove('sembunyi');
+      var tombolGen = $('#ed-gen-btn', app);
+      var statusGen = $('#ed-gen-status', app);
+
+      /* Judul & bantuan panel menyesuaikan tipe — kalimat "Susun
+         Materi" pada layar LKPD membuat guru ragu apakah tombolnya
+         benar. */
+      var judulGen = $('#ed-gen-judul', app);
+      var bantuGen = $('#ed-gen-bantu', app);
+      var isiGen = tipe === 'materi'
+        ? { judul: '✨ Susun Materi dengan AI',
+            bantu: 'AI menyusun draf berdasarkan Tujuan Pembelajaran ' +
+                   'dan konteks kelas.',
+            contoh: 'mis. lebih sederhana, tambah contoh jaringan sekolah' }
+        : tipe === 'lkpd'
+        ? { judul: '✨ Susun LKPD dengan AI',
+            bantu: 'AI menyusun Tujuan, Alat &amp; Bahan, Langkah Kerja, ' +
+                   'Pertanyaan, dan Kesimpulan — mengacu pada materi di ' +
+                   'pertemuan ini.',
+            contoh: 'mis. praktik di lab, alat terbatas 5 unit' }
+        : tipe === 'tugas_kelompok'
+        ? { judul: '✨ Susun Kegiatan Kelompok dengan AI',
+            bantu: 'AI menyusun langkah kerja yang menuntut diskusi dan ' +
+                   'keputusan bersama, bukan pembagian peran.',
+            contoh: 'mis. tiap kelompok bahas satu topologi berbeda' }
+        : { judul: '✨ Susun Pertanyaan Refleksi dengan AI',
+            bantu: 'AI menyusun pertanyaan tentang <b>cara murid ' +
+                   'belajar</b> — strategi, bagian yang masih sulit, ' +
+                   'dan langkah perbaikannya. Bukan soal berjawaban ' +
+                   'benar/salah.',
+            contoh: 'mis. tekankan kerja praktik di lab' };
+
+      if (judulGen) judulGen.innerHTML = isiGen.judul;
+      if (bantuGen) {
+        bantuGen.innerHTML = isiGen.bantu +
+          ' Hasilnya selalu perlu Anda tinjau sebelum diterbitkan.';
+      }
+      var catatanGen = $('#ed-gen-catatan', app);
+      if (catatanGen) catatanGen.placeholder = isiGen.contoh;
+
+      if (!itemId) {
+        tombolGen.disabled = true;
+        statusGen.innerHTML =
+          'Simpan item ini sebagai draf dahulu, lalu Generate.';
+      } else if (tipe !== 'refleksi' && !$('#ed-tujuan', app).value.trim()) {
+        /* Tujuan Pembelajaran adalah bahan utama AI; server menolak
+           tanpanya. Dikelabukan lebih awal supaya guru tidak menunggu
+           panggilan yang pasti gagal.
+
+           REFLEKSI dikecualikan: bahan utamanya adalah isi pertemuan
+           (materi, LKPD, quiz yang baru dipelajari), bukan Tujuan
+           Pembelajaran item refleksinya sendiri. Server pun tidak
+           mewajibkannya. */
+        tombolGen.disabled = true;
+        statusGen.innerHTML =
+          'Isi <b>Tujuan Pembelajaran</b> dahulu, simpan, lalu Generate.';
+      } else {
+        tombolGen.onclick = function () {
+          if (tipe === 'materi') {
+            jalankanGenerateMateri(app, ed, itemId,
+              $('#ed-gen-catatan', app).value);
+          } else if (tipe === 'refleksi') {
+            jalankanGenerateRefleksi(app, itemId,
+              $('#ed-gen-catatan', app).value);
+          } else {
+            jalankanGenerateKegiatan(app, ed, itemId, tipe,
+              $('#ed-gen-catatan', app).value);
+          }
+        };
+      }
+    }
+
+    /* tanda AI */
+    if (it.sumber_ai) {
+      $('#ed-ai', app).classList.remove('sembunyi');
+      $('#ed-ai-tinjau', app).checked = it.ai_ditinjau === true;
+    }
+
+    /* simpan */
+    function kumpulkan(status) {
+      var p = {
+        item_id: itemId || '',
+        pertemuan_id: pertemuanId,
+        tipe: tipe,
+        judul: $('#ed-judul', app).value.trim(),
+        tujuan_pembelajaran: $('#ed-tujuan', app).value.trim(),
+        /* Bila guru sedang di mode HTML, isinya belum kembali ke
+           editor visual — tanpa ini suntingannya hilang saat Simpan
+           (v1.9.10). */
+        konten: (samakanDariHtml(app, ed), editorKeKonten(ed)),
+        wajib: $('#ed-wajib', app).checked,
+        status: status
+      };
+      if (tipe === 'quiz') {
+        p.kkm = $('#q-kkm').value;
+        p.max_percobaan = $('#q-coba').value;
+        p.batas_waktu = $('#q-batas').value;
+        p.acak_soal = $('#q-acak-soal').checked;
+        p.acak_opsi = $('#q-acak-opsi').checked;
+        p.tampilkan_pembahasan = $('#q-bahas').checked;
+      } else if (tipe === 'materi') {
+        p.min_durasi_detik = $('#m-durasi').value;
+      } else if (tipe === 'refleksi') {
+        p.konten = JSON.stringify(kumpulPertanyaan(app));
+      } else {
+        p.batas_waktu = $('#l-batas').value;
+      }
+      var cb = $('#ed-ai-tinjau', app);
+      if (cb) p.ai_ditinjau = cb.checked;
+      /* penanda sumber AI ikut dikirim supaya guard "wajib ditinjau"
+         tetap berlaku setelah item disunting ulang */
+      if (window._itemDariAI) p.sumber_ai = true;
+      return p;
+    }
+
+    function simpan(status, tombol) {
+      var p = kumpulkan(status);
+      if (!p.judul) { toast('Judul wajib diisi.', 'peringatan'); return; }
+      if (tipe === 'refleksi' && status === 'publish' &&
+          JSON.parse(p.konten).length === 0) {
+        toast('Tambahkan minimal satu pertanyaan sebelum menerbitkan.',
+              'peringatan');
+        return;
+      }
+      callApi('simpanItem', [p], { tombol: tombol }).then(function (r) {
+        toast(status === 'publish' ? 'Item diterbitkan.' : 'Draf disimpan.', 'sukses');
+        pergiKe('#/pertemuan/' + pertemuanId);
+      });
+    }
+
+    $('#ed-simpan-draf', app).onclick = function () {
+      simpan('draft', this);
+    };
+    $('#ed-simpan-terbit', app).onclick = function () {
+      simpan('publish', this);
+    };
+    $('#ed-pratinjau', app).onclick = function () {
+      samakanDariHtml(app, ed);
+      pratinjauKonten(editorKeKonten(ed), $('#ed-judul', app).value);
+    };
+  });
+}
+
+
+/* ---------------------------------------------- penyusun refleksi */
+
+var MAKS_TANYA_REF = 6;
+
+/** Baca JSON pertanyaan; menerima juga bentuk lama (larik string). */
+function bacaTanyaRefleksi(konten) {
+  if (!konten) return [];
+  var a;
+  try { a = JSON.parse(konten); } catch (e) { return []; }
+  if (!Array.isArray(a)) return [];
+  return a.slice(0, MAKS_TANYA_REF).map(function (q) {
+    if (typeof q === 'string') return { t: q, wajib: true };
+    return { t: String((q && q.t) || ''), wajib: !(q && q.wajib === false) };
+  }).filter(function (q) { return q.t !== ''; });
+}
+
+function panelRefleksi(konten) {
+  var daftar = bacaTanyaRefleksi(konten);
+  if (!daftar.length) daftar = [{ t: '', wajib: true }];
+
+  return '<div class="kartu mb-16" id="ref-panel">' +
+    '<h3 class="mb-8">Pertanyaan Refleksi</h3>' +
+    '<p class="bantuan mb-16">Murid menjawab dengan teks bebas, lalu ' +
+      'memilih skala pemahaman diri 1–5. Maksimal ' + MAKS_TANYA_REF +
+      ' pertanyaan.</p>' +
+    '<div class="kolom sela-kecil" id="ref-daftar">' +
+      daftar.map(barisTanyaRefleksi).join('') +
+    '</div>' +
+    '<button type="button" class="btn btn-hantu btn-kecil mt-16" ' +
+      'id="ref-tambah">+ Pertanyaan</button>' +
+  '</div>';
+}
+
+function barisTanyaRefleksi(q) {
+  return '<div class="baris-tanya-ref">' +
+    '<input class="isian ref-teks" maxlength="300" ' +
+      'placeholder="mis. Bagian mana yang masih membuat Anda ragu?" ' +
+      'value="' + esc(q.t || '') + '">' +
+    '<label class="baris sela-kecil kecil" style="cursor:pointer;white-space:nowrap">' +
+      '<input type="checkbox" class="ref-wajib"' +
+      (q.wajib !== false ? ' checked' : '') + '> wajib</label>' +
+    '<button type="button" class="btn btn-teks btn-kecil ref-hapus" ' +
+      'title="Hapus pertanyaan">✕</button>' +
+  '</div>';
+}
+
+function pasangAlatRefleksi(app) {
+  var wadah = $('#ref-daftar', app);
+  var tombol = $('#ref-tambah', app);
+  if (!wadah || !tombol) return;
+
+  tombol.onclick = function () {
+    if (wadah.children.length >= MAKS_TANYA_REF) {
+      toast('Maksimal ' + MAKS_TANYA_REF + ' pertanyaan.', 'peringatan');
+      return;
+    }
+    var d = document.createElement('div');
+    d.innerHTML = barisTanyaRefleksi({ t: '', wajib: true });
+    var baris = d.firstChild;
+    wadah.appendChild(baris);
+    baris.querySelector('.ref-teks').focus();
+  };
+
+  wadah.onclick = function (e) {
+    var b = e.target.closest('.ref-hapus');
+    if (!b) return;
+    if (wadah.children.length <= 1) {
+      /* selalu sisakan satu baris kosong — panel tanpa isian
+         membuat guru mengira fiturnya rusak */
+      wadah.querySelector('.ref-teks').value = '';
+      return;
+    }
+    b.closest('.baris-tanya-ref').remove();
+  };
+}
+
+function kumpulPertanyaan(app) {
+  var wadah = $('#ref-daftar', app);
+  if (!wadah) return [];
+  return $$('.baris-tanya-ref', wadah).map(function (b) {
+    return {
+      t: b.querySelector('.ref-teks').value.trim(),
+      wajib: b.querySelector('.ref-wajib').checked
+    };
+  }).filter(function (q) { return q.t !== ''; });
+}
+
+/* ---------------------------------------------- alat editor */
+
+function pasangAlatEditor(app, ed) {
+  var bar = $('#ed-alat', app);
+
+  function perintah(cmd, nilai) {
+    ed.focus();
+    document.execCommand(cmd, false, nilai || null);
+  }
+
+  bar.onclick = function (e) {
+    var b = e.target.closest('[data-cmd]');
+    if (!b) return;
+    e.preventDefault();
+    var c = b.dataset.cmd;
+
+    if (c === 'bagian') {
+      perintah('insertHTML',
+        '<div class="pisah-bagian" contenteditable="false">' +
+        '<span>bagian baru</span></div><p><br></p>');
+      perbaruiCacahBagian(app, ed);
+    } else if (c === 'link') {
+      var u = prompt('Alamat tautan:', 'https://');
+      if (u) perintah('createLink', u);
+    } else if (c === 'gambar') {
+      var g = prompt('URL gambar:', 'https://');
+      if (g) perintah('insertHTML',
+        '<img src="' + esc(g) + '" style="max-width:100%">');
+    } else if (c === 'video') {
+      var v = prompt('Tempel tautan YouTube:', 'https://');
+      if (v) {
+        var id = idYouTube(v);
+        if (!id) {
+          toast('Tautan YouTube tidak dikenali. Salin dari bilah ' +
+                'alamat atau tombol Bagikan.', 'peringatan', 5);
+        } else {
+          /* penanda waktu ikut dibawa: guru sering menunjuk menit
+             tertentu, bukan awal video */
+          perintah('insertHTML', embedYouTube(id, mulaiYouTube(v)));
+        }
+      }
+    } else if (c === 'rumus') {
+      perintah('insertHTML', '$$ x^2 + y^2 = z^2 $$');
+    } else if (c === 'kode') {
+      perintah('formatBlock', 'pre');
+    } else if (c === 'h3' || c === 'h4') {
+      perintah('formatBlock', c);
+    } else if (c === 'tabel') {
+      /* Simpan posisi kursor SEBELUM dialog terbuka.
+
+         Membuka dialog memindahkan fokus keluar dari editor, dan
+         `document.execCommand` menyisipkan di posisi kursor. Tanpa
+         disimpan, tabel mendarat di awal dokumen — bukan di tempat
+         guru menaruh kursornya (v1.9.9). */
+      var jangkar = simpanKursor(ed);
+      dialogTabel(function (baris, kolom, pakaiKepala) {
+        pulihkanKursor(jangkar);
+        perintah('insertHTML', htmlTabel(baris, kolom, pakaiKepala));
+      });
+    } else if (c === 'baris-tambah')  { ubahTabel(ed, 'baris', 1); }
+      else if (c === 'baris-hapus')   { ubahTabel(ed, 'baris', -1); }
+      else if (c === 'kolom-tambah')  { ubahTabel(ed, 'kolom', 1); }
+      else if (c === 'kolom-hapus')   { ubahTabel(ed, 'kolom', -1); }
+    else {
+      perintah(c);
+    }
+  };
+}
+
+function perbaruiCacahBagian(app, ed) {
+  var n = ed.querySelectorAll('.pisah-bagian').length + 1;
+  var el = $('#ed-cacah', app);
+  if (el) el.textContent = n + ' bagian';
+}
+
+/** HTML tersimpan → tampilan editor (pemisah jadi elemen visual). */
+function kontenKeEditor(html) {
+  return String(html).split('<!--bagian-->').join(
+    '<div class="pisah-bagian" contenteditable="false"><span>bagian baru</span></div>');
+}
+
+/** Tampilan editor → HTML tersimpan. */
+function editorKeKonten(ed) {
+  var klon = ed.cloneNode(true);
+  Array.prototype.slice.call(klon.querySelectorAll('.pisah-bagian'))
+    .forEach(function (d) {
+      d.parentNode.replaceChild(document.createComment('bagian'), d);
+    });
+  return klon.innerHTML.replace(/<!--bagian-->/g, '<!--bagian-->');
+}
+
+/* ============================================================
+   PRATINJAU ITEM (v1.9.2)
+
+   Guru perlu memeriksa isi item TANPA membuka editornya satu per
+   satu — terutama setelah Kerangka AI membuat belasan item sekaligus.
+
+   Menampilkan ISI APA ADANYA, bukan tiruan layar murid. Tiruan
+   layar murid tampak lebih meyakinkan tetapi mudah melenceng dari
+   layar aslinya begitu salah satunya berubah, dan kemelencengan itu
+   justru menyesatkan.
+
+   Kunci jawaban quiz SENGAJA disembunyikan di balik tombol: layar
+   guru sering terlihat murid saat mengajar (§9.8).
+   ============================================================ */
+
+function pratinjauItem(itemId, tipe) {
+  if (tipe === 'quiz') { _pratinjauQuiz(itemId); return; }
+
+  /* `getDetailItem` mengembalikan { item, pertemuan } — BUKAN item
+     langsung. Versi pertama membaca `d.judul` sehingga seluruh medan
+     undefined: dialog tampil "Tanpa Judul" dengan isi kosong,
+     padahal itemnya sudah terisi (laporan lapangan v1.9.3). */
+  callApi('getDetailItem', [itemId]).then(function (d) {
+    var it = d.item || d;
+    var isi;
+    if (it.tipe === 'refleksi') isi = _isiPratinjauRefleksi(it);
+    else                        isi = _isiPratinjauKonten(it);
+
+    _tampilPratinjau(it.judul, it.tipe, isi, it);
+  });
+}
+
+/** Kepala pratinjau: tipe, status, tujuan — sama untuk semua tipe. */
+function _kepalaPratinjau(it) {
+  var baris = [];
+  if (it.status !== 'publish') {
+    baris.push('<span class="lencana lencana-peringatan">draf — ' +
+               'belum terlihat murid</span>');
+  }
+  if (it.sumber_ai) {
+    baris.push('<span class="lencana' +
+      (it.ai_ditinjau ? ' lencana-sukses' : ' lencana-peringatan') +
+      '">✨ AI' + (it.ai_ditinjau ? '' : ' belum ditinjau') + '</span>');
+  }
+  if (it.wajib === false) baris.push('<span class="lencana">opsional</span>');
+
+  return (baris.length ? '<div class="baris sela-kecil mb-8">' +
+            baris.join('') + '</div>' : '') +
+    (it.tujuan_pembelajaran
+      ? '<div class="kartu kartu-rapat mb-12"><div class="kecil lembut">' +
+        'Tujuan Pembelajaran</div><div class="kecil">' +
+        esc(it.tujuan_pembelajaran) + '</div></div>'
+      : '') +
+    (it.deskripsi
+      ? '<p class="kecil lembut mb-12">' + esc(it.deskripsi) + '</p>'
+      : '');
+}
+
+/** Materi / LKPD / Tugas Kelompok — konten HTML. */
+function _isiPratinjauKonten(it) {
+  if (!it.konten || !String(it.konten).trim()) {
+    return '<div class="kotak-peringatan kartu kartu-rapat">' +
+      '<span class="kecil">⚠ Isi masih kosong. Tekan <b>Ubah</b> lalu ' +
+      'tulis sendiri, atau pakai tombol ✨ untuk menyusunnya dengan AI.' +
+      '</span></div>';
+  }
+
+  var bagian = String(it.konten).split('<!--bagian-->');
+  /* Penanda bagian hanya berarti untuk materi — LKPD & Tugas
+     Kelompok tidak dibaca bertahap. */
+  if (it.tipe !== 'materi' || bagian.length === 1) {
+    return '<div class="isi-materi konten-kaya">' + it.konten + '</div>';
+  }
+  return bagian.map(function (b, i) {
+    return '<div class="mb-16"><span class="lencana">Bagian ' + (i + 1) +
+      ' dari ' + bagian.length + '</span>' +
+      '<div class="isi-materi konten-kaya mt-8">' + b + '</div></div>';
+  }).join('<hr style="border:none;border-top:1px dashed var(--garis);' +
+          'margin:20px 0">');
+}
+
+/** Refleksi — `konten` menyimpan JSON pertanyaan, bukan HTML. */
+function _isiPratinjauRefleksi(it) {
+  var tanya = bacaTanyaRefleksi(it.konten);
+  if (!tanya.length) {
+    return '<div class="kotak-peringatan kartu kartu-rapat">' +
+      '<span class="kecil">⚠ Belum ada pertanyaan. Tekan <b>Ubah</b> ' +
+      'lalu susun sendiri atau pakai ✨ AI.</span></div>';
+  }
+  return '<ol class="kolom sela-kecil" style="padding-left:20px">' +
+    tanya.map(function (q) {
+      return '<li class="kecil">' + esc(q.t) +
+        (q.wajib === false ? ' <span class="lencana">opsional</span>' : '') +
+        '</li>';
+    }).join('') + '</ol>' +
+    '<p class="bantuan mt-12">Murid juga mengisi skala pemahaman diri ' +
+    '1–5 di bawah pertanyaan ini.</p>';
+}
+
+/** Quiz — soalnya ada di sheet `soal`, bukan di `item.konten`. */
+function _pratinjauQuiz(itemId) {
+  callApi('getSoalQuizGuru', [itemId]).then(function (d) {
+    var it = d.item, r = d.rekap;
+
+    var ringkas = '<div class="kartu kartu-rapat mb-12"><div class="kecil">' +
+      '<b>' + r.jml_soal + ' soal</b> · bobot ' + r.total_bobot +
+      ' · KKM ' + it.kkm +
+      (it.max_percobaan > 0 ? ' · ' + it.max_percobaan + '× percobaan'
+                            : ' · percobaan bebas') +
+      (it.acak_soal ? ' · soal diacak' : '') +
+      (r.ada_esai ? ' · <b>ada esai</b> (perlu dikoreksi guru)' : '') +
+      '</div></div>';
+
+    if (!d.soal.length) {
+      _tampilPratinjau(it.judul, 'quiz', ringkas +
+        '<div class="kotak-peringatan kartu kartu-rapat">' +
+        '<span class="kecil">⚠ Quiz ini belum punya soal. Tekan ' +
+        '<b>🎯 Soal</b> untuk menambahkannya.</span></div>', it);
+      return;
+    }
+
+    var daftar = d.soal.map(function (s) { return _kartuPratinjauSoal(s); })
+      .join('');
+
+    _tampilPratinjau(it.judul, 'quiz',
+      ringkas +
+      '<div class="baris-antara mb-8">' +
+        '<span class="kecil lembut">Kunci jawaban disembunyikan.</span>' +
+        '<button class="btn btn-hantu btn-kecil" id="pv-kunci">' +
+          '🔑 Lihat kunci</button>' +
+      '</div>' + daftar, it);
+
+    /* Kunci baru ditampilkan setelah guru memintanya — layar guru
+       sering terlihat murid saat mengajar. */
+    setTimeout(function () {
+      var t = document.getElementById('pv-kunci');
+      if (!t) return;
+      t.onclick = function () {
+        var tampil = t.dataset.tampil === '1';
+        $$('.pv-kunci-isi').forEach(function (el) {
+          el.style.display = tampil ? 'none' : '';
+        });
+        t.dataset.tampil = tampil ? '0' : '1';
+        t.textContent = tampil ? '🔑 Lihat kunci' : '🙈 Sembunyikan kunci';
+      };
+    }, 60);
+  });
+}
+
+function _kartuPratinjauSoal(s) {
+  var NAMA = { pg: 'Pilihan Ganda', benar_salah: 'Benar–Salah',
+               isian: 'Isian Singkat', esai: 'Uraian' };
+
+  var opsi = '';
+  if (s.tipe === 'pg' && s.opsi && s.opsi.length) {
+    opsi = '<div class="kolom mt-8" style="gap:2px">' +
+      s.opsi.map(function (o, i) {
+        return '<div class="kecil">' + 'ABCDE'.charAt(i) + '. ' + esc(o) +
+               '</div>';
+      }).join('') + '</div>';
+  } else if (s.tipe === 'benar_salah') {
+    opsi = '<div class="kecil lembut mt-8">Benar / Salah</div>';
+  } else if (s.tipe === 'esai') {
+    opsi = '<div class="kecil lembut mt-8">Murid menulis jawaban bebas — ' +
+           'dikoreksi guru.</div>';
+  }
+
+  return '<div class="kartu kartu-rapat mb-8">' +
+    '<div class="baris-antara">' +
+      '<span class="lencana">Soal ' + s.nomor + '</span>' +
+      '<span class="kecil lembut">' + (NAMA[s.tipe] || s.tipe) +
+        ' · bobot ' + s.bobot + '</span>' +
+    '</div>' +
+    (s.stimulus
+      ? '<div class="kartu kartu-rapat mt-8 konten-kaya">' + s.stimulus +
+        '</div>'
+      : '') +
+    '<div class="konten-kaya mt-8">' + s.pertanyaan + '</div>' +
+    (s.gambar_url
+      ? '<img src="' + esc(s.gambar_url) + '" class="gambar-soal mt-8" ' +
+        'alt="gambar soal">'
+      : '') +
+    opsi +
+    '<div class="pv-kunci-isi kecil mt-8" style="display:none">' +
+      '<b>Kunci:</b> ' + (s.tipe === 'esai'
+        ? '<span class="lembut">dikoreksi manual</span>'
+        : esc(String(s.kunci || '—'))) +
+      (s.pembahasan
+        ? '<div class="lembut mt-4">Pembahasan: ' + esc(s.pembahasan) + '</div>'
+        : '') +
+    '</div>' +
+    '</div>';
+}
+
+/** Dialog pratinjau — satu bentuk untuk seluruh tipe. */
+function _tampilPratinjau(judul, tipe, isiHtml, it) {
+  dialog({
+    judul: (IKON_TIPE[tipe] || '👁') + ' ' + (judul || 'Tanpa Judul'),
+    /* `lebar: 'penuh'` — pratinjau untuk MEMBACA, bukan mengisi form.
+       Pada 420px tabel dan daftar terlipat sehingga isinya sulit
+       dinilai (laporan guru v1.9.4). */
+    lebar: 'penuh',
+    html: '<div class="pv-gulir">' +
+          (it ? _kepalaPratinjau(it) : '') + isiHtml + '</div>',
+    tanpaBatal: true, labelYa: 'Tutup'
+  });
+  setTimeout(function () {
+    renderRumus(document.getElementById('isi-dialog'));
+  }, 60);
+}
+
+/* ============================================================
+   MODE HTML (v1.9.10)
+
+   Editor visual (`contenteditable`) tidak pernah cukup untuk semua
+   hal: menyisipkan embed dari layanan lain, merapikan tabel yang
+   terlanjur berantakan, atau menyalin materi dari sumber lain tanpa
+   membawa gaya yang aneh.
+
+   Dibuat sebagai PENGALIH TAMPILAN pada editor yang sama — bukan
+   dialog terpisah. Dialog memaksa guru menyalin-tempel bolak-balik,
+   dan pekerjaan mudah hilang bila lupa menekan Terapkan.
+
+   Yang diketik guru TETAP melewati `Util.sanitasi()` di server:
+   mode ini memberi kendali lebih, bukan melewati penjaga.
+   ============================================================ */
+
+/** Sedang di mode HTML atau tidak — per layar editor. */
+function modeHtmlAktif(app) {
+  var ta = $('#ed-html', app);
+  return !!ta && !ta.classList.contains('sembunyi');
+}
+
+/**
+ * Salin isi textarea HTML kembali ke editor visual.
+ *
+ * WAJIB dipanggil sebelum Simpan & Pratinjau. Tanpa ini, guru yang
+ * menekan Simpan saat masih di mode HTML kehilangan seluruh
+ * suntingannya — kelas bug paling menyakitkan (§6.2 no. 57).
+ *
+ * Aman dipanggil kapan saja: bila tidak sedang di mode HTML, ia
+ * tidak melakukan apa-apa.
+ */
+function samakanDariHtml(app, ed) {
+  if (!modeHtmlAktif(app)) return false;
+  var ta = $('#ed-html', app);
+  ed.innerHTML = kontenKeEditor(ta.value);
+  return true;
+}
+
+function pasangModeHtml(app, ed) {
+  var tombol = $('#ed-mode-html', app);
+  var ta = $('#ed-html', app);
+  if (!tombol || !ta) return;
+
+  tombol.onclick = function (e) {
+    e.preventDefault();
+    var keHtml = !modeHtmlAktif(app);
+
+    if (keHtml) {
+      /* visual → HTML: tampilkan kode yang SUNGGUH akan disimpan,
+         termasuk penanda <!--bagian--> yang di layar visual berupa
+         garis pemisah. */
+      ta.value = editorKeKonten(ed);
+      ed.classList.add('sembunyi');
+      ta.classList.remove('sembunyi');
+      tombol.classList.add('aktif');
+      tombol.innerHTML = '👁 Visual';
+      tombol.title = 'Kembali ke tampilan visual';
+      ta.focus();
+    } else {
+      /* HTML → visual */
+      samakanDariHtml(app, ed);
+      ta.classList.add('sembunyi');
+      ed.classList.remove('sembunyi');
+      tombol.classList.remove('aktif');
+      tombol.innerHTML = '&lt;/&gt; HTML';
+      tombol.title = 'Sunting kode HTML';
+      ed.focus();
+    }
+
+    /* Tombol format tidak berlaku pada teks mentah — dikelabukan
+       supaya guru tidak mengira editornya rusak (§6.2 no. 20). */
+    $$('#ed-alat [data-cmd]', app).forEach(function (b) {
+      b.disabled = keHtml;
+    });
+
+    perbaruiCacahBagian(app, ed);
+  };
+
+  /* Cacah bagian ikut diperbarui saat guru mengetik di mode HTML —
+     ia bisa menambah <!--bagian--> langsung di kodenya. */
+  ta.addEventListener('input', function () {
+    var klon = document.createElement('div');
+    klon.innerHTML = kontenKeEditor(ta.value);
+    var n = klon.querySelectorAll('.pisah-bagian').length + 1;
+    var el = $('#ed-cacah', app);
+    if (el) el.textContent = n + ' bagian';
+  });
+}
+
+/* ============================================================
+   TABEL (v1.9.9)
+
+   Sebelumnya tombol ▦ menyisipkan tabel yang DIPAKU 2×2, dan tidak
+   ada cara mengubahnya sesudahnya — guru harus menyunting HTML
+   mentah (laporan lapangan: "tidak bisa menentukan jumlah kolom dan
+   baris").
+
+   Dua perbaikan:
+     1. dialog ukuran sebelum menyisipkan
+     2. empat tombol untuk menambah/menghapus baris & kolom pada
+        tabel yang SUDAH ada
+   ============================================================ */
+
+var TABEL_MAKS = 12;   /* di atas ini tabel tidak terbaca di ponsel */
+
+/**
+ * Ingat posisi kursor di dalam editor.
+ *
+ * Dialog memindahkan fokus, sedangkan `execCommand` menyisipkan di
+ * posisi kursor saat itu. Tanpa jangkar, tabel mendarat di awal
+ * dokumen.
+ */
+function simpanKursor(ed) {
+  var sel = window.getSelection();
+  if (!sel || !sel.rangeCount) return null;
+  var r = sel.getRangeAt(0);
+  /* hanya rentang DI DALAM editor yang layak dipulihkan */
+  return ed && ed.contains(r.commonAncestorContainer) ? r.cloneRange() : null;
+}
+
+function pulihkanKursor(r) {
+  if (!r) return;
+  var sel = window.getSelection();
+  sel.removeAllRanges();
+  sel.addRange(r);
+}
+
+/** Dialog kecil: berapa baris, berapa kolom, pakai baris kepala? */
+function dialogTabel(sesudah) {
+  dialog({
+    judul: '▦ Sisipkan Tabel',
+    html:
+      '<div class="grid-2">' +
+        '<div class="grup"><label>Jumlah baris <span class="lembut">' +
+          '(isi, tanpa kepala)</span></label>' +
+          '<input class="isian" id="tbl-baris" type="number" ' +
+            'min="1" max="' + TABEL_MAKS + '" value="3"></div>' +
+        '<div class="grup"><label>Jumlah kolom</label>' +
+          '<input class="isian" id="tbl-kolom" type="number" ' +
+            'min="1" max="' + TABEL_MAKS + '" value="3"></div>' +
+      '</div>' +
+      '<label class="baris sela-kecil mt-8" style="cursor:pointer">' +
+        '<input type="checkbox" id="tbl-kepala" checked> ' +
+        'Pakai baris kepala (judul kolom)</label>' +
+      '<p class="bantuan mt-8">Maksimal ' + TABEL_MAKS + '×' + TABEL_MAKS +
+      '. Baris & kolom masih bisa ditambah setelah tabel dibuat.</p>',
+    labelYa: 'Sisipkan'
+  }).then(function (ya) {
+    if (!ya) return;
+    var b = jepitAngka($('#tbl-baris'), 3);
+    var k = jepitAngka($('#tbl-kolom'), 3);
+    var kepala = !!($('#tbl-kepala') && $('#tbl-kepala').checked);
+    sesudah(b, k, kepala);
+  });
+}
+
+/**
+ * Baca angka dari isian, jepit ke rentang yang masuk akal.
+ *
+ * Bawaan HANYA dipakai bila isiannya kosong atau bukan angka. Angka
+ * yang sungguh diketik tetapi di luar rentang DIJEPIT, bukan
+ * diganti bawaan — guru yang mengetik 0 bermaksud "sekecil
+ * mungkin", bukan "3". Mengembalikan 3 di situ terasa seperti
+ * isiannya diabaikan.
+ */
+function jepitAngka(el, bawaan) {
+  var teks = String((el && el.value) || '').trim();
+  if (teks === '') return bawaan;
+  var n = Number(teks);
+  if (!isFinite(n)) return bawaan;
+  return Math.max(1, Math.min(TABEL_MAKS, Math.round(n)));
+}
+
+/**
+ * Susun HTML tabel untuk disisipkan ke editor lewat `insertHTML`.
+ *
+ * Tabel ini BUKAN tabel antarmuka — ia menjadi bagian konten materi,
+ * dirender di `.editor-isi` (guru) lalu `.konten-kaya` (murid).
+ * Keduanya sudah punya penggulir mendatar sendiri, jadi pembungkus
+ * `.tabel-gulir` tidak diperlukan di sini (§6.2 no. 29).
+ */
+function htmlTabel(baris, kolom, pakaiKepala) {
+  /* insertHTML — penanda bagi penjaga responsif run46 */
+  var h = '<table>';
+  if (pakaiKepala) {
+    h += '<thead><tr>';
+    for (var k = 0; k < kolom; k++) h += '<th>Kolom ' + (k + 1) + '</th>';
+    h += '</tr></thead>';
+  }
+  h += '<tbody>';
+  for (var b = 0; b < baris; b++) {
+    h += '<tr>';
+    for (var j = 0; j < kolom; j++) h += '<td>&nbsp;</td>';
+    h += '</tr>';
+  }
+  return h + '</tbody></table><p><br></p>';
+}
+
+/**
+ * Tambah / hapus baris atau kolom pada tabel tempat kursor berada.
+ *
+ * Bekerja pada tabel yang SUDAH ada — termasuk tabel lama yang dibuat
+ * sebelum v1.9.9, dan tabel hasil AI.
+ */
+function ubahTabel(ed, jenis, arah) {
+  var sel = window.getSelection();
+  if (!sel || !sel.rangeCount) { toast('Klik dulu di dalam tabel.', 'peringatan'); return; }
+
+  var node = sel.getRangeAt(0).startContainer;
+  var sel1 = node.nodeType === 1 ? node : node.parentNode;
+  var td = sel1 && sel1.closest ? sel1.closest('td,th') : null;
+  var tabel = sel1 && sel1.closest ? sel1.closest('table') : null;
+
+  if (!tabel || !ed.contains(tabel)) {
+    toast('Klik dulu di dalam tabel yang ingin diubah.', 'peringatan');
+    return;
+  }
+
+  var semuaBaris = tabel.rows;
+  var idxKolom = td ? td.cellIndex : 0;
+  var idxBaris = td && td.parentNode ? td.parentNode.rowIndex : 0;
+
+  if (jenis === 'baris') {
+    var body = tabel.tBodies[0] || tabel;
+    if (arah > 0) {
+      if (semuaBaris.length >= TABEL_MAKS + 1) {
+        toast('Maksimal ' + TABEL_MAKS + ' baris.', 'peringatan'); return;
+      }
+      var jml = semuaBaris[0] ? semuaBaris[0].cells.length : 1;
+      var tr = document.createElement('tr');
+      for (var i = 0; i < jml; i++) {
+        var sel2 = document.createElement('td');
+        sel2.innerHTML = '&nbsp;';
+        tr.appendChild(sel2);
+      }
+      /* sisipkan TEPAT di bawah baris tempat kursor berada */
+      var acuan = semuaBaris[idxBaris];
+      if (acuan && acuan.parentNode === body) {
+        body.insertBefore(tr, acuan.nextSibling);
+      } else {
+        body.appendChild(tr);
+      }
+    } else {
+      /* Baris kepala tidak boleh terhapus lewat tombol ini — guru
+         mengira tabelnya rusak. */
+      var trHapus = semuaBaris[idxBaris];
+      if (!trHapus || trHapus.parentNode.tagName === 'THEAD') {
+        toast('Baris kepala tidak dapat dihapus di sini.', 'peringatan');
+        return;
+      }
+      if ((tabel.tBodies[0] || tabel).rows.length <= 1) {
+        toast('Tabel harus punya minimal satu baris isi.', 'peringatan');
+        return;
+      }
+      trHapus.parentNode.removeChild(trHapus);
+    }
+  } else {
+    var jmlKolom = semuaBaris[0] ? semuaBaris[0].cells.length : 0;
+    if (arah > 0 && jmlKolom >= TABEL_MAKS) {
+      toast('Maksimal ' + TABEL_MAKS + ' kolom.', 'peringatan'); return;
+    }
+    if (arah < 0 && jmlKolom <= 1) {
+      toast('Tabel harus punya minimal satu kolom.', 'peringatan'); return;
+    }
+    for (var r = 0; r < semuaBaris.length; r++) {
+      var baris2 = semuaBaris[r];
+      if (arah > 0) {
+        var kepala = baris2.parentNode.tagName === 'THEAD';
+        var selBaru = document.createElement(kepala ? 'th' : 'td');
+        selBaru.innerHTML = kepala
+          ? 'Kolom ' + (jmlKolom + 1) : '&nbsp;';
+        var setelah = baris2.cells[idxKolom];
+        if (setelah) baris2.insertBefore(selBaru, setelah.nextSibling);
+        else baris2.appendChild(selBaru);
+      } else {
+        if (baris2.cells[idxKolom]) baris2.deleteCell(idxKolom);
+      }
+    }
+  }
+
+  ed.dispatchEvent(new Event('input', { bubbles: true }));
+}
+
+/* ============================================================
+   VIDEO YOUTUBE (v1.9.8)
+
+   Guru menyisipkan video dari YouTube ke dalam materi. TIDAK ada
+   pencarian di dalam LMS: guru mencari sendiri di YouTube lalu
+   menempel tautannya.
+
+   Keputusan itu diambil sadar. Pencarian menuntut API key baru
+   (YouTube Data API, kuota 100 pencarian/hari) sementara yang
+   benar-benar menghemat waktu adalah MENYISIPKAN — mengubah
+   `youtu.be/ABC` menjadi iframe yang benar itu merepotkan bila
+   manual. Mencari video tetap menuntut guru menontonnya lebih dulu;
+   panel pencarian hanya memindahkan tempat pekerjaan itu.
+
+   Sanitasi `Util.gs` sudah mengizinkan iframe YouTube sejak awal,
+   dan CSS sudah memberi rasio 16:9 di layar guru maupun murid.
+   Fullscreen bawaan pemutar YouTube — tidak perlu dibuat.
+   ============================================================ */
+
+/**
+ * Ambil ID video dari bentuk tautan YouTube apa pun.
+ *
+ * Guru menyalin dari mana saja: bilah alamat, tombol Bagikan,
+ * aplikasi HP, hasil pencarian. Bentuknya berbeda-beda:
+ *
+ *     youtube.com/watch?v=ABC          bilah alamat laptop
+ *     youtu.be/ABC                     tombol Bagikan
+ *     youtube.com/shorts/ABC           video pendek
+ *     youtube.com/embed/ABC            sudah berupa embed
+ *     youtube.com/live/ABC             siaran langsung
+ *     m.youtube.com/watch?v=ABC        peramban HP
+ *     ...&t=90s                        dengan penanda waktu
+ *
+ * Mengembalikan '' bila bukan tautan YouTube — pemanggil yang
+ * memberi tahu guru, bukan diam-diam menyisipkan iframe rusak.
+ */
+function idYouTube(url) {
+  var u = String(url || '').trim();
+  if (!u) return '';
+
+  /* ID YouTube selalu 11 karakter: huruf, angka, - dan _ */
+  var pola = [
+    /[?&]v=([A-Za-z0-9_-]{11})/,          /* watch?v= */
+    /youtu\.be\/([A-Za-z0-9_-]{11})/,      /* youtu.be/ */
+    /\/shorts\/([A-Za-z0-9_-]{11})/,       /* /shorts/ */
+    /\/embed\/([A-Za-z0-9_-]{11})/,        /* /embed/ */
+    /\/live\/([A-Za-z0-9_-]{11})/          /* /live/ */
+  ];
+  for (var i = 0; i < pola.length; i++) {
+    var m = pola[i].exec(u);
+    if (m) return m[1];
+  }
+
+  /* Guru menempel ID-nya saja — diterima, sebab itu yang tersalin
+     bila ia menyorot sebagian tautan. */
+  if (/^[A-Za-z0-9_-]{11}$/.test(u)) return u;
+
+  return '';
+}
+
+/** Detik mulai dari penanda waktu, mis. `&t=90s` atau `?t=1m30s`. */
+function mulaiYouTube(url) {
+  var m = /[?&]t=(?:(\d+)h)?(?:(\d+)m)?(\d+)s?/.exec(String(url || ''));
+  if (!m) return 0;
+  return (Number(m[1]) || 0) * 3600 + (Number(m[2]) || 0) * 60 +
+         (Number(m[3]) || 0);
+}
+
+/**
+ * Bangun iframe yang lolos sanitasi dan aman dipakai murid.
+ *
+ * `youtube-nocookie.com` dipilih, bukan `youtube.com`: murid tidak
+ * ditandai untuk iklan personal. Domain ini sudah ada di
+ * `IFRAME_IZIN` sejak awal.
+ *
+ * `rel=0` menahan video sarankan dari kanal lain setelah selesai —
+ * tanpa itu murid bisa terlempar ke video yang tidak ada
+ * hubungannya dengan pelajaran.
+ */
+function embedYouTube(id, mulai) {
+  var src = 'https://www.youtube-nocookie.com/embed/' + id + '?rel=0';
+  if (mulai) src += '&start=' + mulai;
+  return '<div class="bingkai-video">' +
+    '<iframe src="' + src + '" title="Video pembelajaran" ' +
+    'loading="lazy" allowfullscreen ' +
+    'allow="accelerometer; encrypted-media; gyroscope; picture-in-picture">' +
+    '</iframe></div><p><br></p>';
+}
+
+function pratinjauKonten(html, judul) {
+  var bagian = String(html).split('<!--bagian-->');
+  var isi = bagian.map(function (b, i) {
+    return '<div class="mb-16"><span class="lencana">Bagian ' + (i + 1) +
+           '</span><div class="isi-materi mt-8">' + b + '</div></div>';
+  }).join('<hr style="border:none;border-top:1px dashed var(--garis);margin:20px 0">');
+
+  dialog({
+    judul: 'Pratinjau — ' + (judul || 'Tanpa Judul'),
+    html: '<div style="max-height:60vh;overflow-y:auto;text-align:left">' +
+          isi + '</div>',
+    tanpaBatal: true, labelYa: 'Tutup'
+  });
+  setTimeout(function () { renderRumus(document.getElementById('isi-dialog')); }, 60);
+}
+
+/* ============================================================
+   GENERATOR AI — susun materi
+   ============================================================ */
+
+/**
+ * Panggil AI lalu masukkan hasilnya ke editor.
+ *
+ * Isi editor yang sudah ada TIDAK ditimpa diam-diam — bila sudah ada
+ * tulisan, guru diminta memastikan dulu. Pekerjaan yang hilang tanpa
+ * peringatan jauh lebih menyakitkan daripada satu klik tambahan.
+ */
+/**
+ * Generator isi kegiatan LKPD / Tugas Kelompok (v1.7.6).
+ *
+ * Sengaja TERPISAH dari jalankanGenerateMateri(): keduanya berbeda
+ * dalam tiga hal yang mudah tertukar bila digabung — API yang
+ * dipanggil, ada/tidaknya pembagian bagian, dan laporan penyimpangan
+ * AI. Menyatukannya menjadi satu fungsi bercabang justru membuat
+ * keduanya rapuh.
+ */
+/**
+ * Generator pertanyaan refleksi (v1.8.1).
+ *
+ * BERBEDA dari dua generator lain: hasilnya tidak masuk ke editor
+ * konten melainkan ke PANEL PENYUSUN pertanyaan. Editor kontennya
+ * memang disembunyikan untuk tipe refleksi — `item.konten` menyimpan
+ * JSON, bukan HTML.
+ *
+ * Hasil AI DITAMBAHKAN ke daftar yang sudah ada, bukan menimpanya.
+ * Guru yang sudah menulis satu-dua pertanyaan sendiri tidak boleh
+ * kehilangannya hanya karena menekan Generate.
+ */
+function jalankanGenerateRefleksi(app, itemId, catatan) {
+  var tombol = $('#ed-gen-btn', app);
+  var status = $('#ed-gen-status', app);
+  var wadah = $('#ref-daftar', app);
+  if (!wadah) return;
+
+  /* Baris kosong tidak dihitung sebagai pertanyaan guru — panel
+     selalu menyisakan satu baris hampa. */
+  function barisTerisi() {
+    return $$('.baris-tanya-ref', wadah).filter(function (b) {
+      return b.querySelector('.ref-teks').value.trim() !== '';
+    });
+  }
+  var sudahAda = barisTerisi().length;
+  var sisa = MAKS_TANYA_REF - sudahAda;
+
+  if (sisa <= 0) {
+    toast('Sudah ' + MAKS_TANYA_REF + ' pertanyaan — hapus dahulu ' +
+          'bila ingin diganti.', 'peringatan');
+    return;
+  }
+
+  var minta = Math.min(3, sisa);
+  var t0 = Date.now();
+
+  tombol.disabled = true;
+  status.innerHTML = '<span class="putar putar-kecil"></span> ' +
+    'AI sedang menyusun pertanyaan refleksi… biasanya 10–30 detik.';
+
+  var jam = setInterval(function () {
+    var d = Math.round((Date.now() - t0) / 1000);
+    var el = $('#ed-gen-status', app);
+    if (!el) { clearInterval(jam); return; }
+    el.innerHTML = '<span class="putar putar-kecil"></span> ' +
+      'AI sedang menyusun pertanyaan refleksi… ' + d + ' detik';
+  }, 1000);
+
+  callApi('generateRefleksiAI', [itemId, minta, catatan || ''],
+          { diam: true })
+    .then(function (d) {
+      clearInterval(jam);
+
+      /* Buang baris hampa dahulu supaya hasil AI tidak berselang-seling
+         dengan isian kosong. */
+      $$('.baris-tanya-ref', wadah).forEach(function (b) {
+        if (b.querySelector('.ref-teks').value.trim() === '') b.remove();
+      });
+
+      d.pertanyaan.forEach(function (q) {
+        if ($$('.baris-tanya-ref', wadah).length >= MAKS_TANYA_REF) return;
+        var kotak = document.createElement('div');
+        kotak.innerHTML = barisTanyaRefleksi(q);
+        wadah.appendChild(kotak.firstChild);
+      });
+
+      /* panel wajib menyisakan minimal satu baris */
+      if (!wadah.children.length) {
+        var d0 = document.createElement('div');
+        d0.innerHTML = barisTanyaRefleksi({ t: '', wajib: true });
+        wadah.appendChild(d0.firstChild);
+      }
+
+      window._itemDariAI = true;
+      var kartuAi = $('#ed-ai', app);
+      if (kartuAi) kartuAi.classList.remove('sembunyi');
+      var cb = $('#ed-ai-tinjau', app);
+      if (cb) cb.checked = false;
+
+      var tombol2 = $('#ed-gen-btn', app);
+      if (tombol2) {
+        tombol2.disabled = false;
+        tombol2.textContent = '✨ Tambah Lagi';
+      }
+
+      /* Penyimpangan AI DILAPORKAN, bukan didiamkan (§6.2 no. 26).
+         Yang paling penting: pertanyaan ya/tidak — bentuknya benar
+         tetapi tidak menggali apa pun. */
+      var peringatan = '';
+      if (d.penyimpangan && d.penyimpangan.length) {
+        peringatan = '<div class="kotak-peringatan kartu kartu-rapat mt-8">' +
+          '<div class="kecil">⚠ ' +
+          d.penyimpangan.map(esc).join('<br>⚠ ') + '</div></div>';
+      }
+
+      var st = $('#ed-gen-status', app);
+      if (st) {
+        st.innerHTML = '✅ ' + d.jml + ' pertanyaan ditambahkan — ' +
+          Math.round(d.durasi_ms / 1000) + ' detik. ' +
+          '<b>Tinjau dan sunting</b> sesuai kelas Anda, centang kotak ' +
+          'di bawah, baru terbitkan.' + peringatan;
+      }
+
+      toast(d.jml + ' pertanyaan refleksi ditambahkan.', 'sukses');
+    })
+    .catch(function (res) {
+      clearInterval(jam);
+      var tombol3 = $('#ed-gen-btn', app);
+      if (tombol3) tombol3.disabled = false;
+      var st2 = $('#ed-gen-status', app);
+      if (st2) {
+        st2.innerHTML = '<span class="pesan-salah">⚠️ ' +
+          esc((res && res.pesan) || 'Gagal menghubungi AI.') +
+          '</span> Anda tetap dapat menulis pertanyaan sendiri.';
+      }
+    });
+}
+
+function jalankanGenerateKegiatan(app, ed, itemId, tipe, catatan) {
+  var isiSekarang = String(ed.textContent || '').trim();
+  var label = tipe === 'tugas_kelompok' ? 'kegiatan kelompok' : 'LKPD';
+
+  function mulai() {
+    var tombol = $('#ed-gen-btn', app);
+    var status = $('#ed-gen-status', app);
+    var t0 = Date.now();
+
+    tombol.disabled = true;
+    status.innerHTML = '<span class="putar putar-kecil"></span> ' +
+      'AI sedang menyusun ' + label + '… biasanya 15–45 detik.';
+
+    var jam = setInterval(function () {
+      var d = Math.round((Date.now() - t0) / 1000);
+      var el = $('#ed-gen-status', app);
+      if (!el) { clearInterval(jam); return; }
+      el.innerHTML = '<span class="putar putar-kecil"></span> ' +
+        'AI sedang menyusun ' + label + '… ' + d + ' detik';
+    }, 1000);
+
+    callApi('generateKegiatanAI', [itemId, catatan || ''], { diam: true })
+      .then(function (d) {
+        clearInterval(jam);
+        ed.innerHTML = kontenKeEditor(d.konten);
+        perbaruiCacahBagian(app, ed);
+        renderRumus(ed);
+
+        /* tandai sebagai hasil AI supaya guard "wajib ditinjau" aktif */
+        window._itemDariAI = true;
+        var kartuAi = $('#ed-ai', app);
+        if (kartuAi) kartuAi.classList.remove('sembunyi');
+        var cb = $('#ed-ai-tinjau', app);
+        if (cb) cb.checked = false;
+
+        var tombol2 = $('#ed-gen-btn', app);
+        if (tombol2) {
+          tombol2.disabled = false;
+          tombol2.textContent = '✨ Generate Ulang';
+        }
+
+        /* Penyimpangan AI DILAPORKAN, bukan diperbaiki diam-diam
+           (KONVENSI §6.2 no. 26). Guru berhak tahu bila LKPD-nya
+           keluar tanpa Langkah Kerja sebelum ia menerbitkannya. */
+        var peringatan = '';
+        if (d.bagian_hilang && d.bagian_hilang.length) {
+          peringatan += '<div class="kotak-peringatan kartu kartu-rapat mt-8">' +
+            '<span class="kecil">⚠ AI tidak menuliskan bagian: <b>' +
+            d.bagian_hilang.map(esc).join(', ') + '</b>. ' +
+            'Tambahkan sendiri atau tekan Generate Ulang.</span></div>';
+        }
+        if (d.ada_pemisah_dibuang) {
+          peringatan += '<div class="kotak-peringatan kartu kartu-rapat mt-8">' +
+            '<span class="kecil">⚠ AI menyisipkan pemisah bagian ' +
+            '(milik tipe Materi). Sudah dibuang otomatis — periksa ' +
+            'apakah alurnya masih runtut.</span></div>';
+        }
+
+        var st = $('#ed-gen-status', app);
+        if (st) {
+          st.innerHTML = '✅ Draf ' + label + ' siap — ' +
+            Math.round(d.durasi_ms / 1000) + ' detik. ' +
+            '<b>Tinjau isinya</b>, centang kotak di bawah, baru ' +
+            'terbitkan.' + peringatan;
+        }
+
+        toast(d.bagian_hilang && d.bagian_hilang.length
+          ? 'Draf siap, tetapi ada bagian yang belum lengkap.'
+          : 'Draf ' + label + ' siap ditinjau.',
+          d.bagian_hilang && d.bagian_hilang.length ? 'peringatan' : 'sukses');
+      })
+      .catch(function (res) {
+        clearInterval(jam);
+        var tombol3 = $('#ed-gen-btn', app);
+        if (tombol3) tombol3.disabled = false;
+        var st2 = $('#ed-gen-status', app);
+        if (st2) {
+          st2.innerHTML = '<span class="pesan-salah">⚠️ ' +
+            esc((res && res.pesan) || 'Gagal menghubungi AI.') +
+            '</span> Anda tetap dapat menulis ' + label +
+            ' secara manual.';
+        }
+      });
+  }
+
+  if (!isiSekarang) { mulai(); return; }
+
+  konfirmasi('Timpa isi editor?',
+    'Editor sudah berisi tulisan. Hasil AI akan menggantikannya. ' +
+    'Salin dahulu bila ada bagian yang ingin dipertahankan.',
+    { labelYa: 'Ya, timpa', bahaya: true })
+    .then(function (ya) { if (ya) mulai(); });
+}
+
+function jalankanGenerateMateri(app, ed, itemId, catatan) {
+  var isiSekarang = String(ed.textContent || '').trim();
+
+  function mulai() {
+    var tombol = $('#ed-gen-btn', app);
+    var status = $('#ed-gen-status', app);
+    var t0 = Date.now();
+
+    tombol.disabled = true;
+    status.innerHTML = '<span class="putar putar-kecil"></span> ' +
+      'AI sedang menyusun materi… biasanya 15–45 detik.';
+
+    var jam = setInterval(function () {
+      var d = Math.round((Date.now() - t0) / 1000);
+      var el = $('#ed-gen-status', app);
+      if (!el) { clearInterval(jam); return; }
+      el.innerHTML = '<span class="putar putar-kecil"></span> ' +
+        'AI sedang menyusun materi… ' + d + ' detik';
+    }, 1000);
+
+    callApi('generateMateriAI', [itemId, catatan || ''], { diam: true })
+      .then(function (d) {
+        clearInterval(jam);
+        ed.innerHTML = kontenKeEditor(d.konten);
+        perbaruiCacahBagian(app, ed);
+        renderRumus(ed);
+
+        /* tandai sebagai materi AI supaya guard tinjau ikut aktif */
+        window._itemDariAI = true;
+        var kartuAi = $('#ed-ai', app);
+        if (kartuAi) kartuAi.classList.remove('sembunyi');
+        var cb = $('#ed-ai-tinjau', app);
+        if (cb) cb.checked = false;
+
+        /* Catatan: editor item tidak punya medan deskripsi, jadi
+           d.deskripsi sengaja tidak dipakai di sini. */
+
+        var tombol2 = $('#ed-gen-btn', app);
+        if (tombol2) {
+          tombol2.disabled = false;
+          tombol2.textContent = '✨ Generate Ulang';
+        }
+        var st = $('#ed-gen-status', app);
+        if (st) {
+          st.innerHTML = '✅ Draf siap — ' + d.jml_bagian + ' bagian, ' +
+            Math.round(d.durasi_ms / 1000) + ' detik. ' +
+            '<b>Tinjau isinya</b>, centang kotak di bawah, baru terbitkan.' +
+            (d.saran_soal || d.saran_lkpd
+              ? ' <button class="btn btn-teks btn-kecil" ' +
+                'onclick="lihatSaranAI()">Lihat saran soal &amp; LKPD</button>'
+              : '');
+        }
+        window._saranAI = { soal: d.saran_soal, lkpd: d.saran_lkpd };
+        toast('Draf materi siap ditinjau.', 'sukses');
+      })
+      .catch(function (res) {
+        clearInterval(jam);
+        var tombol3 = $('#ed-gen-btn', app);
+        if (tombol3) tombol3.disabled = false;
+        var st2 = $('#ed-gen-status', app);
+        if (st2) {
+          st2.innerHTML = '<span class="pesan-salah">⚠️ ' +
+            esc((res && res.pesan) || 'Gagal menghubungi AI.') +
+            '</span> Anda tetap dapat menulis materi secara manual.';
+        }
+      });
+  }
+
+  if (!isiSekarang) { mulai(); return; }
+
+  konfirmasi('Timpa isi editor?',
+    'Editor sudah berisi tulisan. Hasil AI akan menggantikannya. ' +
+    'Salin dahulu bila ada bagian yang ingin dipertahankan.',
+    { labelYa: 'Ya, timpa', bahaya: true })
+    .then(function (ya) { if (ya) mulai(); });
+}
+
+/** Tampilkan saran soal & LKPD dari hasil generate terakhir. */
+function lihatSaranAI() {
+  var s = window._saranAI || {};
+  dialog({
+    judul: '✨ Saran dari AI',
+    pesan: 'Bahan mentah — salin ke item LKPD atau bank soal bila cocok.',
+    html:
+      (s.soal
+        ? '<div class="grup"><label>Saran soal</label>' +
+          '<textarea class="isian" rows="8" readonly>' + esc(s.soal) +
+          '</textarea></div>' : '') +
+      (s.lkpd
+        ? '<div class="grup"><label>Saran LKPD</label>' +
+          '<textarea class="isian" rows="5" readonly>' + esc(s.lkpd) +
+          '</textarea></div>' : ''),
+    tanpaBatal: true, labelYa: 'Tutup'
+  });
+}
+
+/* ============================================================
+   RUTE: Status API Key
+   ============================================================ */
+
+daftarRute('api-key', function () {
+  if (!State.user || State.user.role !== 'guru') { pergiKe('#/beranda'); return; }
+
+  var app = render('tpl-dashboard');
+  pasangTopbar(app);
+  /* Sidebar menu guru (v1.13.2). */
+  var isi = (typeof menuRangka === 'function')
+    ? menuRangka(app, 'beranda') : $('#isi-halaman', app);
+  isi.innerHTML = rangkaMuat(60, 3);
+
+  muatStatusApiKey(isi);
+});
+
+function muatStatusApiKey(isi) {
+  callApi('getStatusApiKey', [], { diam: true })
+    .then(function (d) {
+      var html =
+        '<button class="tautan-balik" onclick="pergiKe(\'#/beranda\')">‹ Beranda</button>' +
+        '<div class="kepala-halaman"><h1>🔑 Status API Key</h1>' +
+        '<p class="lembut kecil">Key Gemini untuk generator materi &amp; soal</p></div>';
+
+      if (!d.terpasang) {
+        html += kosongkan('🔑', 'Belum ada API key',
+          'Generator AI belum dapat dipakai. Pasang key Gemini terlebih dahulu.',
+          '<button class="btn mt-16" onclick="dialogPasangKey()">Pasang API Key</button>');
+        isi.innerHTML = html;
+        return;
+      }
+
+      html += '<div class="kartu mb-16"><div class="grid-info">' +
+        '<div><div class="lembut kecil">Jumlah key</div>' +
+          '<div class="tebal">' + d.jml + '</div></div>' +
+        '<div><div class="lembut kecil">Siap dipakai</div><div class="tebal">' +
+          d.key.filter(function (x) { return x.status === 'siap'; }).length +
+          '</div></div>' +
+        '<div><div class="lembut kecil">Bermasalah</div><div class="tebal">' +
+          d.jml_bermasalah + '</div></div>' +
+        '</div></div>';
+
+      var istirahat = d.jml - d.jml_siap - d.jml_bermasalah;
+      if (istirahat > 0) {
+        html += '<div class="kartu sorot-menunggu mb-16">' +
+          '<b>⏳ ' + istirahat + ' key sedang istirahat.</b>' +
+          '<p class="kecil mt-8">Kuotanya habis pada semua model. ' +
+          'Kuota per menit pulih sekitar 60 detik; kuota harian pulih ' +
+          'tengah malam waktu Pasifik (±14.00 WIB). ' +
+          'Generator tetap berjalan memakai ' + d.jml_siap + ' key lain.</p>' +
+          '</div>';
+      }
+
+      if (d.jml_bermasalah > 0) {
+        html += '<div class="kartu sorot-gagal mb-16">' +
+          '<b>⚠️ ' + d.jml_bermasalah + ' key ditolak Google.</b>' +
+          '<p class="kecil mt-8">Kemungkinan key salah tempel, dicabut, ' +
+          'atau project-nya belum mengaktifkan Generative Language API. ' +
+          'Pasang ulang daftar key untuk mencobanya lagi.</p></div>';
+      }
+
+      html += '<div class="tabel-gulir">' +
+        '<table class="tabel"><thead><tr><th>#</th><th>Key</th>' +
+        '<th>Status</th></tr></thead><tbody>';
+      d.key.forEach(function (x) {
+        var lbl = { siap: ['Siap', 'diterima'],
+                    istirahat: ['Istirahat sebentar', 'menunggu'],
+                    bermasalah: ['Bermasalah', 'ditolak'] }[x.status] ||
+                  ['—', ''];
+        html += '<tr><td>' + (x.index + 1) + '</td>' +
+          '<td><code>••••••••' + esc(x.ekor) + '</code></td>' +
+          '<td><span class="lencana ' + lbl[1] + '">' + lbl[0] + '</span></td></tr>';
+      });
+      html += '</tbody></table></div>';
+
+      /* model aktif + tombol pemulihan cepat */
+      html += '<div class="kartu mb-16">' +
+        '<div class="baris-antara">' +
+          '<div style="min-width:0">' +
+            '<b>Model AI</b>' +
+            '<p class="bantuan mt-4">Dicoba berurutan: ' +
+            esc((d.model || []).join(' → ')) + '</p>' +
+            '<p class="bantuan">Kuota gratis dihitung per model, jadi saat ' +
+            'satu model habis sistem otomatis pindah ke model berikutnya.</p>' +
+          '</div>' +
+          '<button class="btn btn-hantu btn-kecil" onclick="resetIstirahatAI()">' +
+          '↺ Coba Lagi Sekarang</button>' +
+        '</div></div>';
+
+      html += '<div class="baris-tombol mt-16">' +
+        '<button class="btn btn-hantu btn-kecil" onclick="dialogPasangKey()">' +
+        'Ganti Daftar Key</button></div>' +
+        '<p class="bantuan mt-12">Nilai key tidak pernah ditampilkan — ' +
+        'hanya 4 digit terakhir. Key disimpan di Script Properties, ' +
+        'tidak pernah masuk ke spreadsheet maupun browser.</p>';
+
+      isi.innerHTML = html;
+    })
+    .catch(function () {});
+}
+
+/**
+ * Buang seluruh masa istirahat key & model.
+ *
+ * Berguna setelah memasang key baru atau saat yakin kuota sudah pulih —
+ * tanpa ini sistem menunggu cooldown habis sendiri.
+ */
+function resetIstirahatAI() {
+  callApi('resetCooldownAI', [])
+    .then(function () {
+      toast('Semua key siap dicoba lagi.', 'sukses');
+      muatStatusApiKey($('#isi-halaman'));
+    })
+    .catch(function () {});
+}
+
+function dialogPasangKey() {
+  dialog({
+    judul: 'Pasang API Key Gemini',
+    pesan: 'Tempel satu key per baris. Daftar lama akan diganti seluruhnya.',
+    html: '<div class="grup"><textarea class="isian" id="f-keys" rows="10" ' +
+          'placeholder="AIza...&#10;AIza...&#10;AIza..."></textarea>' +
+          '<span class="bantuan">Disarankan 10 key dari 10 project berbeda ' +
+          'agar kuota harian tidak cepat habis.</span></div>',
+    labelYa: 'Simpan'
+  }).then(function (ya) {
+    if (!ya) return;
+    var el = $('#f-keys');
+    if (!el) return;
+    var daftar = String(el.value || '').split('\n')
+      .map(function (x) { return x.trim(); })
+      .filter(function (x) { return x.length > 0; });
+    if (!daftar.length) { toast('Belum ada key ditempel.', 'bahaya'); return; }
+
+    callApi('simpanApiKeys', [daftar])
+      .then(function (r) {
+        toast(r.jml + ' key tersimpan.', 'sukses');
+        muatStatusApiKey($('#isi-halaman'));
+      })
+      .catch(function () {});
+  });
+}
+
+</script>

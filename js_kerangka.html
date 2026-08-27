@@ -1,0 +1,405 @@
+<script>
+/* ============================================================
+   LessonLen — js_kerangka
+   Guru: menyusun kerangka satu semester dengan AI (v1.8.2)
+
+   ALUR DUA LANGKAH — disengaja, tidak boleh disatukan:
+
+     1. AI mengusulkan N pertemuan  → guru MENINJAU & MENYUNTING
+     2. guru menekan Terapkan       → pertemuan + item dibuat
+
+   Langkah 2 membuat belasan pertemuan sekaligus. Itu operasi paling
+   besar di seluruh aplikasi — dan satu-satunya yang tidak punya
+   tombol "urungkan". Karena itu guru wajib melihat dulu apa yang
+   akan dibuat, mencentang yang dipakai, dan menyunting judulnya.
+
+   Seluruh hasil berstatus DRAF (§8.1): tidak ada yang terlihat murid
+   sampai guru menerbitkannya satu per satu.
+   ============================================================ */
+
+var KRG = { kelasId: null, kelas: null, usulan: [], sesudah: null,
+            babAda: [], gabungBab: false };
+
+/**
+ * Buka panel kerangka AI.
+ *
+ * @param {string} kelasId
+ * @param {Object} kelas    butuh nama_kelas, mapel, capaian_pembelajaran
+ * @param {Function=} sesudah  dipanggil setelah pertemuan dibuat
+ */
+/**
+ * @param {Array=} babAda  Materi Pokok yang sudah ada di kelas ini.
+ *   Dipakai menanyakan apakah hasil kerangka digabung ke bab itu
+ *   atau dibuat bab baru (keputusan guru, v1.8.4).
+ */
+function panelKerangkaAI(kelasId, kelas, sesudah, babAda) {
+  KRG.kelasId = kelasId;
+  KRG.kelas = kelas || {};
+  KRG.usulan = [];
+  KRG.sesudah = sesudah;
+  KRG.babAda = babAda || [];
+  KRG.gabungBab = false;
+
+  /* Capaian Pembelajaran adalah bahan utama — server menolak
+     tanpanya. Diperiksa lebih awal supaya guru tidak menunggu
+     panggilan yang pasti gagal, dan diberi tahu di mana mengisinya.
+
+     Memakai penanda `ada_capaian` dari server, BUKAN isi
+     `capaian_pembelajaran`: payload struktur kelas sengaja tidak
+     membawa teksnya yang bisa ribuan karakter.
+
+     Bentuk lama tetap diterima supaya panel tidak memblokir guru
+     bila `MateriPokok.gs` belum tersalin (laporan lapangan v1.8.3
+     — klien memblokir padahal CP sudah diisi). */
+  var adaCp = KRG.kelas.ada_capaian === true ||
+              String(KRG.kelas.capaian_pembelajaran || '').trim() !== '';
+
+  panel('✨ Kerangka Semester dengan AI',
+    '<div class="kartu kartu-rapat mb-16">' +
+      '<div class="tebal">' +
+        labelKelas({ nama_kelas: KRG.kelas.nama_kelas,
+                     mapel: KRG.kelas.mapel }) + '</div>' +
+      '<div class="kecil lembut">AI menyusun urutan pertemuan dari ' +
+        'Capaian Pembelajaran kelas ini — dari paling dasar ke paling ' +
+        'lanjut.</div>' +
+    '</div>' +
+
+    (adaCp ? '' :
+      '<div class="kotak-peringatan kartu kartu-rapat mb-16">' +
+      '<span class="kecil">⚠ <b>Capaian Pembelajaran kelas belum ' +
+      'diisi.</b> Itu bahan utama AI. Isi lewat <b>Kelola Kelas → ' +
+      'Ubah</b> pada kelas ini, lalu kembali ke sini.</span></div>') +
+
+    '<div class="grup"><label>Jumlah pertemuan</label>' +
+      '<input class="isian" id="krg-jml" type="number" min="1" max="20" ' +
+      'value="8"' + (adaCp ? '' : ' disabled') + '>' +
+      '<span class="bantuan">1–20. Satu semester biasanya 15–18 ' +
+      'pertemuan; mulai dari sebagian dahulu bila ragu.</span></div>' +
+
+    /* Kelas yang SUDAH punya bab: guru memilih sendiri. Menebak
+       salah satunya berisiko — menggabung merusak susunan yang sudah
+       rapi, membuat bab baru bisa menghasilkan bab kembar. */
+    (adaCp && KRG.babAda.length
+      ? '<div class="grup"><label>Penempatan Materi Pokok</label>' +
+        '<select class="isian" id="krg-tempat">' +
+          '<option value="baru">Buat bab baru sesuai usulan AI</option>' +
+          '<option value="gabung">Gabungkan ke bab yang sudah ada</option>' +
+        '</select>' +
+        '<span class="bantuan">Kelas ini sudah punya <b>' +
+        KRG.babAda.length + ' Materi Pokok</b>: ' +
+        KRG.babAda.slice(0, 3).map(function (b) {
+          return esc(b.judul);
+        }).join(', ') +
+        (KRG.babAda.length > 3 ? ', …' : '') + '.</span></div>'
+      : '') +
+
+    '<div class="grup"><label>Catatan tambahan ' +
+      '<span class="lembut">(opsional)</span></label>' +
+      '<input class="isian" id="krg-catatan" maxlength="300" ' +
+      'placeholder="mis. dua pertemuan pertama untuk pengenalan alat"' +
+      (adaCp ? '' : ' disabled') + '></div>' +
+
+    '<div id="krg-status" class="bantuan mt-8"></div>' +
+    '<div id="krg-hasil"></div>',
+
+    '<button class="btn btn-hantu" data-tutup="1">Tutup</button>' +
+    (adaCp
+      ? '<button class="btn" id="krg-generate">✨ Susun Usulan</button>'
+      : ''));
+
+  if (!adaCp) return;
+
+  $('#krg-generate').onclick = function () { _jalankanKerangka(this); };
+}
+
+function _jalankanKerangka(tombol) {
+  var n = Number($('#krg-jml').value) || 0;
+  if (n < 1 || n > 20) {
+    toast('Jumlah pertemuan antara 1 dan 20.', 'peringatan');
+    return;
+  }
+
+  var elTempat = $('#krg-tempat');
+  KRG.gabungBab = !!elTempat && elTempat.value === 'gabung';
+
+  var status = $('#krg-status');
+  var t0 = Date.now();
+  tombol.disabled = true;
+  status.innerHTML = '<span class="putar putar-kecil"></span> ' +
+    'AI sedang menyusun ' + n + ' pertemuan… biasanya 20–60 detik.';
+
+  var jam = setInterval(function () {
+    var el = $('#krg-status');
+    if (!el) { clearInterval(jam); return; }
+    el.innerHTML = '<span class="putar putar-kecil"></span> ' +
+      'AI sedang menyusun ' + n + ' pertemuan… ' +
+      Math.round((Date.now() - t0) / 1000) + ' detik';
+  }, 1000);
+
+  callApi('generateKerangkaAI', [KRG.kelasId, n], { diam: true })
+    .then(function (d) {
+      clearInterval(jam);
+      KRG.usulan = d.pertemuan.map(function (p) {
+        p.pakai = true;                 /* semuanya dicentang di awal */
+        /* "Gabungkan ke bab yang ada" → seluruh usulan diarahkan ke
+           bab pertama. Guru tetap bisa mengubahnya per baris. */
+        if (KRG.gabungBab && KRG.babAda.length) {
+          p.bab = KRG.babAda[0].judul;
+        }
+        return p;
+      });
+
+      var st = $('#krg-status');
+      if (st) {
+        /* Penyimpangan AI dilaporkan, bukan didiamkan (§6.2 no. 26).
+           `bab_kosong` menjelaskan mengapa hasilnya tidak terkelompok
+           — tanpa itu guru mengira fiturnya rusak lagi. */
+        st.innerHTML = '✅ ' + d.jml + ' pertemuan dalam <b>' +
+          (d.jml_bab || 1) + ' bab</b> — ' +
+          Math.round(d.durasi_ms / 1000) + ' detik.' +
+          (d.jml !== n
+            ? ' <b>AI membuat ' + d.jml + ', bukan ' + n + '.</b>'
+            : '') +
+          (d.bab_kosong
+            ? '<div class="kotak-peringatan kartu kartu-rapat mt-8">' +
+              '<span class="kecil">⚠ AI tidak mengelompokkan ' +
+              d.bab_kosong + ' pertemuan ke bab mana pun — semuanya ' +
+              'ditaruh di satu bab. Ubah kolom <b>Bab</b> di bawah ' +
+              'bila perlu.</span></div>'
+            : '');
+      }
+      _gambarUsulan();
+    })
+    .catch(function (res) {
+      clearInterval(jam);
+      var t = $('#krg-generate');
+      if (t) t.disabled = false;
+      var st = $('#krg-status');
+      if (st) {
+        st.innerHTML = '<span class="pesan-salah">⚠️ ' +
+          esc((res && res.pesan) || 'Gagal menghubungi AI.') +
+          '</span> Anda tetap dapat menyusun pertemuan sendiri.';
+      }
+    });
+}
+
+/**
+ * Tabel usulan yang bisa disunting.
+ *
+ * Judul & tujuan dibuat `input`, bukan teks mati: hasil AI hampir
+ * selalu perlu disesuaikan dengan istilah yang dipakai guru di
+ * kelasnya, dan menyuntingnya SETELAH 15 pertemuan terbuat jauh
+ * lebih mahal.
+ */
+function _gambarUsulan() {
+  var wadah = $('#krg-hasil');
+  if (!wadah) return;
+
+  wadah.innerHTML =
+    '<h3 class="mb-8 mt-16">Tinjau &amp; Sunting</h3>' +
+    '<p class="bantuan mb-8">Hapus centang pertemuan yang tidak ' +
+      'dipakai. Judul dan tujuan boleh Anda ubah sekarang — lebih ' +
+      'mudah daripada setelah terbuat.</p>' +
+    '<div class="kolom sela-kecil" id="krg-daftar">' +
+      KRG.usulan.map(_barisUsulan).join('') +
+    '</div>' +
+    '<div class="baris-antara mt-8">' +
+      '<button class="btn btn-teks btn-kecil" id="krg-semua">' +
+        'Pilih semua</button>' +
+      '<span class="kecil lembut" id="krg-ringkas"></span>' +
+    '</div>';
+
+  var kaki = document.querySelector('.panel-kaki');
+  if (kaki) {
+    kaki.innerHTML =
+      '<button class="btn btn-hantu" data-tutup="1">Batal</button>' +
+      '<button class="btn btn-hantu" id="krg-ulang">✨ Susun Ulang</button>' +
+      '<button class="btn" id="krg-terap">Terapkan</button>';
+  }
+
+  _hitungRingkas();
+
+  var daftar = $('#krg-daftar');
+  daftar.onchange = function () { _bacaSuntingan(); _hitungRingkas(); };
+  daftar.oninput = function () { _bacaSuntingan(); };
+
+  $('#krg-semua').onclick = function () {
+    var kotak = $$('.krg-pakai', daftar);
+    var adaKosong = kotak.some(function (c) { return !c.checked; });
+    kotak.forEach(function (c) { c.checked = adaKosong; });
+    _bacaSuntingan();
+    _hitungRingkas();
+  };
+
+  $('#krg-ulang').onclick = function () {
+    konfirmasi('Susun Ulang',
+      'Usulan sekarang beserta suntingan Anda akan diganti hasil baru.',
+      { labelYa: 'Susun Ulang', bahaya: true }).then(function (ya) {
+        if (!ya) return;
+        KRG.usulan = [];
+        $('#krg-hasil').innerHTML = '';
+        var kaki2 = document.querySelector('.panel-kaki');
+        if (kaki2) {
+          kaki2.innerHTML =
+            '<button class="btn btn-hantu" data-tutup="1">Tutup</button>' +
+            '<button class="btn" id="krg-generate">✨ Susun Usulan</button>';
+          $('#krg-generate').onclick = function () {
+            _jalankanKerangka(this);
+          };
+        }
+      });
+  };
+
+  $('#krg-terap').onclick = function () { _terapkanKerangka(this); };
+}
+
+function _barisUsulan(p, i) {
+  return '<div class="kartu kartu-rapat krg-baris" data-i="' + i + '">' +
+    '<label class="baris sela-kecil" style="cursor:pointer">' +
+      '<input type="checkbox" class="krg-pakai"' +
+        (p.pakai === false ? '' : ' checked') + '>' +
+      '<span class="kecil tebal">Pertemuan ' + (i + 1) + '</span>' +
+    '</label>' +
+    '<div class="grup mt-8" style="margin-bottom:6px">' +
+      '<label class="kecil lembut">Materi Pokok (bab)</label>' +
+      '<input class="isian krg-bab" maxlength="150" ' +
+        'placeholder="Nama bab" value="' + esc(p.bab || '') + '">' +
+    '</div>' +
+    '<input class="isian krg-judul" maxlength="120" ' +
+      'placeholder="Judul pertemuan" value="' + esc(p.judul || '') + '">' +
+    '<input class="isian krg-tujuan mt-4 kecil" maxlength="500" ' +
+      'placeholder="Tujuan pembelajaran" value="' +
+      esc(p.tujuan_pembelajaran || '') + '">' +
+    '<div class="baris sela-kecil mt-8" style="flex-wrap:wrap;' +
+      'align-items:center">' +
+      '<span class="kecil lembut">Item yang dibuat:</span>' +
+      '<label class="baris sela-kecil kecil" style="cursor:pointer">' +
+        '📄 <input class="isian isian-nilai krg-materi" type="number" ' +
+        'min="1" max="3" value="' + (Number(p.jumlah_materi) || 1) +
+        '"> materi</label>' +
+      '<label class="baris sela-kecil kecil" style="cursor:pointer">' +
+        '<input type="checkbox" class="krg-lkpd"' +
+        (p.perlu_lkpd ? ' checked' : '') + '> 📝 LKPD</label>' +
+      '<label class="baris sela-kecil kecil" style="cursor:pointer">' +
+        '<input type="checkbox" class="krg-kelompok"' +
+        (p.perlu_kelompok ? ' checked' : '') + '> 👥 Kelompok</label>' +
+      '<label class="baris sela-kecil kecil" style="cursor:pointer">' +
+        '<input type="checkbox" class="krg-quiz"' +
+        (p.perlu_quiz ? ' checked' : '') + '> 🎯 Quiz</label>' +
+      '<label class="baris sela-kecil kecil" style="cursor:pointer">' +
+        '<input type="checkbox" class="krg-refleksi"' +
+        (p.perlu_refleksi ? ' checked' : '') + '> 💭 Refleksi</label>' +
+    '</div>' +
+  '</div>';
+}
+
+/** Salin isi kotak isian kembali ke KRG.usulan. */
+function _bacaSuntingan() {
+  var daftar = $('#krg-daftar');
+  if (!daftar) return;
+  $$('.krg-baris', daftar).forEach(function (b) {
+    var i = Number(b.dataset.i);
+    var p = KRG.usulan[i];
+    if (!p) return;
+    p.pakai = b.querySelector('.krg-pakai').checked;
+    p.bab = b.querySelector('.krg-bab').value.trim();
+    p.judul = b.querySelector('.krg-judul').value.trim();
+    p.tujuan_pembelajaran = b.querySelector('.krg-tujuan').value.trim();
+    p.jumlah_materi = Math.min(3, Math.max(1,
+      Number(b.querySelector('.krg-materi').value) || 1));
+    p.perlu_lkpd = b.querySelector('.krg-lkpd').checked;
+    p.perlu_kelompok = b.querySelector('.krg-kelompok').checked;
+    p.perlu_quiz = b.querySelector('.krg-quiz').checked;
+    p.perlu_refleksi = b.querySelector('.krg-refleksi').checked;
+  });
+}
+
+/**
+ * Ringkasan apa yang AKAN dibuat.
+ *
+ * Guru berhak tahu angkanya sebelum menekan Terapkan — 15 pertemuan
+ * bisa berarti 50-an item, dan tidak ada tombol urungkan.
+ */
+/**
+ * Berapa item yang lahir dari satu baris usulan.
+ *
+ * SATU tempat saja. Versi sebelumnya menghitungnya di dua tempat
+ * (ringkasan & konfirmasi) dengan kode yang disalin — ketika tipe
+ * item baru ditambahkan, salah satu pasti tertinggal.
+ */
+function _cacahItem(p) {
+  var n = Math.min(3, Math.max(1, Number(p.jumlah_materi) || 1));
+  if (p.perlu_lkpd) n++;
+  if (p.perlu_kelompok) n++;
+  if (p.perlu_quiz) n++;
+  if (p.perlu_refleksi) n++;
+  return n;
+}
+
+function _hitungRingkas() {
+  var el = $('#krg-ringkas');
+  if (!el) return;
+  var dipakai = KRG.usulan.filter(function (p) { return p.pakai !== false; });
+  var item = 0, bab = {}, jmlBab = 0;
+  dipakai.forEach(function (p) {
+    item += _cacahItem(p);
+    var b = String(p.bab || '').trim().toLowerCase();
+    if (b && !bab[b]) { bab[b] = true; jmlBab++; }
+  });
+  el.innerHTML = '<b>' + jmlBab + '</b> bab · <b>' +
+    dipakai.length + '</b> pertemuan · <b>' + item + '</b> item';
+}
+
+function _terapkanKerangka(tombol) {
+  _bacaSuntingan();
+
+  var dipakai = KRG.usulan.filter(function (p) {
+    return p.pakai !== false && String(p.judul || '').trim() !== '';
+  });
+
+  if (!dipakai.length) {
+    toast('Centang minimal satu pertemuan berjudul.', 'peringatan');
+    return;
+  }
+
+  var kosong = KRG.usulan.filter(function (p) {
+    return p.pakai !== false && String(p.judul || '').trim() === '';
+  }).length;
+
+  var item = 0, petaBab = {}, jmlBab = 0;
+  dipakai.forEach(function (p) {
+    item += _cacahItem(p);
+    var b = String(p.bab || '').trim().toLowerCase();
+    if (b && !petaBab[b]) { petaBab[b] = true; jmlBab++; }
+  });
+
+  konfirmasi('Terapkan Kerangka',
+    '<b>' + jmlBab + ' Materi Pokok</b>, <b>' + dipakai.length +
+    ' pertemuan</b>, dan <b>' + item +
+    ' item</b> akan dibuat, semuanya berstatus <b>draf</b> — belum ' +
+    'terlihat murid.' +
+    (kosong ? ' <b>' + kosong + '</b> baris tanpa judul dilewati.' : '') +
+    '<br><br>Tindakan ini <b>tidak dapat diurungkan sekaligus</b>; ' +
+    'pertemuan yang tidak jadi dipakai harus dihapus satu per satu.',
+    { labelYa: 'Terapkan' }).then(function (ya) {
+      if (!ya) return;
+      callApi('terapkanKerangkaAI', [KRG.kelasId, dipakai],
+              { tombol: tombol })
+        .then(function (r) {
+          _panelKotor = false;
+          tutupPanel(false);
+          dialog({
+            judul: 'Kerangka Diterapkan',
+            pesan: (r.bab ? '<b>' + r.bab + ' Materi Pokok</b>, ' : '') +
+                   '<b>' + r.pertemuan + ' pertemuan</b>, dan <b>' +
+                   r.item + ' item</b> dibuat sebagai <b>draf</b>.' +
+                   '<br><br>Isi materinya lewat tombol ✨ pada tiap ' +
+                   'item, lalu terbitkan bila sudah siap.',
+            tanpaBatal: true, labelYa: 'Mengerti'
+          }).then(function () {
+            if (KRG.sesudah) KRG.sesudah();
+          });
+        });
+    });
+}
+</script>

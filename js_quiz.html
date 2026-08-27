@@ -1,0 +1,1545 @@
+<script>
+/* ============================================================
+   LessonLen — js_quiz
+   Murid: mengerjakan quiz (autosave, timer server)
+   Guru : bank soal, antrean koreksi, penilaian per-Quiz
+   ============================================================ */
+
+var LABEL_QUIZ = {
+  belum:            ['Belum mengerjakan', ''],
+  berjalan:         ['Sedang mengerjakan', 'menunggu'],
+  menunggu_koreksi: ['Menunggu koreksi', 'menunggu'],
+  lulus:            ['Lulus', 'diterima'],
+  belum_lulus:      ['Belum lulus', 'ditolak']
+};
+
+var LABEL_TIPE = {
+  pg: 'Pilihan ganda', benar_salah: 'Benar / Salah',
+  isian: 'Isian singkat', esai: 'Uraian'
+};
+
+/* State pengerjaan — hanya hidup selama halaman quiz terbuka. */
+var QZ = {
+  attempt: null,      /* payload attempt dari server */
+  idx: 0,             /* soal yang sedang tampil */
+  sedangKumpul: false   /* penjaga klik ganda tombol Kumpulkan */
+};
+
+/* ============================================================
+   PENYIMPANAN LOKAL (v1.9.0)
+
+   MENGAPA
+
+   Versi lama mengirim SATU permintaan ke server setiap murid
+   mengklik jawaban. Satu kelas 36 murid × 5 soal = 180 permintaan
+   yang seluruhnya mengantre di `LockService` tingkat skrip — kunci
+   yang sama untuk seluruh aplikasi. Laporan lapangan: "sangat lama,
+   banyak yang gagal, server sibuk, data tidak tersimpan."
+
+   Sekarang jawaban disimpan di localStorage peramban dan dikirim
+   SEKALI saat menekan Kumpulkan. Dua permintaan per quiz, bukan 182.
+
+   YANG TETAP DI SERVER
+
+   Kunci jawaban tidak pernah dikirim ke sini, dan nilai dihitung
+   ulang di server dari jawaban mentah (§13 no. 10). localStorage
+   hanya menyimpan APA yang dijawab murid, bukan benar-salahnya.
+
+   RISIKO YANG DITERIMA SADAR
+
+   Membersihkan data peramban atau mode penyamaran akan menghapus
+   pekerjaan yang belum dikumpulkan. Guru memutuskan ini dapat
+   diterima: quiz adalah tugas, bukan ujian.
+   ============================================================ */
+
+var QZ_KUNCI = 'lessonlen_quiz_';
+
+function _kunciSimpanan(attemptId) {
+  return QZ_KUNCI + attemptId;
+}
+
+/** Simpan jawaban attempt ini ke localStorage. Gagal diam — tidak
+    boleh menghentikan murid mengerjakan. */
+function _simpanLokal() {
+  if (!QZ.attempt) return;
+  try {
+    var isi = { v: 1, waktu: Date.now(), jawaban: QZ.attempt.soal.map(
+      function (s) {
+        return { s: s.soal_id, j: s.jawaban || '', r: s.ragu === true };
+      }) };
+    localStorage.setItem(_kunciSimpanan(QZ.attempt.attempt_id),
+                         JSON.stringify(isi));
+  } catch (e) { /* penyimpanan penuh / diblokir — biarkan */ }
+}
+
+/** Pulihkan jawaban tersimpan ke payload attempt yang baru dimuat. */
+function _pulihkanLokal() {
+  if (!QZ.attempt) return 0;
+  var isi = null;
+  try {
+    var teks = localStorage.getItem(_kunciSimpanan(QZ.attempt.attempt_id));
+    if (teks) isi = JSON.parse(teks);
+  } catch (e) { return 0; }
+  if (!isi || !isi.jawaban) return 0;
+
+  var peta = {};
+  isi.jawaban.forEach(function (x) { peta[x.s] = x; });
+
+  var pulih = 0;
+  QZ.attempt.soal.forEach(function (s) {
+    var x = peta[s.soal_id];
+    if (!x) return;
+    /* Jawaban server dipakai bila lokal kosong — attempt lama yang
+       dibuat sebelum v1.9.0 jawabannya ada di server. */
+    if (String(x.j || '') !== '') { s.jawaban = x.j; pulih++; }
+    s.ragu = x.r === true;
+  });
+  return pulih;
+}
+
+function _hapusLokal(attemptId) {
+  try { localStorage.removeItem(_kunciSimpanan(attemptId)); } catch (e) {}
+}
+
+/** Larik jawaban untuk dikirim ke server saat mengumpulkan. */
+function _jawabanUntukKirim() {
+  if (!QZ.attempt) return [];
+  return QZ.attempt.soal.map(function (s) {
+    return { s: s.soal_id, j: s.jawaban || '', r: s.ragu === true };
+  });
+}
+
+function _bersihkanQuiz() {
+  QZ.attempt = null; QZ.idx = 0;
+  QZ.sedangKumpul = false;
+}
+
+/* ============================================================
+   RUTE MURID — layar pembuka
+   ============================================================ */
+
+daftarRute('quiz', function (arg) {
+  if (!State.user || State.user.role !== 'murid') { pergiKe('#/beranda'); return; }
+  var id = arg && arg[0];
+  if (!id) { pergiKe('#/beranda'); return; }
+
+  _bersihkanQuiz();
+  var app = render('tpl-dashboard');
+  pasangTopbar(app);
+  var luar = $('#isi-halaman', app);
+  /* Kerangka + sidebar digambar SEKARANG, tidak menunggu bukaQuiz.
+     Bila indeks kelas sudah ada di memori (murid datang dari daftar
+     pertemuan), sidebar tampil seketika. */
+  Nav.aktifItem = id;
+  var isi = navRangka(luar);
+  isi.innerHTML = rangkaMuat(80, 3);
+  if (Nav.kelasId) navMuat(Nav.kelasId).then(navGambar);
+
+  callApi('bukaQuiz', [id], { diam: true })
+    .then(function (d) {
+      gambarPembukaQuiz(isi, d);
+      navPasangItem(d.kelas_id, d.pertemuan_id, id);
+    })
+    .catch(function (res) {
+      /* tulis ke kolom isi saja — sidebar tetap berguna untuk
+         berpindah ke item lain yang terbuka */
+      isi.innerHTML = kosongkan('🔒', 'Quiz terkunci',
+        (res && res.pesan) || 'Anda belum dapat membukanya.',
+        '<button class="btn btn-hantu btn-kecil mt-16" ' +
+        'onclick="pergiKe(\'#/beranda\')">Kembali</button>');
+    });
+});
+
+function gambarPembukaQuiz(isi, d) {
+  var html =
+    navTombolLaci() +
+    '<button class="tautan-balik" onclick="pergiKe(\'#/belajar/' +
+      esc(d.pertemuan_id) + '\')">‹ ' + esc(d.pertemuan_judul) + '</button>' +
+    '<div class="kepala-halaman">' +
+      '<h1>🎯 ' + esc(d.judul) + '</h1>' +
+      (d.tujuan_pembelajaran
+        ? '<p class="lembut kecil">🎯 ' + esc(d.tujuan_pembelajaran) + '</p>' : '') +
+    '</div>';
+
+  if (d.petunjuk) {
+    html += '<div class="kartu konten-kaya mb-16">' + d.petunjuk + '</div>';
+  }
+
+  /* ringkasan aturan */
+  html += '<div class="kartu mb-16"><div class="grid-info">' +
+    _info('Jumlah soal', d.jml_soal + ' soal') +
+    _info('KKM', d.kkm) +
+    _info('Batas pengumpulan', d.batas_waktu
+      ? esc(d.batas_waktu) : 'Tanpa batas') +
+    _info('Kesempatan', d.max_percobaan > 0
+      ? d.percobaan_terpakai + ' dari ' + d.max_percobaan + ' terpakai'
+      : 'Tanpa batas') +
+    '</div>';
+
+  if (d.lewat_batas) {
+    html += '<div class="kotak-peringatan kartu kartu-rapat mt-12">' +
+      '<span class="kecil">⚠ Batas pengumpulan sudah lewat. Anda tetap ' +
+      'boleh mengerjakan — nilainya dihitung penuh, tetapi ditandai ' +
+      '<b>terlambat</b> untuk guru.</span></div>';
+  }
+
+  if (d.ada_esai) {
+    html += '<p class="kecil lembut mt-12">📝 Quiz ini memuat soal uraian, ' +
+      'sehingga nilai akhir menunggu koreksi guru.</p>';
+  }
+  html += '</div>';
+
+  /* nilai tertinggi */
+  if (d.nilai_tertinggi !== null && d.nilai_tertinggi !== undefined) {
+    html += '<div class="kartu mb-16"><div class="baris-antara">' +
+      '<div><div class="lembut kecil">Nilai tertinggi Anda</div>' +
+      '<div class="angka-besar">' + esc(d.nilai_tertinggi) + '</div></div>' +
+      '<span class="lencana ' + (d.lulus ? 'diterima' : 'ditolak') + '">' +
+      (d.lulus ? 'Lulus' : 'Belum lulus') + '</span>' +
+      '</div></div>';
+  }
+
+  /* riwayat percobaan */
+  if (d.riwayat && d.riwayat.length) {
+    html += '<div class="kartu mb-16"><h3 class="judul-kartu">Riwayat percobaan</h3>' +
+      '<div class="tabel-gulir">' +
+      '<table class="tabel"><thead><tr><th>Ke-</th><th>Status</th>' +
+      '<th>Nilai</th><th>Waktu</th><th></th></tr></thead><tbody>';
+    d.riwayat.forEach(function (r) {
+      html += '<tr><td>' + esc(r.percobaan_ke) + '</td>' +
+        '<td>' + esc(_labelStatusAttempt(r.status)) + '</td>' +
+        '<td>' + (r.nilai === '' || r.nilai === null ? '—' : esc(r.nilai)) + '</td>' +
+        '<td class="kecil lembut">' + esc(r.selesai_at || r.mulai_at || '—') + '</td>' +
+        '<td>' + (r.status === 'selesai' || r.status === 'menunggu_koreksi'
+          ? '<button class="btn btn-hantu btn-mini" onclick="lihatHasilQuiz(\'' +
+            esc(r.attempt_id) + '\')">Lihat</button>' : '') + '</td></tr>';
+    });
+    html += '</tbody></table></div></div>';
+  }
+
+  /* tombol aksi */
+  html += '<div class="kartu">';
+  if (d.ada_attempt_berjalan) {
+    html += '<p class="mb-12">⏳ Anda punya pengerjaan yang belum selesai.</p>' +
+      '<button class="btn btn-utama" onclick="mulaiKerjakanQuiz(\'' +
+      esc(d.item_id) + '\', true)">Lanjutkan Pengerjaan</button>';
+  } else if (d.bisa_mulai) {
+    html += '<button class="btn btn-utama" onclick="mulaiKerjakanQuiz(\'' +
+      esc(d.item_id) + '\', false)">Mulai Kerjakan</button>';
+  } else {
+    html += '<p class="lembut">' + esc(d.alasan_tak_bisa ||
+      'Quiz belum dapat dikerjakan.') + '</p>';
+  }
+  html += '</div>';
+  html += navBilahItem(d.item_id);
+
+  isi.innerHTML = html;
+  renderRumus(isi);
+}
+
+function _info(label, nilai) {
+  return '<div><div class="lembut kecil">' + esc(label) + '</div>' +
+    '<div class="tebal">' + esc(nilai) + '</div></div>';
+}
+
+function _labelStatusAttempt(s) {
+  return { berjalan: 'Sedang dikerjakan', menunggu_koreksi: 'Menunggu koreksi',
+           selesai: 'Selesai', kedaluwarsa: 'Kedaluwarsa' }[s] || s;
+}
+
+/* ============================================================
+   MURID — pengerjaan
+   ============================================================ */
+
+function mulaiKerjakanQuiz(itemId, lanjut) {
+  var fn = lanjut ? 'lanjutkanAttempt' : 'mulaiQuiz';
+  callApi(fn, [itemId])
+    .then(function (a) {
+      QZ.attempt = a;
+      QZ.idx = 0;
+      /* Jawaban yang belum sempat dikumpulkan dipulihkan dari
+         peramban — murid boleh menutup tab lalu kembali (v1.9.0). */
+      var pulih = _pulihkanLokal();
+      gambarLayarKerja();
+      if (pulih) {
+        toast(pulih + ' jawaban dipulihkan dari perangkat ini.', 'info', 3);
+      }
+    })
+    .catch(function () {});
+}
+
+function gambarLayarKerja() {
+  var app = render('tpl-dashboard');
+  pasangTopbar(app);
+  var isi = $('#isi-halaman', app);
+  isi.innerHTML =
+    '<div class="kepala-halaman baris-antara">' +
+      '<h1>🎯 ' + esc(QZ.attempt.judul) + '</h1>' +
+      '<div id="tanda-simpan-atas" class="kecil lembut"></div>' +
+    '</div>' +
+    '<div id="peta-soal" class="peta-soal mb-16"></div>' +
+    '<div id="kotak-soal"></div>';
+
+  gambarPetaSoal();
+  gambarSoalAktif();
+}
+
+function gambarPetaSoal() {
+  var el = $('#peta-soal');
+  if (!el) return;
+  var h = '';
+  QZ.attempt.soal.forEach(function (s, i) {
+    var kelas = 'titik-soal';
+    if (i === QZ.idx) kelas += ' aktif';
+    if (_sudahDijawab(s)) kelas += ' terisi';
+    if (s.ragu) kelas += ' ragu';
+    h += '<button class="' + kelas + '" title="Soal ' + (i + 1) + '" ' +
+      'onclick="loncatSoal(' + i + ')">' + (i + 1) + '</button>';
+  });
+  el.innerHTML = h;
+}
+
+function _sudahDijawab(s) {
+  return s.jawaban !== undefined && s.jawaban !== null &&
+         String(s.jawaban).trim() !== '';
+}
+
+function gambarSoalAktif() {
+  var el = $('#kotak-soal');
+  if (!el) return;
+  var s = QZ.attempt.soal[QZ.idx];
+  var total = QZ.attempt.soal.length;
+
+  /* Teks bacaan bersama.
+
+     Server menyimpannya HANYA pada soal pertama kelompok — menyalinnya
+     ke tiap soal akan melipatgandakan payload. Karena murid melihat
+     satu soal per layar, bacaan itu dicari ulang di sini dari anggota
+     kelompok yang mana pun, lalu ditampilkan di SETIAP soal
+     sekelompok. Tanpa ini, soal ke-2 dan seterusnya tampil tanpa
+     wacananya. */
+  var bacaan = '';
+  if (s.grup_id) {
+    for (var b = 0; b < QZ.attempt.soal.length; b++) {
+      var q = QZ.attempt.soal[b];
+      if (q.grup_id === s.grup_id && q.stimulus) { bacaan = q.stimulus; break; }
+    }
+  }
+
+  var h = '';
+  if (bacaan) {
+    var anggota = QZ.attempt.soal.filter(function (q) {
+      return q.grup_id === s.grup_id;
+    });
+    var ke = anggota.map(function (q) { return q.soal_id; })
+      .indexOf(s.soal_id) + 1;
+    h += '<div class="kartu kotak-stimulus mb-12">' +
+      '<div class="kecil tebal mb-8">📖 Bacalah teks berikut' +
+        (anggota.length > 1
+          ? ' <span class="lembut">(untuk ' + anggota.length + ' soal · ' +
+            'soal ke-' + ke + ')</span>'
+          : '') + '</div>' +
+      '<div class="isi-stimulus konten-kaya">' + bacaan + '</div>' +
+    '</div>';
+  }
+
+  h += '<div class="kartu">' +
+    '<div class="baris-antara mb-12">' +
+      '<span class="lembut kecil">Soal ' + (QZ.idx + 1) + ' dari ' + total +
+        ' · ' + esc(LABEL_TIPE[s.tipe] || s.tipe) + '</span>' +
+      '<span class="lencana">Bobot ' + esc(s.bobot) + '</span>' +
+    '</div>' +
+    '<div class="konten-kaya mb-16">' + s.pertanyaan + '</div>';
+
+  if (s.gambar_url) {
+    h += '<img src="' + esc(s.gambar_url) + '" alt="Gambar soal" ' +
+      'class="gambar-soal mb-16">';
+  }
+
+  h += '<div class="daftar-opsi">';
+  if (s.tipe === 'pg' || s.tipe === 'benar_salah') {
+    s.opsi.forEach(function (o, i) {
+      var pilih = String(s.jawaban) === String(o);
+      h += '<label class="opsi' + (pilih ? ' terpilih' : '') + '">' +
+        '<input type="radio" name="jw" value="' + esc(o) + '"' +
+        (pilih ? ' checked' : '') + ' onchange="pilihJawaban(this.value)">' +
+        '<span class="huruf-opsi">' + 'ABCDE'.charAt(i) + '</span>' +
+        '<span>' + esc(o) + '</span></label>';
+    });
+  } else if (s.tipe === 'isian') {
+    h += '<input type="text" id="jw-isian" class="input" maxlength="200" ' +
+      'placeholder="Ketik jawaban singkat…" value="' + esc(s.jawaban || '') + '" ' +
+      'oninput="tundaSimpan(this.value)">';
+  } else {
+    h += '<textarea id="jw-esai" class="input" rows="8" maxlength="5000" ' +
+      'placeholder="Tulis uraian jawaban Anda…" ' +
+      'oninput="tundaSimpan(this.value)">' + esc(s.jawaban || '') + '</textarea>' +
+      '<p class="kecil lembut mt-8">Soal uraian dinilai langsung oleh guru.</p>';
+  }
+  h += '</div>';
+
+  h += '<div class="baris-antara mt-16">' +
+    '<div>' +
+      '<button class="btn btn-hantu btn-kecil"' + (QZ.idx === 0 ? ' disabled' : '') +
+        ' onclick="pindahSoal(-1)">‹ Sebelumnya</button> ' +
+      '<button class="btn btn-hantu btn-kecil' + (s.ragu ? ' aktif' : '') + '" ' +
+        'onclick="tandaiRagu()">' + (s.ragu ? '★ Ragu' : '☆ Ragu') + '</button>' +
+    '</div>' +
+    '<div>' +
+      '<span id="tanda-simpan" class="kecil lembut mr-8"></span>' +
+      (QZ.idx < total - 1
+        ? '<button class="btn btn-utama btn-kecil" onclick="pindahSoal(1)">Lanjut ›</button>'
+        : '<button class="btn btn-sukses btn-kecil" onclick="konfirmasiKumpul()">Kumpulkan Jawaban</button>') +
+    '</div></div></div>';
+
+  if (QZ.idx === total - 1) {
+    var belum = QZ.attempt.soal.filter(function (x) { return !_sudahDijawab(x); }).length;
+    if (belum > 0) {
+      h += '<p class="kecil peringatan-teks mt-12">⚠️ Masih ada ' + belum +
+        ' soal belum dijawab.</p>';
+    }
+  }
+
+  el.innerHTML = h;
+  renderRumus(el);
+}
+
+function pilihJawaban(nilai) {
+  QZ.attempt.soal[QZ.idx].jawaban = nilai;
+  _simpanLokal();              /* localStorage, BUKAN server (v1.9.0) */
+  _tandaTersimpan();
+  gambarPetaSoal();
+  gambarSoalAktif();
+}
+
+/** Penanda kecil "tersimpan di perangkat ini". */
+function _tandaTersimpan() {
+  /* Dua penanda: satu di kepala halaman, satu di dekat tombol
+     navigasi soal. Keduanya diperbarui — murid melihat yang terdekat
+     dengan matanya. */
+  ['#tanda-simpan', '#tanda-simpan-atas'].forEach(function (sel) {
+    var t = $(sel);
+    if (t) t.textContent = '✓ tersimpan di perangkat';
+  });
+}
+
+/**
+ * Isian/esai — langsung ke localStorage tiap ketukan.
+ *
+ * Penundaan 900 ms dulu diperlukan karena tiap simpan adalah
+ * permintaan jaringan. Menulis localStorage tidak berbiaya, jadi
+ * penundaannya dibuang: jawaban aman bahkan bila tab ditutup
+ * mendadak (v1.9.0).
+ */
+function tundaSimpan(nilai) {
+  QZ.attempt.soal[QZ.idx].jawaban = nilai;
+  _simpanLokal();
+  _tandaTersimpan();
+}
+
+function pindahSoal(delta) {
+  _simpanLokal();
+  var baru = QZ.idx + delta;
+  if (baru < 0 || baru >= QZ.attempt.soal.length) return;
+  QZ.idx = baru;
+  gambarPetaSoal();
+  gambarSoalAktif();
+}
+
+function loncatSoal(i) {
+  if (i === QZ.idx) return;
+  _simpanLokal();
+  QZ.idx = i;
+  gambarPetaSoal();
+  gambarSoalAktif();
+}
+
+function tandaiRagu() {
+  var s = QZ.attempt.soal[QZ.idx];
+  s.ragu = !s.ragu;
+  _simpanLokal();
+  gambarPetaSoal();
+  gambarSoalAktif();
+}
+
+/**
+ * Tanya dulu, baru kumpulkan.
+ *
+ * Penjaga klik ganda ada di `_kumpulkan()` lewat `QZ.sedangKumpul`,
+ * BUKAN di sini — murid yang tidak sabar menekan tombol berkali-kali
+ * saat dialog masih terbuka (pelajaran v1.4.3).
+ */
+function konfirmasiKumpul() {
+  if (QZ.sedangKumpul || !QZ.attempt) return;
+
+  var belum = QZ.attempt.soal.filter(function (s) {
+    return String(s.jawaban || '').trim() === '';
+  }).length;
+  var ragu = QZ.attempt.soal.filter(function (s) { return s.ragu; }).length;
+
+  var pesan = 'Jawaban akan dikirim dan dinilai.';
+  if (belum) {
+    pesan = '<b>' + belum + ' soal belum dijawab.</b> ' + pesan;
+  }
+  if (ragu) {
+    pesan += ' Anda menandai <b>' + ragu + '</b> soal sebagai ragu.';
+  }
+  pesan += '<br><br>Setelah dikumpulkan, jawaban tidak dapat diubah.' +
+    '<br><br>Penilaian butuh <b>beberapa detik</b> — ' +
+    '<b>jangan menutup halaman</b> sampai nilai muncul.';
+
+  konfirmasi('Kumpulkan Jawaban', pesan, { labelYa: 'Kumpulkan' })
+    .then(function (ya) {
+      if (!ya) return;
+      _kumpulkan(false);
+    });
+}
+
+/**
+ * Kumpulkan jawaban — SATU panggilan berisi seluruh jawaban.
+ *
+ * Versi lama: `simpanJawaban()` per klik (180 permintaan sekelas)
+ * lalu `simpanJawaban()` sekali lagi + `kumpulkanQuiz()`. Seluruhnya
+ * mengantre di `LockService` tingkat skrip. Laporan lapangan dari
+ * 36 murid serentak: "sangat lama, banyak yang gagal, server sibuk,
+ * data tidak tersimpan."
+ *
+ * Sekarang jawaban dikumpulkan di localStorage selama mengerjakan
+ * dan dikirim SEKALI di sini. Dua permintaan per quiz: mulaiQuiz
+ * dan kumpulkanQuiz (v1.9.0).
+ *
+ * localStorage BARU dihapus setelah server memastikan tersimpan —
+ * bila jaringan gagal, jawaban murid masih utuh di perangkatnya.
+ */
+function _kumpulkan(otomatis) {
+  if (QZ.sedangKumpul || !QZ.attempt) return;
+  QZ.sedangKumpul = true;
+
+  var id = QZ.attempt.attempt_id;
+  _simpanLokal();                 /* jaring pengaman terakhir */
+  var jawaban = _jawabanUntukKirim();
+  _kunciLayarKerja();
+
+  tampilkanMuat(true, 'Mengumpulkan & menghitung nilai…');
+
+  callApi('kumpulkanQuiz', [id, jawaban], { diam: true })
+    .then(function (h) {
+      tampilkanMuat(false);
+      QZ.sedangKumpul = false;
+      /* Server sudah menyimpan — simpanan lokal tidak diperlukan. */
+      _hapusLokal(id);
+      _bersihkanQuiz();
+      navSegarkan();          /* status quiz berubah di sidebar */
+      gambarHasilQuiz(h);
+    })
+    .catch(function (res) {
+      tampilkanMuat(false);
+      QZ.sedangKumpul = false;
+
+      /* Sudah terkumpul di server (klik ganda yang menembus) —
+         tampilkan hasilnya, jangan biarkan murid terjebak di layar
+         kerja yang sudah mati. */
+      if (res && res.pesan &&
+          String(res.pesan).indexOf('sudah dikumpulkan') > -1) {
+        toast('Jawaban Anda sudah terkumpul.', 'sukses');
+        _hapusLokal(id);
+        _bersihkanQuiz();
+        navSegarkan();
+        lihatHasilQuiz(id);
+        return;
+      }
+
+      /* Jawaban TIDAK dihapus dari perangkat — murid boleh mencoba
+         lagi tanpa kehilangan apa pun. */
+      _bukaLayarKerja();
+      toast('Gagal mengumpulkan. Jawaban Anda masih tersimpan di ' +
+            'perangkat ini — periksa koneksi lalu coba lagi.', 'bahaya', 6);
+    });
+}
+
+/** Matikan seluruh kendali layar kerja selama pengumpulan berjalan. */
+function _kunciLayarKerja() {
+  $$('#isi-halaman button, #isi-halaman input, #isi-halaman textarea')
+    .forEach(function (el) { el.disabled = true; });
+}
+
+function _bukaLayarKerja() {
+  if (QZ.attempt) { gambarPetaSoal(); gambarSoalAktif(); }
+}
+
+/* ---------------------------------------------- hasil */
+
+function lihatHasilQuiz(attemptId) {
+  callApi('getHasilQuiz', [attemptId])
+    .then(function (h) { gambarHasilQuiz(h); })
+    .catch(function () {});
+}
+
+function gambarHasilQuiz(h) {
+  var app = render('tpl-dashboard');
+  pasangTopbar(app);
+  var isi = $('#isi-halaman', app);
+
+  var html = '<button class="tautan-balik" onclick="pergiKe(\'#/quiz/' +
+    esc(h.item_id) + '\')">‹ Kembali ke quiz</button>' +
+    '<div class="kepala-halaman"><h1>Hasil: ' + esc(h.judul) + '</h1></div>';
+
+  if (h.menunggu_koreksi) {
+    html += '<div class="kartu sorot-menunggu mb-16">' +
+      '<h2>📝 Menunggu koreksi guru</h2>' +
+      '<p class="lembut">Quiz ini memuat soal uraian. Nilai akhir muncul ' +
+      'setelah guru selesai mengoreksi.</p>' +
+      '<p class="kecil mt-8">Skor sementara dari soal otomatis: ' +
+      esc(h.skor) + ' dari ' + esc(h.skor_maks) + '</p></div>';
+  } else {
+    html += '<div class="kartu ' + (h.lulus ? 'sorot-lulus' : 'sorot-gagal') +
+      ' mb-16"><div class="baris-antara">' +
+      '<div><div class="lembut kecil">Nilai Anda</div>' +
+      '<div class="angka-raksasa">' + esc(h.nilai) + '</div>' +
+      '<div class="kecil lembut">Skor ' + esc(h.skor) + ' / ' +
+        esc(h.skor_maks) + ' · KKM ' + esc(h.kkm) + '</div></div>' +
+      '<span class="lencana ' + (h.lulus ? 'diterima' : 'ditolak') + '">' +
+      (h.lulus ? '✅ Lulus' : '❌ Belum lulus') + '</span></div></div>';
+  }
+
+  if (h.catatan_guru) {
+    html += '<div class="kartu mb-16"><h3 class="judul-kartu">💬 Catatan guru</h3>' +
+      '<p>' + esc(h.catatan_guru) + '</p></div>';
+  }
+
+  if (h.bisa_ulang) {
+    html += '<div class="kartu mb-16">' +
+      '<p class="mb-12">Anda masih punya kesempatan mengulang' +
+      (h.sisa_percobaan !== null ? ' (' + esc(h.sisa_percobaan) + ' tersisa)' : '') +
+      '.</p><button class="btn btn-utama btn-kecil" onclick="mulaiKerjakanQuiz(\'' +
+      esc(h.item_id) + '\', false)">Ulangi Quiz</button></div>';
+  }
+
+  if (h.tampilkan_pembahasan && h.pembahasan && h.pembahasan.length) {
+    html += '<h2 class="mt-24 mb-12">Pembahasan</h2>';
+    h.pembahasan.forEach(function (b) {
+      var ikon = b.tipe === 'esai' ? '📝' : (b.benar ? '✅' : '❌');
+      html += '<div class="kartu mb-12">' +
+        '<div class="baris-antara mb-8">' +
+          '<span class="tebal">' + ikon + ' Soal ' + esc(b.nomor) + '</span>' +
+          '<span class="lencana">Bobot ' + esc(b.bobot) + '</span></div>' +
+        '<div class="konten-kaya mb-12">' + b.pertanyaan + '</div>' +
+        '<div class="kecil"><span class="lembut">Jawaban Anda:</span> ' +
+          (b.jawaban_murid ? esc(b.jawaban_murid) : '<em>tidak dijawab</em>') + '</div>';
+      if (b.tipe !== 'esai') {
+        html += '<div class="kecil"><span class="lembut">Kunci:</span> ' +
+          esc(b.kunci) + '</div>';
+      } else if (b.nilai_esai !== null) {
+        html += '<div class="kecil"><span class="lembut">Nilai uraian:</span> ' +
+          esc(b.nilai_esai) + ' / ' + esc(b.bobot) + '</div>';
+      }
+      if (b.umpan_balik) {
+        html += '<div class="kotak-feedback mt-8">💬 ' + esc(b.umpan_balik) + '</div>';
+      }
+      if (b.pembahasan) {
+        html += '<div class="kotak-pembahasan mt-8 konten-kaya">' + b.pembahasan + '</div>';
+      }
+      html += '</div>';
+    });
+  }
+
+  isi.innerHTML = html;
+  renderRumus(isi);
+}
+
+/* ============================================================
+   GURU — bank soal
+   ============================================================ */
+
+daftarRute('soal', function (arg) {
+  if (!State.user || State.user.role !== 'guru') { pergiKe('#/beranda'); return; }
+  var id = arg && arg[0];
+  if (!id) { pergiKe('#/kelas'); return; }
+
+  var app = render('tpl-dashboard');
+  pasangTopbar(app);
+  /* Sidebar menu guru (v1.13.2). */
+  var isi = (typeof menuRangka === 'function')
+    ? menuRangka(app, 'kelas') : $('#isi-halaman', app);
+  isi.innerHTML = rangkaMuat(80, 3);
+
+  muatBankSoal(isi, id);
+});
+
+function muatBankSoal(isi, itemId) {
+  callApi('getSoalQuizGuru', [itemId], { diam: true })
+    .then(function (d) { gambarBankSoal(isi, d); })
+    .catch(function (res) {
+      isi.innerHTML = kosongkan('⚠️', 'Tidak dapat memuat',
+        (res && res.pesan) || 'Quiz tidak ditemukan.');
+    });
+}
+
+function gambarBankSoal(isi, d) {
+  var it = d.item;
+  var html =
+    '<button class="tautan-balik" onclick="pergiKe(\'#/pertemuan/' +
+      esc(it.pertemuan_id) + '\')">‹ Kembali ke pertemuan</button>' +
+    '<div class="kepala-halaman baris-antara">' +
+      '<div><h1>🎯 ' + esc(it.judul) + '</h1>' +
+      '<p class="lembut kecil">KKM ' + esc(it.kkm) + ' · ' +
+      (it.batas_waktu ? 'tenggat ' + esc(it.batas_waktu) : 'tanpa tenggat') +
+      ' · ' + (it.max_percobaan > 0 ? esc(it.max_percobaan) + 'x percobaan' : 'percobaan bebas') +
+      (it.acak_soal ? ' · soal diacak' : '') +
+      (it.tampilkan_pembahasan ? ' · pembahasan ditampilkan' : '') + '</p></div>' +
+      '<button class="btn btn-hantu btn-kecil" onclick="pergiKe(\'#/nilai-quiz/' +
+        esc(it.item_id) + '\')">📊 Lihat Penilaian</button>' +
+    '</div>';
+
+  html += '<div class="kartu mb-16"><div class="grid-info">' +
+    _info('Jumlah soal', d.rekap.jml_soal) +
+    _info('Total bobot', d.rekap.total_bobot) +
+    _info('Pilihan ganda', d.rekap.per_tipe.pg) +
+    _info('Uraian', d.rekap.per_tipe.esai) +
+    '</div>';
+  if (d.rekap.ada_esai) {
+    html += '<p class="kecil lembut mt-12">📝 Ada soal uraian — ' +
+      'pengumpulan murid akan masuk antrean koreksi.</p>';
+  }
+  html += '</div>';
+
+  html += '<div class="baris-tombol mb-16">' +
+    '<button class="btn btn-utama btn-kecil" onclick="formSoal(\'' +
+      esc(it.item_id) + '\')">+ Tambah Soal</button>' +
+    '<button class="btn btn-hantu btn-kecil" onclick="dialogImporSoal(\'' +
+      esc(it.item_id) + '\')">📥 Impor dari Quiz Lain</button>' +
+    '<button class="btn btn-hantu btn-kecil" onclick="dialogGenerateSoal(\'' +
+      esc(it.item_id) + '\')">✨ Buat dengan AI</button>' +
+    (d.soal.length >= 2
+      ? '<button class="btn btn-hantu btn-kecil" onclick="mulaiKelompokSoal(\'' +
+        esc(it.item_id) + '\')">📖 Kelompokkan (teks bacaan)</button>'
+      : '') +
+    '</div>' +
+    (d.rekap.jml_grup
+      ? '<p class="kecil lembut mb-16">📖 ' + d.rekap.jml_grup +
+        ' kelompok bacaan. Soal sekelompok tidak akan terpisah saat diacak.</p>'
+      : '');
+
+  if (!d.soal.length) {
+    html += kosongkan('📋', 'Belum ada soal',
+      'Tambahkan soal agar murid dapat mengerjakan quiz ini.');
+  } else {
+    html += _daftarSoalGuru(d.soal, it.item_id);
+  }
+
+  isi.innerHTML = html;
+  renderRumus(isi);
+}
+
+/**
+ * Daftar soal guru — soal sekelompok DIBUNGKUS satu blok bertanda.
+ *
+ * Sebelumnya penanda kelompok hanya berupa garis tipis di kiri kartu
+ * dan lencana 📖 tanpa keterangan: guru tidak bisa melihat soal mana
+ * masuk kelompok yang mana, apalagi bila ada dua kelompok berurutan.
+ * Sekarang tiap kelompok punya bingkai, judul "Kelompok N · x soal",
+ * dan tiap anggotanya menyebut posisinya sendiri.
+ */
+function _daftarSoalGuru(soal, itemId) {
+  /* nomor urut kelompok mengikuti kemunculan pertamanya */
+  var urutGrup = {}, jmlAnggota = {}, nGrup = 0;
+  soal.forEach(function (s) {
+    var g = s.grup_id;
+    if (!g) return;
+    if (!urutGrup[g]) { urutGrup[g] = ++nGrup; jmlAnggota[g] = 0; }
+    jmlAnggota[g]++;
+  });
+
+  /* Bacaan hanya tersimpan pada SATU anggota. Kalau blok kelompok
+     digambar dari anggota pertama saja, kelompok yang bacaannya
+     kebetulan tersimpan di anggota lain akan tampil tanpa wacana. */
+  var teksGrup = {};
+  soal.forEach(function (s) {
+    if (s.grup_id && s.stimulus && !teksGrup[s.grup_id]) {
+      teksGrup[s.grup_id] = s.stimulus;
+    }
+  });
+
+  var html = '';
+  var grupTerbuka = '';
+  soal.forEach(function (s, i) {
+    var g = s.grup_id || '';
+
+    if (g !== grupTerbuka) {
+      if (grupTerbuka) html += '</div>';          /* tutup blok lama */
+      grupTerbuka = '';
+
+      if (g) {
+        grupTerbuka = g;
+        html += '<div class="blok-grup mb-16">' +
+          '<div class="kepala-grup">' +
+            '<span class="lencana lencana-grup">📖 Kelompok ' +
+              urutGrup[g] + '</span>' +
+            '<span class="kecil lembut tumbuh">' + jmlAnggota[g] +
+              ' soal berbagi satu teks bacaan · tetap berurutan saat diacak' +
+            '</span>' +
+            '<button class="btn btn-mini btn-hantu" ' +
+              'onclick="dialogUbahStimulus(\'' + esc(itemId) + '\',\'' +
+              esc(g) + '\')">✏️ Ubah bacaan</button>' +
+            '<button class="btn btn-mini btn-bahaya-hantu" ' +
+              'onclick="lepasGrupKlik(\'' + esc(itemId) + '\',\'' +
+              esc(g) + '\')">Lepas kelompok</button>' +
+          '</div>' +
+          '<div class="kotak-stimulus mb-8">' +
+            '<div class="isi-stimulus konten-kaya">' +
+              (teksGrup[g] ||
+                '<span class="lembut">(teks bacaan kosong)</span>') +
+            '</div>' +
+          '</div>';
+      }
+    }
+
+    html += _kartuSoal(s, i, soal.length, itemId, {
+      urut: g ? urutGrup[g] : 0,
+      jml: g ? jmlAnggota[g] : 0
+    });
+  });
+  if (grupTerbuka) html += '</div>';
+  return html;
+}
+
+function _kartuSoal(s, i, total, itemId, grup) {
+  grup = grup || { urut: 0, jml: 0 };
+  var h = '';
+
+  h += '<div class="kartu kartu-soal mb-12' +
+      (s.grup_id ? ' dalam-grup' : '') + '">' +
+    '<div class="baris-antara mb-8">' +
+      '<div><span class="lencana">' + esc(s.nomor) + '</span> ' +
+      (s.grup_id
+        ? '<span class="lencana lencana-grup" title="Soal ini memakai ' +
+          'teks bacaan Kelompok ' + grup.urut + '">📖 Kelompok ' +
+          grup.urut + '</span> '
+        : '') +
+      '<span class="kecil lembut">' + esc(LABEL_TIPE[s.tipe] || s.tipe) +
+      ' · bobot ' + esc(s.bobot) + ' · ' + esc(s.tingkat) +
+      (s.sumber_ai ? ' · ✨ AI' : '') + '</span></div>' +
+      '<div class="baris-tombol">' +
+        (i > 0 ? '<button class="btn btn-mini btn-hantu" title="Naik" ' +
+          'onclick="geserSoal(\'' + esc(itemId) + '\',' + i + ',-1)">↑</button>' : '') +
+        (i < total - 1 ? '<button class="btn btn-mini btn-hantu" title="Turun" ' +
+          'onclick="geserSoal(\'' + esc(itemId) + '\',' + i + ',1)">↓</button>' : '') +
+        '<button class="btn btn-mini btn-hantu" onclick="formSoal(\'' +
+          esc(itemId) + '\',\'' + esc(s.soal_id) + '\')">✏️</button>' +
+        '<button class="btn btn-mini btn-bahaya-hantu" onclick="hapusSoalKlik(\'' +
+          esc(itemId) + '\',\'' + esc(s.soal_id) + '\')">🗑</button>' +
+      '</div></div>' +
+    '<div class="konten-kaya">' + s.pertanyaan + '</div>';
+
+  if (s.gambar_url) {
+    h += '<img src="' + esc(s.gambar_url) + '" class="gambar-soal-kecil mt-8" alt="">';
+  }
+
+  if (s.tipe === 'pg' || s.tipe === 'benar_salah') {
+    h += '<ul class="daftar-opsi-ringkas mt-8">';
+    s.opsi.forEach(function (o, ix) {
+      var huruf = 'ABCDE'.charAt(ix);
+      var benar = (s.tipe === 'pg' && huruf === s.kunci) ||
+                  (s.tipe === 'benar_salah' && o === s.kunci);
+      h += '<li' + (benar ? ' class="opsi-benar"' : '') + '>' +
+        huruf + '. ' + esc(o) + (benar ? ' ✓' : '') + '</li>';
+    });
+    h += '</ul>';
+  } else if (s.tipe === 'isian') {
+    h += '<p class="kecil mt-8"><span class="lembut">Kunci:</span> ' +
+      esc(String(s.kunci).split('|').join('  atau  ')) + '</p>';
+  } else {
+    h += '<p class="kecil lembut mt-8">Dinilai manual oleh guru (0–' +
+      esc(s.bobot) + ').</p>';
+  }
+
+  if (s.pembahasan) {
+    h += '<div class="kotak-pembahasan mt-8 konten-kaya">' + s.pembahasan + '</div>';
+  }
+  return h + '</div>';
+}
+
+/* ---------------------------------------------- form soal */
+
+function formSoal(itemId, soalId) {
+  var awal = { tipe: 'pg', opsi: ['', '', '', ''], kunci: 'A',
+               bobot: 1, tingkat: 'sedang', pertanyaan: '',
+               pembahasan: '', gambar_url: '' };
+
+  if (soalId) {
+    callApi('getSoalQuizGuru', [itemId], { diam: true }).then(function (d) {
+      var s = null;
+      d.soal.forEach(function (x) { if (x.soal_id === soalId) s = x; });
+      if (!s) { toast('Soal tidak ditemukan.', 'bahaya'); return; }
+      _bukaFormSoal(itemId, s);
+    });
+  } else {
+    _bukaFormSoal(itemId, awal);
+  }
+}
+
+function _bukaFormSoal(itemId, s) {
+  var isSunting = !!s.soal_id;
+  var opsi = (s.opsi && s.opsi.length) ? s.opsi.slice() : ['', '', '', ''];
+  while (opsi.length < 4) opsi.push('');
+
+  var badan =
+    '<div class="baris-form">' +
+      '<label>Tipe soal' +
+        '<select id="f-tipe" class="input" onchange="gantiTipeSoal()">' +
+          ['pg','benar_salah','isian','esai'].map(function (t) {
+            return '<option value="' + t + '"' + (s.tipe === t ? ' selected' : '') +
+              '>' + LABEL_TIPE[t] + '</option>';
+          }).join('') +
+        '</select></label>' +
+      '<label>Bobot<input type="number" id="f-bobot" class="input" min="1" ' +
+        'max="100" value="' + esc(s.bobot || 1) + '"></label>' +
+      '<label>Tingkat<select id="f-tingkat" class="input">' +
+        ['mudah','sedang','sulit'].map(function (t) {
+          return '<option value="' + t + '"' + (s.tingkat === t ? ' selected' : '') +
+            '>' + t + '</option>';
+        }).join('') + '</select></label>' +
+    '</div>' +
+    '<label>Pertanyaan' +
+      '<textarea id="f-pertanyaan" class="input" rows="4" ' +
+      'placeholder="Tulis pertanyaan…">' + esc(s.pertanyaan || '') + '</textarea></label>' +
+    '<label>Tautan gambar <span class="lembut kecil">(opsional)</span>' +
+      '<input type="text" id="f-gambar" class="input" placeholder="https://…" ' +
+      'value="' + esc(s.gambar_url || '') + '"></label>' +
+    '<div id="f-area-jawaban"></div>' +
+    '<label>Pembahasan <span class="lembut kecil">(opsional)</span>' +
+      '<textarea id="f-pembahasan" class="input" rows="3">' +
+      esc(s.pembahasan || '') + '</textarea></label>';
+
+  /* Kontrak dialog() di js_core: { judul, pesan, html, labelYa,
+     labelBatal, bahaya, tanpaBatal } → Promise<boolean>.
+     Isi form masuk lewat `html`, BUKAN `badan`. */
+  window._draftOpsi = opsi;
+  window._draftKunci = s.kunci || 'A';
+
+  /* Lebar lewat KONTRAK dialog(), bukan menambah class sendiri.
+     Cara lama mengharuskan pemanggil melepasnya di `.then()` — bila
+     lupa, dialog berikutnya ikut melebar (v1.9.4). */
+  dialog({
+    judul: isSunting ? 'Sunting Soal' : 'Tambah Soal',
+    pesan: 'Lengkapi isian di bawah, lalu tekan Simpan.',
+    html: badan,
+    lebar: 'sedang',
+    labelYa: 'Simpan'
+  }).then(function (ya) {
+    if (!ya) return;
+    var p = _bacaFormSoal(itemId, s.soal_id);
+    if (!p) return;                       /* validasi gagal → batal simpan */
+    callApi('simpanSoal', [p])
+      .then(function () {
+        toast(isSunting ? 'Soal diperbarui.' : 'Soal ditambahkan.', 'sukses');
+        muatBankSoal($('#isi-halaman'), itemId);
+      })
+      .catch(function () {});
+  });
+
+  /* Kotak jawaban digambar SETELAH dialog masuk DOM. */
+  gantiTipeSoal();
+}
+
+function gantiTipeSoal() {
+  var tipe = $('#f-tipe').value;
+  var area = $('#f-area-jawaban');
+  var opsi = window._draftOpsi || ['', '', '', ''];
+  var kunci = window._draftKunci || 'A';
+
+  if (tipe === 'pg') {
+    var h = '<div class="lembut kecil mb-8">Pilih tombol radio untuk menandai kunci.</div>';
+    for (var i = 0; i < 5; i++) {
+      var huruf = 'ABCDE'.charAt(i);
+      h += '<div class="baris-opsi-form">' +
+        '<input type="radio" name="f-kunci" value="' + huruf + '"' +
+          (kunci === huruf ? ' checked' : '') + '>' +
+        '<span class="huruf-opsi">' + huruf + '</span>' +
+        '<input type="text" class="input f-opsi" placeholder="Opsi ' + huruf +
+          (i >= 2 ? ' (kosongkan bila tidak dipakai)' : '') + '" value="' +
+          esc(opsi[i] || '') + '"></div>';
+    }
+    area.innerHTML = h;
+
+  } else if (tipe === 'benar_salah') {
+    area.innerHTML = '<label>Kunci jawaban<select id="f-kunci-bs" class="input">' +
+      '<option value="Benar"' + (kunci === 'Benar' ? ' selected' : '') + '>Benar</option>' +
+      '<option value="Salah"' + (kunci === 'Salah' ? ' selected' : '') + '>Salah</option>' +
+      '</select></label>';
+
+  } else if (tipe === 'isian') {
+    area.innerHTML = '<label>Kunci jawaban' +
+      '<input type="text" id="f-kunci-isian" class="input" value="' +
+      esc(kunci === 'A' ? '' : kunci) + '" placeholder="802.1Q | dot1q">' +
+      '<span class="kecil lembut">Pisahkan alternatif jawaban dengan tanda |. ' +
+      'Besar-kecil huruf dan spasi berlebih diabaikan.</span></label>';
+
+  } else {
+    area.innerHTML = '<div class="kotak-info kecil">' +
+      'Soal uraian dinilai manual. Setelah murid mengumpulkan, ' +
+      'pengerjaan masuk ke antrean koreksi.</div>';
+  }
+}
+
+function _bacaFormSoal(itemId, soalId) {
+  var tipe = $('#f-tipe').value;
+  var p = {
+    item_id: itemId, soal_id: soalId || '',
+    tipe: tipe,
+    pertanyaan: $('#f-pertanyaan').value,
+    gambar_url: $('#f-gambar').value,
+    bobot: Number($('#f-bobot').value) || 1,
+    tingkat: $('#f-tingkat').value,
+    pembahasan: $('#f-pembahasan').value
+  };
+
+  if (!String(p.pertanyaan).trim()) {
+    toast('Pertanyaan wajib diisi.', 'bahaya'); return null;
+  }
+
+  if (tipe === 'pg') {
+    p.opsi = $$('.f-opsi').map(function (el) { return el.value; })
+      .filter(function (v) { return String(v).trim() !== ''; });
+    var r = $('input[name="f-kunci"]:checked');
+    p.kunci = r ? r.value : '';
+    if (p.opsi.length < 2) {
+      toast('Isi minimal 2 opsi.', 'bahaya'); return null;
+    }
+    if (!p.kunci || 'ABCDE'.indexOf(p.kunci) >= p.opsi.length) {
+      toast('Pilih kunci pada opsi yang terisi.', 'bahaya'); return null;
+    }
+  } else if (tipe === 'benar_salah') {
+    p.kunci = $('#f-kunci-bs').value;
+  } else if (tipe === 'isian') {
+    p.kunci = $('#f-kunci-isian').value;
+    if (!String(p.kunci).trim()) {
+      toast('Kunci jawaban isian wajib diisi.', 'bahaya'); return null;
+    }
+  } else {
+    p.kunci = '';
+  }
+  return p;
+}
+
+function hapusSoalKlik(itemId, soalId) {
+  konfirmasi('Hapus soal ini?',
+    'Soal akan dihapus permanen dan penomoran dirapatkan.',
+    { labelYa: 'Hapus', bahaya: true })
+    .then(function (ya) {
+      if (!ya) return;                    /* WAJIB — tanpa ini Batal ikut menghapus */
+      callApi('hapusSoal', [soalId])
+        .then(function () {
+          toast('Soal dihapus.', 'sukses');
+          muatBankSoal($('#isi-halaman'), itemId);
+        })
+        .catch(function () {});
+    });
+}
+
+function geserSoal(itemId, idx, arah) {
+  callApi('getSoalQuizGuru', [itemId], { diam: true }).then(function (d) {
+    var ids = d.soal.map(function (s) { return s.soal_id; });
+    var j = idx + arah;
+    if (j < 0 || j >= ids.length) return;
+    var t = ids[idx]; ids[idx] = ids[j]; ids[j] = t;
+    callApi('aturUrutanSoal', [itemId, ids], { diam: true })
+      .then(function () { muatBankSoal($('#isi-halaman'), itemId); })
+      .catch(function () {});
+  });
+}
+
+/* ---------------------------------------------- kelompok teks bacaan */
+
+/**
+ * Kelompok soal: beberapa soal berbagi SATU teks bacaan.
+ *
+ * Dipakai pelajaran bahasa (wacana, dialog, puisi) dan soal berbasis
+ * kasus. Bacaan disimpan sekali — bukan ditempel ulang di tiap soal —
+ * sehingga menyuntingnya cukup di satu tempat dan payload quiz tidak
+ * membengkak sebesar (jumlah soal − 1) × panjang bacaan.
+ */
+function mulaiKelompokSoal(itemId) {
+  callApi('getSoalQuizGuru', [itemId], { diam: true }).then(function (d) {
+    var bebas = d.soal.filter(function (s) { return !s.grup_id; });
+
+    /* penomoran kelompok harus sama dengan yang tampil di bank soal */
+    var urutGrup = {}, n = 0;
+    d.soal.forEach(function (s) {
+      if (s.grup_id && !urutGrup[s.grup_id]) urutGrup[s.grup_id] = ++n;
+    });
+
+    if (bebas.length < 2) {
+      dialog({ judul: 'Butuh Dua Soal Bebas',
+        pesan: 'Kelompok memerlukan minimal dua soal yang belum ' +
+               'tergabung dalam kelompok lain.',
+        tanpaBatal: true, labelYa: 'Mengerti' });
+      return;
+    }
+
+    dialog({
+      judul: '📖 Kelompokkan Soal',
+      pesan: 'Soal yang dipilih akan berbagi satu teks bacaan dan ' +
+             'ditampilkan berurutan. Saat "Acak urutan soal" aktif, ' +
+             'kelompok ini tetap utuh — hanya posisinya yang bergeser.',
+      html:
+        '<div class="grup"><label>Teks bacaan *</label>' +
+          '<textarea class="isian" id="grp-teks" rows="8" ' +
+            'placeholder="Tempel wacana, dialog, atau puisi di sini…">' +
+          '</textarea>' +
+          '<span class="bantuan">Boleh memakai paragraf. Maksimal ' +
+            '8.000 karakter.</span></div>' +
+        '<div class="grup"><label>Soal yang memakai bacaan ini *</label>' +
+          '<div class="kotak-pilih" id="grp-pilih">' +
+            d.soal.map(function (s) {
+              /* Soal yang sudah bergrup tetap DITAMPILKAN — redup dan
+                 tak bisa dicentang — supaya guru melihat kenapa soal
+                 itu tidak ada dalam daftar pilihan. */
+              if (s.grup_id) {
+                return '<label class="pilih-baris baris-terpakai" ' +
+                  'title="Lepas kelompoknya dahulu bila ingin dipindah">' +
+                  '<input type="checkbox" disabled>' +
+                  '<span class="tumbuh"><span class="kecil tebal">' +
+                    s.nomor + '. ' + esc(_ringkas(s.pertanyaan, 60)) +
+                  '</span> <span class="kecil lembut">— 📖 sudah dalam ' +
+                    'kelompok ' + (urutGrup[s.grup_id] || '') +
+                  '</span></span></label>';
+              }
+              return '<label class="pilih-baris">' +
+                '<input type="checkbox" value="' + esc(s.soal_id) + '">' +
+                '<span class="tumbuh"><span class="kecil tebal">' +
+                  s.nomor + '. ' + esc(_ringkas(s.pertanyaan, 70)) +
+                '</span></span></label>';
+            }).join('') +
+          '</div></div>',
+      labelYa: 'Satukan'
+    }).then(function (ya) {
+      if (!ya) return;
+
+      var teksEl = $('#grp-teks');
+      var teks = teksEl ? teksEl.value.trim() : '';
+      var pilih = $$('#grp-pilih input:checked').map(function (c) {
+        return c.value;
+      });
+
+      if (!teks) { toast('Teks bacaan wajib diisi.', 'peringatan'); return; }
+      if (pilih.length < 2) {
+        toast('Pilih minimal dua soal.', 'peringatan');
+        return;
+      }
+
+      callApi('satukanGrupSoal', [itemId, pilih, teks])
+        .then(function (r) {
+          toast(r.jml + ' soal disatukan dalam satu kelompok.', 'sukses');
+          muatBankSoal($('#isi-halaman'), itemId);
+        })
+        .catch(function () {});
+    });
+  }).catch(function () {});
+}
+
+function dialogUbahStimulus(itemId, grupId) {
+  callApi('getSoalQuizGuru', [itemId], { diam: true }).then(function (d) {
+    var anggota = d.soal.filter(function (s) { return s.grup_id === grupId; });
+    var teksLama = '';
+    anggota.forEach(function (s) { if (s.stimulus) teksLama = s.stimulus; });
+
+    dialog({
+      judul: '✏️ Ubah Teks Bacaan',
+      pesan: 'Berlaku untuk ' + anggota.length + ' soal dalam kelompok ini.',
+      html: '<div class="grup">' +
+        '<textarea class="isian" id="grp-teks2" rows="10">' +
+        esc(_teksPolos(teksLama)) + '</textarea></div>',
+      labelYa: 'Simpan'
+    }).then(function (ya) {
+      if (!ya) return;
+      var el = $('#grp-teks2');
+      var teks = el ? el.value.trim() : '';
+      if (!teks) { toast('Teks bacaan wajib diisi.', 'peringatan'); return; }
+
+      callApi('ubahStimulusGrupSoal', [itemId, grupId, teks])
+        .then(function () {
+          toast('Teks bacaan diperbarui.', 'sukses');
+          muatBankSoal($('#isi-halaman'), itemId);
+        })
+        .catch(function () {});
+    });
+  }).catch(function () {});
+}
+
+function lepasGrupKlik(itemId, grupId) {
+  konfirmasi('Lepas Kelompok',
+    'Teks bacaan akan dihapus dan soal-soalnya kembali berdiri ' +
+    'sendiri. Soalnya sendiri TIDAK dihapus.',
+    { labelYa: 'Lepas' }).then(function (ya) {
+      if (!ya) return;
+      callApi('lepasGrupSoal', [itemId, grupId])
+        .then(function (r) {
+          toast(r.dilepas + ' soal dilepas dari kelompok.', 'sukses');
+          muatBankSoal($('#isi-halaman'), itemId);
+        })
+        .catch(function () {});
+    });
+}
+
+/** Buang tag HTML — textarea hanya menerima teks polos. */
+function _teksPolos(html) {
+  return String(html || '')
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/p>/gi, '\n\n')
+    .replace(/<[^>]+>/g, '')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
+function _ringkas(html, n) {
+  var t = _teksPolos(html).replace(/\s+/g, ' ');
+  return t.length > n ? t.slice(0, n - 1) + '…' : t;
+}
+
+function dialogImporSoal(keItemId) {
+  callApi('getDaftarQuizLain', [keItemId], { diam: true })
+    .then(function (list) {
+      if (!list.length) {
+        toast('Belum ada quiz lain yang punya soal.', 'peringatan');
+        return;
+      }
+      var opsi = list.map(function (q) {
+        return '<option value="' + esc(q.item_id) + '">' +
+          esc(q.nama_kelas) + ' · ' + esc(q.judul) +
+          ' (' + esc(q.jml_soal) + ' soal)</option>';
+      }).join('');
+
+      dialog({
+        judul: 'Impor Soal dari Quiz Lain',
+        pesan: 'Seluruh soal disalin sebagai soal baru. ' +
+               'Quiz sumber tidak berubah.',
+        html: '<label>Pilih quiz sumber<select id="f-sumber" class="input">' +
+              opsi + '</select></label>',
+        labelYa: 'Impor'
+      }).then(function (ya) {
+        if (!ya) return;
+        var sumber = $('#f-sumber');
+        if (!sumber) return;
+        callApi('imporSoal', [sumber.value, keItemId])
+          .then(function (r) {
+            toast(r.jml + ' soal diimpor.', 'sukses');
+            muatBankSoal($('#isi-halaman'), keItemId);
+          })
+          .catch(function () {});
+      });
+    })
+    .catch(function () {});
+}
+
+/* ============================================================
+   GURU — antrean koreksi
+   ============================================================ */
+
+daftarRute('koreksi-quiz', function () {
+  if (!State.user || State.user.role !== 'guru') { pergiKe('#/beranda'); return; }
+
+  var app = render('tpl-dashboard');
+  pasangTopbar(app);
+  /* Sidebar menu guru (v1.13.2) — layar ini dijangkau DARI sidebar,
+     jadi tanpa ini sidebarnya lenyap begitu guru sampai di sini.
+     Penjaga typeof: tetap bekerja bila js_menu belum tersalin. */
+  var isi = (typeof menuRangka === 'function')
+    ? menuRangka(app, 'quiz') : $('#isi-halaman', app);
+  isi.innerHTML = rangkaMuat(60, 4);
+
+  callApi('getAttemptMenungguKoreksi', [''], { diam: true })
+    .then(function (list) {
+      /* Tombol segarkan (v1.14.3) — antrean berubah karena murid
+         mengumpulkan quiz, bukan karena guru. */
+      var html = '<div class="kepala-halaman baris-antara">' +
+        '<div><h1>✍️ Koreksi Quiz</h1>' +
+        '<p class="lembut kecil">' + list.length +
+        ' pengerjaan menunggu koreksi uraian</p></div>' +
+        (typeof btnSegarkan === 'function' ? btnSegarkan('btn-segar-quiz') : '') +
+      '</div>';
+
+      if (!list.length) {
+        html += kosongkan('✅', 'Tidak ada yang perlu dikoreksi',
+          'Semua pengerjaan quiz sudah selesai dinilai.');
+      } else {
+        html += '<div class="tabel-gulir">' +
+          '<table class="tabel"><thead><tr><th>Murid</th><th>Quiz</th>' +
+          '<th>Kelas</th><th>Ke-</th><th>Skor otomatis</th><th>Dikumpulkan</th>' +
+          '<th></th></tr></thead><tbody>';
+        list.forEach(function (a) {
+          html += '<tr><td class="tebal">' + esc(a.nama) + '</td>' +
+            '<td>' + esc(a.judul_quiz) + '<div class="kecil lembut">' +
+              esc(a.pertemuan) + '</div></td>' +
+            '<td>' + esc(a.kelas) + '</td>' +
+            '<td>' + esc(a.percobaan_ke) + '</td>' +
+            '<td>' + esc(a.skor_otomatis) + ' / ' + esc(a.skor_maks) + '</td>' +
+            '<td class="kecil lembut">' + esc(a.selesai_at) + '</td>' +
+            '<td><button class="btn btn-utama btn-mini" onclick="bukaKoreksi(\'' +
+              esc(a.attempt_id) + '\')">Koreksi</button></td></tr>';
+        });
+        html += '</tbody></table></div>';
+      }
+      isi.innerHTML = html;
+      if (typeof pasangSegarkan === 'function') {
+        pasangSegarkan(isi, 'btn-segar-quiz');
+      }
+    })
+    .catch(function () {});
+});
+
+/* ---------------------------------------------- penilaian per-Quiz */
+
+daftarRute('nilai-quiz', function (arg) {
+  if (!State.user || State.user.role !== 'guru') { pergiKe('#/beranda'); return; }
+  var id = arg && arg[0];
+  if (!id) { pergiKe('#/koreksi-quiz'); return; }
+
+  var app = render('tpl-dashboard');
+  pasangTopbar(app);
+  /* Sidebar menu guru (v1.13.2). */
+  var isi = (typeof menuRangka === 'function')
+    ? menuRangka(app, 'quiz') : $('#isi-halaman', app);
+  isi.innerHTML = rangkaMuat(60, 4);
+
+  muatDaftarKelasQuiz(isi, id);
+});
+
+function muatDaftarKelasQuiz(isi, itemId) {
+  callApi('getDaftarKelasQuiz', [itemId], { diam: true })
+    .then(function (d) { gambarDaftarKelasQuiz(isi, d); })
+    .catch(function (res) {
+      isi.innerHTML = kosongkan('⚠️', 'Tidak dapat memuat',
+        (res && res.pesan) || 'Quiz tidak ditemukan.');
+    });
+}
+
+function gambarDaftarKelasQuiz(isi, d) {
+  var it = d.item, r = d.rekap;
+
+  var html =
+    '<button class="tautan-balik" onclick="pergiKe(\'#/soal/' +
+      esc(it.item_id) + '\')">‹ Bank soal</button>' +
+    /* Tombol segarkan (v1.14.4) — murid mengerjakan quiz selagi guru
+       memeriksa daftar ini. */
+    '<div class="kepala-halaman baris-antara">' +
+      '<div><h1>📊 ' + esc(it.judul) + '</h1>' +
+      '<p class="lembut kecil">' + esc(it.nama_kelas) + ' · Pertemuan ' +
+      esc(it.pertemuan_urutan) + ' · ' + esc(it.jml_soal) + ' soal · KKM ' +
+      esc(it.kkm) + '</p></div>' +
+      (typeof btnSegarkan === 'function'
+        ? btnSegarkan('btn-segar-quiz-item') : '') +
+    '</div>';
+
+  html += '<div class="kartu mb-16"><div class="grid-info">' +
+    _info('Sudah mengerjakan', r.sudah_kerja + ' / ' + r.total +
+      ' (' + r.persen_kerja + '%)') +
+    _info('Lulus', r.lulus) +
+    _info('Belum lulus', r.belum_lulus) +
+    _info('Menunggu koreksi', r.menunggu_koreksi) +
+    _info('Belum mengerjakan', r.belum) +
+    _info('Rata-rata nilai', r.rata_nilai === '' ? '—' : r.rata_nilai) +
+    '</div></div>';
+
+  html += '<div class="baris-tombol mb-12">' +
+    ['semua','menunggu_koreksi','belum','belum_lulus','lulus'].map(function (f) {
+      return '<button class="btn btn-hantu btn-mini saring-quiz" data-f="' + f +
+        '" onclick="saringQuiz(\'' + f + '\')">' +
+        (f === 'semua' ? 'Semua' : (LABEL_QUIZ[f] ? LABEL_QUIZ[f][0] : f)) +
+        '</button>';
+    }).join('') + '</div>';
+
+  html += '<div class="tabel-gulir">' +
+    '<table class="tabel"><thead><tr><th>Murid</th><th>Status</th>' +
+    '<th>Percobaan</th><th>Nilai tertinggi</th><th>Terakhir</th>' +
+    '<th></th></tr></thead><tbody id="tbody-quiz">';
+
+  d.murid.forEach(function (m) {
+    var lbl = LABEL_QUIZ[m.status] || ['—', ''];
+    html += '<tr data-status="' + esc(m.status) + '">' +
+      '<td class="tebal">' + esc(m.nama) +
+        '<div class="kecil lembut">' + esc(m.username) + '</div></td>' +
+      '<td><span class="lencana ' + lbl[1] + '">' + esc(lbl[0]) + '</span>' +
+        (m.ada_catatan ? ' 💬' : '') + '</td>' +
+      '<td>' + esc(m.jml_percobaan) + '</td>' +
+      '<td class="tebal">' + (m.nilai_tertinggi === null ? '—' :
+        esc(m.nilai_tertinggi)) + '</td>' +
+      '<td class="kecil lembut">' + esc(m.selesai_at || '—') + '</td>' +
+      '<td class="baris-tombol">' +
+        (m.attempt_koreksi
+          ? '<button class="btn btn-utama btn-mini" onclick="bukaKoreksi(\'' +
+            esc(m.attempt_koreksi) + '\')">Koreksi</button>'
+          : (m.attempt_terakhir
+            ? '<button class="btn btn-hantu btn-mini" onclick="bukaKoreksi(\'' +
+              esc(m.attempt_terakhir) + '\')">Lihat</button>' : '')) +
+        (m.jml_percobaan > 0
+          ? '<button class="btn btn-hantu btn-mini" onclick="dialogResetQuiz(\'' +
+            esc(m.user_id) + '\',\'' + esc(it.item_id) + '\',\'' +
+            esc(m.nama) + '\')">↺ Reset</button>' : '') +
+      '</td></tr>';
+  });
+  html += '</tbody></table></div>';
+
+  isi.innerHTML = html;
+  if (typeof pasangSegarkan === 'function') {
+    pasangSegarkan(isi, 'btn-segar-quiz-item');
+  }
+  window._itemQuizAktif = it.item_id;
+}
+
+function saringQuiz(f) {
+  $$('.saring-quiz').forEach(function (b) {
+    b.classList.toggle('aktif', b.getAttribute('data-f') === f);
+  });
+  $$('#tbody-quiz tr').forEach(function (tr) {
+    tr.style.display = (f === 'semua' || tr.getAttribute('data-status') === f)
+      ? '' : 'none';
+  });
+}
+
+function dialogResetQuiz(userId, itemId, nama) {
+  dialog({
+    judul: 'Reset percobaan quiz',
+    pesan: 'Beri kesempatan mengulang kepada <strong>' + esc(nama) +
+           '</strong>? Riwayat pengerjaan lama tetap tersimpan, tetapi ' +
+           'tidak lagi menghitung kuota percobaan.',
+    html: '<label>Alasan <span class="wajib">*</span>' +
+          '<input type="text" id="f-alasan" class="input" maxlength="200" ' +
+          'placeholder="mis. gangguan jaringan saat mengerjakan"></label>',
+    labelYa: 'Reset'
+  }).then(function (ya) {
+    if (!ya) return;
+    var el = $('#f-alasan');
+    var a = el ? el.value : '';
+    if (!String(a).trim()) { toast('Alasan wajib diisi.', 'bahaya'); return; }
+    callApi('resetPercobaanQuiz', [userId, itemId, a])
+      .then(function () {
+        toast('Percobaan direset.', 'sukses');
+        muatDaftarKelasQuiz($('#isi-halaman'), itemId);
+      })
+      .catch(function () {});
+  });
+}
+
+/* ---------------------------------------------- layar koreksi */
+
+function bukaKoreksi(attemptId) {
+  callApi('getDetailAttempt', [attemptId])
+    .then(function (d) { gambarKoreksi(d); })
+    .catch(function () {});
+}
+
+function gambarKoreksi(d) {
+  var app = render('tpl-dashboard');
+  pasangTopbar(app);
+  /* v1.15.1 — layar guru mengoreksi satu pengerjaan; ikut terlewat
+     pada audit v1.13.2 (digambar dari fungsi, bukan dari rute). */
+  var isi = (typeof menuRangka === 'function')
+    ? menuRangka(app, 'quiz') : $('#isi-halaman', app);
+
+  var html = '<button class="tautan-balik" onclick="pergiKe(\'#/nilai-quiz/' +
+    esc(d.item_id) + '\')">‹ Daftar penilaian</button>' +
+    '<div class="kepala-halaman">' +
+      '<h1>✍️ ' + esc(d.nama) + '</h1>' +
+      '<p class="lembut kecil">' + esc(d.judul_quiz) + ' · ' + esc(d.kelas) +
+      ' · percobaan ke-' + esc(d.percobaan_ke) + ' · dikumpulkan ' +
+      esc(d.selesai_at) + '</p></div>';
+
+  html += '<div class="kartu mb-16"><div class="grid-info">' +
+    _info('Skor saat ini', d.skor + ' / ' + d.skor_maks) +
+    _info('Nilai', d.nilai === '' ? 'belum final' : d.nilai) +
+    _info('KKM', d.kkm) +
+    _info('Soal uraian', d.jml_esai) +
+    '</div></div>';
+
+  d.butir.forEach(function (b) {
+    var ikon = b.tipe === 'esai' ? '📝' : (b.benar ? '✅' : '❌');
+    html += '<div class="kartu mb-12' + (b.perlu_koreksi ? ' kartu-koreksi' : '') + '">' +
+      '<div class="baris-antara mb-8">' +
+        '<span class="tebal">' + ikon + ' Soal ' + esc(b.nomor) + ' · ' +
+          esc(LABEL_TIPE[b.tipe] || b.tipe) + '</span>' +
+        '<span class="lencana">Bobot ' + esc(b.bobot) + '</span></div>' +
+      '<div class="konten-kaya mb-12">' + b.pertanyaan + '</div>' +
+      '<div class="kotak-jawaban"><span class="lembut kecil">Jawaban murid:</span>' +
+        '<div>' + (b.jawaban_murid
+          ? esc(b.jawaban_murid).split('\n').join('<br>')
+          : '<em class="lembut">tidak dijawab</em>') + '</div></div>';
+
+    if (b.tipe !== 'esai') {
+      html += '<p class="kecil mt-8"><span class="lembut">Kunci:</span> ' +
+        esc(b.kunci) + '</p>';
+    } else {
+      html += '<div class="baris-form mt-12">' +
+        '<label>Nilai (0–' + esc(b.bobot) + ') <span class="wajib">*</span>' +
+          '<input type="number" class="input f-nilai-esai" min="0" max="' +
+          esc(b.bobot) + '" step="0.5" data-soal="' + esc(b.soal_id) + '" value="' +
+          esc(b.nilai_esai === '' ? '' : b.nilai_esai) + '"></label>' +
+        '<label>Umpan balik butir' +
+          '<input type="text" class="input f-fb-esai" maxlength="1000" ' +
+          'data-soal="' + esc(b.soal_id) + '" value="' + esc(b.umpan_balik || '') +
+          '" placeholder="opsional"></label></div>';
+    }
+    html += '</div>';
+  });
+
+  html += '<div class="kartu mt-16">' +
+    '<label>Catatan untuk murid' +
+      '<textarea id="f-catatan-quiz" class="input" rows="3" maxlength="1000">' +
+      esc(d.catatan_guru || '') + '</textarea></label>' +
+    '<div class="baris-tombol mt-12">';
+
+  if (d.jml_esai > 0) {
+    html += '<button class="btn btn-sukses" onclick="simpanKoreksi(\'' +
+      esc(d.attempt_id) + '\', this)">Simpan Nilai</button>';
+  } else {
+    html += '<button class="btn btn-utama" onclick="kirimFeedbackQuiz(\'' +
+      esc(d.attempt_id) + '\', this)">Kirim Catatan</button>' +
+      '<span class="kecil lembut ml-8">Quiz ini tidak punya soal uraian — ' +
+      'nilai sudah final.</span>';
+  }
+  html += '</div></div>';
+
+  isi.innerHTML = html;
+  renderRumus(isi);
+}
+
+function simpanKoreksi(attemptId, tombol) {
+  var butir = [];
+  var kurang = false;
+
+  $$('.f-nilai-esai').forEach(function (el) {
+    var v = el.value;
+    if (String(v).trim() === '') { kurang = true; return; }
+    var fb = '';
+    $$('.f-fb-esai').forEach(function (f) {
+      if (f.getAttribute('data-soal') === el.getAttribute('data-soal')) fb = f.value;
+    });
+    butir.push({ soal_id: el.getAttribute('data-soal'),
+                 nilai: Number(v), umpan_balik: fb });
+  });
+
+  if (kurang) {
+    toast('Semua soal uraian harus diberi nilai.', 'bahaya');
+    return;
+  }
+
+  callApi('koreksiQuiz',
+      [attemptId, { nilai_butir: butir, catatan: $('#f-catatan-quiz').value }],
+      { tombol: tombol })
+    .then(function (r) {
+      /* Antrean "quiz menunggu koreksi" di beranda berubah (v1.12.8). */
+      if (typeof bataliBeranda === 'function') bataliBeranda();
+      toast('Nilai tersimpan: ' + r.nilai + (r.lulus ? ' (lulus)' : ''), 'sukses');
+      pergiKe('#/koreksi-quiz');
+    })
+    .catch(function () {});
+}
+
+function kirimFeedbackQuiz(attemptId, tombol) {
+  var c = $('#f-catatan-quiz').value;
+  if (!String(c).trim()) { toast('Catatan tidak boleh kosong.', 'bahaya'); return; }
+  callApi('beriFeedbackQuiz', [attemptId, c], { tombol: tombol })
+    .then(function () { toast('Catatan terkirim.', 'sukses'); })
+    .catch(function () {});
+}
+</script>

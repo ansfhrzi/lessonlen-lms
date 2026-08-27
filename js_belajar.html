@@ -1,0 +1,679 @@
+<script>
+/* ============================================================
+   LessonLen — js_belajar
+   Layar murid: daftar pertemuan, item, dan pembaca materi
+   ============================================================ */
+
+/* ---------------------------------------------- RUTE: kelas murid */
+
+daftarRute('kelas-saya', function (arg) {
+  if (!State.user || State.user.role !== 'murid') { pergiKe('#/beranda'); return; }
+  var kid = arg && arg[0];
+  if (!kid) { pergiKe('#/beranda'); return; }
+
+  var app = render('tpl-dashboard');
+  pasangTopbar(app);
+  var isi = $('#isi-halaman', app);
+  isi.innerHTML = rangkaMuat(72, 4);
+
+  /* Murid hampir pasti akan membuka salah satu pertemuan dari sini.
+     Muat indeks lebih awal supaya sidebar sudah siap saat ia mengeklik. */
+  navPramuat(kid);
+
+  callApi('getPertemuanMurid', [kid], { diam: true }).then(function (d) {
+    State.kelasAktif = { kelas_id: kid, nama_kelas: d.kelas && d.kelas.nama_kelas };
+    isi.innerHTML =
+      '<button class="tautan-balik" onclick="pergiKe(\'#/beranda\')">‹ Beranda</button>' +
+      '<div class="kepala-halaman">' +
+        '<h1>' + esc(d.kelas.nama_kelas) + '</h1>' +
+        '<p class="lembut kecil">' + esc(d.kelas.mapel || '') + '</p>' +
+      '</div>' +
+      '<div class="kartu mb-16">' +
+        '<div class="baris-antara mb-8">' +
+          '<span class="tebal">Progres Anda</span>' +
+          '<span class="lencana' + (d.progres >= 100 ? ' lencana-sukses' : '') + '">' +
+            d.progres + '%</span>' +
+        '</div>' +
+        bilahProgres(d.progres) +
+        '<div class="kecil lembut mt-8">' + d.selesai + ' dari ' +
+          d.jml_pertemuan + ' pertemuan selesai</div>' +
+      '</div>' +
+      (d.lanjutkan
+        ? '<div class="kartu mb-16" style="border-color:var(--hijau)">' +
+            '<div class="kecil lembut mb-8">▶ Lanjutkan</div>' +
+            '<div class="tebal" style="font-size:1.05rem">' +
+              esc(labelLanjut(d)) + ' — ' + esc(d.lanjutkan.judul) + '</div>' +
+            '<div class="kecil lembut mb-8">' + d.lanjutkan.item_selesai +
+              '/' + d.lanjutkan.jml_wajib + ' item selesai</div>' +
+            bilahProgres(d.lanjutkan.progres, true) +
+            '<button class="btn mt-16" data-ptm="' +
+              esc(d.lanjutkan.pertemuan_id) + '">Lanjutkan Belajar</button>' +
+          '</div>'
+        : '') +
+      '<h2 class="mb-8">Daftar Isi</h2>' +
+      /* Wadah ber-id supaya melipat satu pertemuan cukup menggambar
+         ulang bagian ini, bukan seluruh halaman (v1.14.2). */
+      '<div id="daftar-isi-murid">' + daftarIsiMurid(d) + '</div>';
+
+    isi.onclick = function (e) {
+      /* Urutan pemeriksaan dari yang PALING DALAM ke luar
+         (§6.2 no. 109). Tombol lipat lebih dulu dari segalanya:
+         ia menumpang di atas baris pertemuan, jadi kalau pertemuan
+         diperiksa duluan, panahnya tidak pernah bisa ditekan. */
+      var lp = e.target.closest('[data-lipat]');
+      if (lp) {
+        var pid = lp.dataset.lipat;
+        var cari = null;
+        (d.pertemuan || []).forEach(function (x) {
+          if (x.pertemuan_id === pid) cari = x;
+        });
+        toggleLipatPtm(pid, cari);
+        /* Gambar ulang HANYA daftar isinya — kepala halaman & kartu
+           "Lanjutkan" tidak berubah, dan menggambar ulang seluruhnya
+           membuat halaman melompat ke atas. */
+        var wadah = $('#daftar-isi-murid', isi);
+        if (wadah) wadah.innerHTML = daftarIsiMurid(d);
+        return;
+      }
+
+      /* Item sebelum pertemuan: tombol item berada di dalam blok
+         yang juga punya [data-ptm], jadi closest() dari luar ke dalam
+         akan selalu menemukan pertemuannya dan item tidak pernah
+         terklik (v1.14.0). */
+      var it = e.target.closest('[data-item]');
+      if (it) {
+        if (it.classList.contains('terkunci')) {
+          toast('Item ini masih terkunci.', 'peringatan');
+          return;
+        }
+        /* Peta tujuan per tipe hidup di js_nav — dipakai ulang lewat
+           penjaga typeof supaya tidak ada dua salinan yang bisa
+           melenceng (§6.2 no. 82). */
+        if (typeof navKlikItem === 'function') {
+          navKlikItem(it.dataset.item, it.dataset.tipe, true);
+        }
+        return;
+      }
+
+      var b = e.target.closest('[data-ptm]');
+      if (!b) return;
+      if (b.classList.contains('terkunci')) {
+        toast('Selesaikan pertemuan sebelumnya dahulu.', 'peringatan');
+        return;
+      }
+      pergiKe('#/belajar/' + b.dataset.ptm);
+    };
+  });
+});
+
+/**
+ * Daftar isi kelas untuk murid.
+ *
+ * Bila kelas sudah memakai Materi Pokok, isinya dikelompokkan per bab;
+ * bila belum (kelas lama), pertemuan ditampilkan datar seperti dulu.
+ * Payload backend selalu mengirim keduanya, jadi tidak ada versi yang
+ * membuat halaman ini kosong.
+ */
+/** "Pertemuan 2.3" bila kelas berbab, "Pertemuan 3" bila datar. */
+function labelLanjut(d) {
+  var p = d.lanjutkan;
+  var jenis = p.jenis || 'biasa';
+  var nama = jenis === 'ujian' ? 'Ujian'
+           : jenis === 'refleksi' ? 'Refleksi' : 'Pertemuan';
+  var nomor = String(p.urutan);
+  (d.materi_pokok || []).forEach(function (m) {
+    if (String(m.mp_id) === String(p.mp_id)) nomor = m.urutan + '.' + p.urutan;
+  });
+  return nama + ' ' + nomor;
+}
+
+function daftarIsiMurid(d) {
+  var mp = d.materi_pokok || [];
+
+  if (!mp.length) {
+    return '<div class="kolom sela-kecil">' +
+      (d.pertemuan || []).map(function (p) {
+        return barisPertemuanMurid(p, '');
+      }).join('') + '</div>';
+  }
+
+  return '<div class="kolom">' + mp.map(function (m) {
+    var terkunci = !m.terbuka;
+    var kanan = terkunci ? '<span>\uD83D\uDD12</span>'
+      : m.selesai ? '<span style="color:var(--sukses)">\u2705</span>'
+      : '<span class="lencana">' + m.progres + '%</span>';
+
+    return '<div class="kartu kartu-mp-murid' +
+        (terkunci ? ' terkunci' : '') + '">' +
+      '<div class="baris-antara mb-8" style="gap:10px">' +
+        '<div class="baris" style="min-width:0;gap:10px">' +
+          '<span class="nomor-mp">' + m.urutan + '</span>' +
+          '<div style="min-width:0">' +
+            '<div class="tebal" style="font-size:1.02rem">' +
+              esc(m.judul) + '</div>' +
+            '<div class="kecil lembut">' +
+              (terkunci
+                ? 'Selesaikan materi pokok sebelumnya'
+                : m.pertemuan_selesai + ' dari ' +
+                  (m.jml_wajib || m.jml_pertemuan) + ' pertemuan selesai') +
+              (m.wajib ? '' : ' \u00B7 opsional') +
+            '</div>' +
+          '</div>' +
+        '</div>' + kanan +
+      '</div>' +
+      bilahProgres(m.progres, true) +
+      (m.pertemuan && m.pertemuan.length
+        ? '<div class="isi-mp mt-16"><div class="kolom sela-kecil">' +
+            m.pertemuan.map(function (p) {
+              return barisPertemuanMurid(p, String(m.urutan));
+            }).join('') + '</div></div>'
+        : '<p class="kecil lembut mt-8">Belum ada pertemuan.</p>') +
+    '</div>';
+  }).join('') + '</div>';
+}
+
+var IKON_JENIS_MURID = { ujian: '\uD83E\uDDEA', refleksi: '\uD83E\uDE9E' };
+var NAMA_JENIS_MURID = { ujian: 'Ujian', refleksi: 'Refleksi' };
+
+/* Pilihan lipat MURID, mengesampingkan bawaan. {pertemuan_id: true|false}
+   Hidup di memori halaman saja — begitu murid memuat ulang, bawaannya
+   kembali berlaku. Itu disengaja: yang paling berguna saat membuka
+   kelas selalu pertemuan yang sedang dikerjakan. */
+var LIPAT_PTM = {};
+
+/**
+ * Apakah daftar item pertemuan ini disembunyikan? (v1.14.2)
+ *
+ * Permintaan guru: "tampilkan item pada pertemuan yang sedang
+ * dikerjakan, untuk pertemuan yang selesai dan dikunci di lipat".
+ *
+ * v1.14.0 menampilkan SELURUH item semua pertemuan. Pada kelas nyata
+ * (8 pertemuan x 5 item) halaman menjadi sangat panjang dan justru
+ * menyulitkan murid menemukan tempatnya melanjutkan.
+ *
+ * Bawaan: hanya pertemuan `berjalan` yang terbuka. Yang `selesai`
+ * dan `terkunci` dilipat — tetapi TETAP dapat dibuka lewat panah,
+ * sebab murid sering mengulang materi yang sudah tuntas.
+ */
+function ptmTerlipat(p) {
+  if (LIPAT_PTM[p.pertemuan_id] !== undefined) {
+    return LIPAT_PTM[p.pertemuan_id];
+  }
+  return p.status !== 'berjalan';
+}
+
+/** Lipat/buka satu pertemuan, lalu gambar ulang daftar isinya. */
+function toggleLipatPtm(pertemuanId, p) {
+  var kini = (LIPAT_PTM[pertemuanId] !== undefined)
+    ? LIPAT_PTM[pertemuanId]
+    : (p ? p.status !== 'berjalan' : false);
+  LIPAT_PTM[pertemuanId] = !kini;
+}
+
+function barisPertemuanMurid(p, nomorMp) {
+  var jenis = p.jenis || 'biasa';
+  var kanan = p.status === 'terkunci'
+    ? '<span>🔒</span>'
+    : (p.status === 'selesai'
+        ? '<span style="color:var(--sukses)">✅</span>'
+        : '<span class="lencana">' + p.progres + '%</span>');
+
+  var adaItem = (p.item || []).length > 0;
+  var terlipat = ptmTerlipat(p);
+
+  /* Pembungkus WAJIB: tombol pertemuan dan daftar itemnya adalah dua
+     elemen saudara (item tidak boleh berada DI DALAM <button>).
+     Tanpa pembungkus, jarak antar pertemuan pada `.kolom` menghitung
+     keduanya sebagai dua blok terpisah dan daftar item terlihat
+     mengambang milik pertemuan berikutnya (v1.14.0). */
+  /* Tombol lipat adalah <button> TERSENDIRI, ditempatkan di atas baris
+     lewat position:absolute. Menaruhnya di dalam tombol pertemuan
+     berarti tombol di dalam tombol — tidak sah HTML dan tidak dapat
+     dijangkau papan ketik. */
+  return '<div class="blok-pertemuan' + (adaItem ? ' punya-lipat' : '') + '">' +
+    (adaItem
+      ? '<button class="btn-lipat-ptm" data-lipat="' +
+          esc(p.pertemuan_id) + '" aria-expanded="' +
+          (terlipat ? 'false' : 'true') + '" title="' +
+          (terlipat ? 'Tampilkan isi' : 'Sembunyikan isi') + '">' +
+        '<span class="panah' + (terlipat ? '' : ' turun') + '">›</span>' +
+        '</button>'
+      : '') +
+    '<button class="baris-pertemuan ' + p.status +
+    '" data-ptm="' + esc(p.pertemuan_id) + '">' +
+    '<span class="nomor-pertemuan">' +
+      (nomorMp ? nomorMp + '.' + p.urutan : p.urutan) + '</span>' +
+    '<span class="tumbuh" style="min-width:0">' +
+      '<span class="tebal" style="display:block">' +
+        (jenis !== 'biasa' ? IKON_JENIS_MURID[jenis] + ' ' : '') +
+        esc(p.judul) + '</span>' +
+      '<span class="kecil lembut">' +
+        (jenis !== 'biasa' ? NAMA_JENIS_MURID[jenis] + ' \u00B7 ' : '') +
+        (p.status === 'terkunci'
+          ? 'Selesaikan pertemuan sebelumnya'
+          : p.item_selesai + ' dari ' + p.jml_wajib + ' item selesai') +
+        (p.wajib ? '' : ' · opsional') +
+      '</span>' +
+    '</span>' + kanan + '</button>' +
+    (terlipat ? '' : daftarItemMurid(p)) +
+  '</div>';
+}
+
+/* Ikon per tipe item — sama dengan yang dipakai sidebar js_nav
+   supaya murid mengenali lambang yang sama di kedua tempat. */
+var IKON_ITEM_MURID = { materi: '\uD83D\uDCC4', lkpd: '\uD83D\uDCDD',
+                        quiz: '\uD83C\uDFAF', refleksi: '\uD83E\uDE9E',
+                        tugas_kelompok: '\uD83D\uDC65' };
+
+/**
+ * Daftar item di bawah satu pertemuan (v1.14.0).
+ *
+ * Permintaan guru: "pada bagian pertemuan tampilkan item nya, jadi
+ * alurnya lebih singkat tidak terlalu banyak klik".
+ *
+ * Sebelumnya murid harus: Daftar Isi → klik pertemuan → klik item.
+ * Kini item langsung terlihat, jadi satu klik saja.
+ *
+ * Item pada pertemuan TERKUNCI tetap ditampilkan dengan gembok
+ * (pilihan guru) supaya murid tahu apa yang menanti — diklik hanya
+ * memunculkan pesan, tidak membuka apa pun.
+ */
+function daftarItemMurid(p) {
+  var items = p.item || [];
+  if (!items.length) return '';
+
+  return '<ul class="item-ptm">' + items.map(function (i) {
+    var ikon = !i.terbuka ? '\uD83D\uDD12'
+      : i.status === 'selesai' ? '\u2705'
+      : i.status === 'menunggu' ? '\u23F3'
+      : (IKON_ITEM_MURID[i.tipe] || '\uD83D\uDCCC');
+
+    /* Keterangan kanan: yang paling berguna bagi murid pada saat itu —
+       bagian ke berapa, menunggu nilai, atau nilai yang sudah keluar. */
+    var ket = '';
+    if (i.tipe === 'materi' && i.jml_bagian > 1 && i.terbuka &&
+        i.status !== 'selesai') {
+      ket = 'bagian ' + Math.min((i.bagian_terakhir || 0) + 1, i.jml_bagian) +
+            '/' + i.jml_bagian;
+    } else if (i.status === 'menunggu') {
+      ket = 'menunggu nilai';
+    } else if (i.nilai !== '' && i.nilai !== null && i.nilai !== undefined) {
+      ket = 'nilai ' + i.nilai;
+    }
+
+    return '<li><button class="item-baris' +
+      (i.terbuka ? '' : ' terkunci') + '" data-item="' + esc(i.item_id) +
+      '" data-tipe="' + esc(i.tipe) + '">' +
+      '<span class="item-ikon">' + ikon + '</span>' +
+      '<span class="tumbuh" style="min-width:0">' +
+        '<span class="item-judul">' + esc(i.judul) + '</span>' +
+        (ket ? '<span class="kecil lembut"> \u00B7 ' + esc(ket) + '</span>' : '') +
+      '</span>' +
+      (i.wajib ? '' : '<span class="item-opsional">opsional</span>') +
+      '</button></li>';
+  }).join('') + '</ul>';
+}
+
+/* ---------------------------------------------- RUTE: item pertemuan */
+
+daftarRute('belajar', function (arg) {
+  if (!State.user || State.user.role !== 'murid') { pergiKe('#/beranda'); return; }
+  var pid = arg && arg[0];
+  if (!pid) { pergiKe('#/beranda'); return; }
+
+  var app = render('tpl-dashboard');
+  pasangTopbar(app);
+  var luar = $('#isi-halaman', app);
+  luar.innerHTML = rangkaMuat(66, 3);
+
+  /* Sidebar dimuat BERBARENGAN dengan detail pertemuan, bukan setelahnya.
+     Dulu keduanya berurutan sehingga sidebar baru mulai memuat ~1,2 detik
+     kemudian. kelas_id diambil dari indeks yang sudah ada bila tersedia;
+     bila belum, kelasnya baru diketahui setelah detail tiba. */
+  Nav.aktifPtm = pid;
+  Nav.aktifItem = null;
+  var kelasTebak = Nav.kelasId ||
+    (State.kelasAktif && State.kelasAktif.kelas_id) || null;
+  if (kelasTebak) navMuat(kelasTebak);
+
+  callApi('getDetailPertemuanMurid', [pid], { diam: true })
+    .then(function (d) {
+      var p = d.pertemuan;
+
+      /* kerangka dua kolom: sidebar + isi */
+      var isi = navRangka(luar);
+      State.kelasAktif = d.kelas;
+      navMuat(d.kelas.kelas_id).then(navGambar);
+
+      isi.innerHTML =
+        navTombolLaci() +
+        '<button class="tautan-balik" onclick="pergiKe(\'#/kelas-saya/' +
+          esc(d.kelas.kelas_id) + '\')">‹ ' + esc(d.kelas.nama_kelas) + '</button>' +
+        '<div class="kepala-halaman">' +
+          '<h1>Pertemuan ' + p.urutan + '</h1>' +
+          '<div class="tebal" style="font-size:1.08rem">' + esc(p.judul) + '</div>' +
+          (p.tujuan_pembelajaran
+            ? '<p class="lembut kecil mt-8">🎯 ' +
+              esc(p.tujuan_pembelajaran) + '</p>' : '') +
+        '</div>' +
+        (p.selesai
+          ? '<div class="rayakan mb-16"><div class="ikon">🎉</div>' +
+            '<h2>Pertemuan Selesai</h2>' +
+            '<p class="kecil lembut">Semua item wajib sudah Anda tuntaskan.</p>' +
+            (d.berikutnya && d.berikutnya.terbuka
+              ? '<button class="btn mt-16" data-next="' +
+                esc(d.berikutnya.pertemuan_id) + '">Lanjut ke Pertemuan ' +
+                d.berikutnya.urutan + ' →</button>'
+              : '') + '</div>'
+          : '<div class="kartu mb-16">' +
+            '<div class="baris-antara mb-8">' +
+              '<span class="kecil tebal">Kemajuan pertemuan ini</span>' +
+              '<span class="lencana">' + p.item_selesai + '/' +
+                p.jml_wajib + '</span>' +
+            '</div>' + bilahProgres(p.progres, true) + '</div>') +
+        '<div class="kolom sela-kecil">' +
+          d.item.map(kartuItemMurid).join('') +
+        '</div>' +
+        _bilahPertemuan(d);
+
+      isi.onclick = function (e) {
+        var n = e.target.closest('[data-next]');
+        if (n) { pergiKe('#/belajar/' + n.dataset.next); return; }
+
+        var b = e.target.closest('[data-item]');
+        if (!b) return;
+        if (b.classList.contains('terkunci')) {
+          toast(b.dataset.alasan || 'Item ini masih terkunci.', 'peringatan');
+          return;
+        }
+        var tipe = b.dataset.tipe;
+        if (tipe === 'materi') pergiKe('#/baca/' + b.dataset.item);
+        else if (tipe === 'lkpd') pergiKe('#/lkpd/' + b.dataset.item);
+        else if (tipe === 'quiz') pergiKe('#/quiz/' + b.dataset.item);
+        else if (tipe === 'refleksi') pergiKe('#/refleksi/' + b.dataset.item);
+        else if (tipe === 'tugas_kelompok')
+          pergiKe('#/tugas-kelompok/' + b.dataset.item);
+      };
+    });
+});
+
+/** Tombol Sebelumnya / Berikutnya antar PERTEMUAN. */
+function _bilahPertemuan(d) {
+  var kiri = d.sebelumnya
+    ? '<button class="btn btn-hantu btn-kecil" data-next="' +
+      esc(d.sebelumnya.pertemuan_id) + '">← Pertemuan ' +
+      d.sebelumnya.urutan + '</button>'
+    : '<span></span>';
+
+  var kanan;
+  if (d.berikutnya && d.berikutnya.terbuka) {
+    kanan = '<button class="btn btn-kecil" data-next="' +
+      esc(d.berikutnya.pertemuan_id) + '">Pertemuan ' +
+      d.berikutnya.urutan + ' →</button>';
+  } else if (d.berikutnya) {
+    kanan = '<span class="kecil lembut">🔒 Pertemuan ' +
+      d.berikutnya.urutan + ' terkunci</span>';
+  } else {
+    kanan = '<span class="kecil lembut">Pertemuan terakhir</span>';
+  }
+
+  return '<div class="bilah-nav">' + kiri +
+    '<span class="kecil lembut">Pertemuan ' + d.pertemuan.urutan + '</span>' +
+    kanan + '</div>';
+}
+
+function kartuItemMurid(i) {
+  /* Peta WAJIB memuat seluruh nilai enum `tipe`. Tipe yang tidak
+     terdaftar dulu jatuh ke '📌' + nama enum mentah
+     ("tugas_kelompok") — bocor ke layar murid (v1.7.5). */
+  var ikon = { materi: '📄', lkpd: '📝', quiz: '🎯', refleksi: '🪞',
+               tugas_kelompok: '👥' }[i.tipe] || '📌';
+  var nama = { materi: 'Materi', lkpd: 'LKPD', quiz: 'Quiz',
+               refleksi: 'Refleksi',
+               tugas_kelompok: 'Tugas Kelompok' }[i.tipe] || i.tipe;
+
+  var ket;
+  if (!i.terbuka) ket = i.alasan_kunci;
+  else if (i.status === 'selesai') ket = 'Selesai';
+  else if (i.tipe === 'materi' && i.jml_bagian)
+    ket = 'Bagian ' + Math.min(i.bagian_terakhir + 1, i.jml_bagian) +
+          ' dari ' + i.jml_bagian;
+  else if (i.status === 'menunggu') ket = 'Menunggu penilaian guru';
+  else ket = nama;
+
+  var kanan = !i.terbuka ? '<span>🔒</span>'
+    : i.status === 'selesai' ? '<span style="color:var(--sukses)">✅</span>'
+    : i.status === 'menunggu' ? '<span>⏳</span>'
+    : '<span class="kecil lembut">›</span>';
+
+  return '<button class="item-murid ' + i.status +
+    (!i.terbuka ? ' terkunci' : '') + '" data-item="' + esc(i.item_id) +
+    '" data-tipe="' + esc(i.tipe) + '" data-alasan="' +
+    esc(i.alasan_kunci || '') + '">' +
+    '<span class="ikon-tipe ' + i.tipe + '">' + ikon + '</span>' +
+    '<span class="tumbuh" style="min-width:0">' +
+      '<span class="tebal kecil" style="display:block">' + esc(i.judul) +
+        (i.wajib ? '' : ' <span class="lencana">opsional</span>') + '</span>' +
+      '<span class="kecil lembut">' + esc(ket) + '</span>' +
+    '</span>' + kanan + '</button>';
+}
+
+/* ---------------------------------------------- RUTE: pembaca materi */
+
+/* v1.16.1 — DIKEMBALIKAN ke perilaku sebelum v1.16.0.
+ *
+ * v1.16.0 mencatat bagian tengah hanya di memori dan memanggil
+ * `tandaiBagianSelesai` sekali saja di bagian terakhir. Di lapangan
+ * itu MEMBUAT MATERI TIDAK PERNAH SELESAI: server menyimpan
+ * `bagian_terakhir = 0`, sehingga panggilan untuk bagian 3 ditolak
+ * `ITEM_TERKUNCI "Selesaikan bagian 1 terlebih dahulu."` — murid
+ * tidak bisa lanjut ke item berikutnya (§6.2 no. 124).
+ *
+ * Keadaan sekarang: tiap bagian menandai selesai ke server, persis
+ * seperti sebelum v1.16.0. Lebih banyak panggilan, tetapi BENAR.
+ */
+var Baca = { itemId: null, bagian: 1, total: 1, mulai: 0, timer: null };
+
+daftarRute('baca', function (arg) {
+  if (!State.user || State.user.role !== 'murid') { pergiKe('#/beranda'); return; }
+  var id = arg && arg[0];
+  if (!id) { pergiKe('#/beranda'); return; }
+  Baca.itemId = id;
+  muatBagian(id, Number(arg[1]) || 1);
+});
+
+function muatBagian(itemId, ke) {
+  var app = render('tpl-baca');
+  pasangTopbar(app);
+  $('#baca-isi', app).innerHTML = rangkaMuat(28, 6);
+
+  /* Gambar sidebar SEKARANG dari indeks yang sudah ada, jangan menunggu
+     bukaMateri. Berpindah antar bagian materi memanggil fungsi ini
+     berulang kali — tanpa ini sidebar berkedip kosong setiap kali. */
+  Nav.aktifItem = itemId;
+  var laciAwal = $('#baca-laci', app);
+  if (laciAwal) laciAwal.innerHTML = navTombolLaci();
+  if (Nav.data) navGambar();
+
+  callApi('bukaMateri', [itemId, ke], { diam: true })
+    .then(function (d) {
+      gambarBagian(d, itemId);
+    })
+    .catch(function (res) {
+      var app2 = document.getElementById('app');
+      app2.innerHTML = '';
+      app2.appendChild(ambilTemplate('tpl-dashboard'));
+      pasangTopbar(app2);
+      $('#isi-halaman', app2).innerHTML = kosongkan('\uD83D\uDD12',
+        'Materi terkunci', (res && res.pesan) || 'Anda belum dapat membukanya.',
+        '<button class="btn btn-hantu btn-kecil mt-16" ' +
+        'onclick="pergiKe(\'#/beranda\')">Kembali</button>');
+    });
+}
+
+/**
+ * Gambar satu bagian materi.
+ *
+ * Tetap dipisah dari `muatBagian()` walau jalur lokal v1.16.0 sudah
+ * dibuang: pemisahan ini membuat pemuatan dan penggambaran dapat
+ * diuji sendiri-sendiri, dan tidak ada salinan kedua yang bisa
+ * melenceng.
+ */
+function gambarBagian(d, itemId) {
+  var app = render('tpl-baca');
+  pasangTopbar(app);
+
+  Nav.aktifItem = itemId;
+  var laciAwal = $('#baca-laci', app);
+  if (laciAwal) laciAwal.innerHTML = navTombolLaci();
+  if (Nav.data) navGambar();
+
+  (function () {
+      Baca.bagian = d.bagian_ke;
+      Baca.total = d.jml_bagian;
+      Baca.mulai = Date.now();
+
+      $('#baca-judul', app).textContent = d.judul;
+      $('#baca-sub', app).textContent =
+        'Pertemuan ' + d.pertemuan_urutan + ' — ' + d.pertemuan_judul;
+      $('#baca-cacah', app).textContent = d.bagian_ke + ' / ' + d.jml_bagian;
+
+      $('#baca-balik', app).onclick = function () {
+        pergiKe('#/belajar/' + d.pertemuan_id);
+      };
+
+      /* sidebar sudah tergambar di atas; di sini hanya menyelaraskan
+         pertemuan aktif dan memasang bilah Sebelumnya/Berikutnya */
+      navPasangItem(d.kelas_id, d.pertemuan_id, itemId).then(function () {
+        var bar = $('#baca-antar-item', app);
+        if (bar) bar.innerHTML = navBilahItem(itemId);
+      });
+
+      /* jejak bagian */
+      var jejak = '';
+      for (var i = 1; i <= d.jml_bagian; i++) {
+        jejak += '<span class="jejak-titik' +
+          (i < d.bagian_ke ? ' lewat' : (i === d.bagian_ke ? ' aktif' : '')) +
+          '"></span>';
+      }
+      $('#baca-jejak', app).innerHTML = jejak;
+
+      /* konten + rumus */
+      var elIsi = $('#baca-isi', app);
+      elIsi.innerHTML = d.konten || '<p class="lembut">(bagian ini kosong)</p>';
+      renderRumus(elIsi);
+
+      /* navigasi mundur */
+      var mundur = $('#baca-mundur', app);
+      mundur.disabled = d.bagian_ke <= 1;
+      mundur.onclick = function () { muatBagian(itemId, d.bagian_ke - 1); };
+
+      /* tombol maju */
+      var maju = $('#baca-maju', app);
+      var sudahLewat = d.bagian_ke <= d.bagian_terakhir;
+      maju.textContent = d.bagian_ke >= d.jml_bagian
+        ? (sudahLewat ? 'Kembali ke Pertemuan' : '✓ Selesaikan Materi')
+        : (sudahLewat ? 'Lanjut →' : '✓ Selesai & Lanjut');
+
+      /* durasi minimum — dikunci di server juga */
+      if (d.min_durasi_detik > 0 && !sudahLewat) {
+        pasangHitungMundur(app, maju, d.min_durasi_detik);
+      }
+
+      maju.onclick = function () {
+        if (sudahLewat) {
+          if (d.bagian_ke >= d.jml_bagian) pergiKe('#/belajar/' + d.pertemuan_id);
+          else muatBagian(itemId, d.bagian_ke + 1);
+          return;
+        }
+
+        /* SETIAP bagian ditandai ke server (dikembalikan v1.16.1).
+         *
+         * Server menyimpan `bagian_terakhir` dan menolak lompatan.
+         * Melewatkan bagian tengah — seperti v1.16.0 — membuat
+         * panggilan bagian terakhir ditolak `ITEM_TERKUNCI`, dan
+         * materi tidak pernah bisa diselesaikan. */
+        var detik = Math.round((Date.now() - Baca.mulai) / 1000);
+        callApi('tandaiBagianSelesai', [itemId, d.bagian_ke, detik],
+                { tombol: maju })
+          .then(function (r) { setelahSelesai(r, d, itemId); });
+      };
+
+      window.scrollTo(0, 0);
+  })();
+}
+
+function pasangHitungMundur(app, tombol, detik) {
+  var bar = $('#baca-durasi', app);
+  var isi = $('#baca-durasi-isi', app);
+  bar.classList.remove('sembunyi');
+  tombol.disabled = true;
+
+  var sisa = detik;
+  var labelAsli = tombol.textContent;
+  tombol.textContent = 'Tunggu ' + sisa + 's';
+
+  if (Baca.timer) clearInterval(Baca.timer);
+  Baca.timer = setInterval(function () {
+    sisa--;
+    isi.style.width = ((detik - sisa) / detik * 100) + '%';
+    if (sisa <= 0) {
+      clearInterval(Baca.timer);
+      Baca.timer = null;
+      bar.classList.add('sembunyi');
+      tombol.disabled = false;
+      tombol.textContent = labelAsli;
+    } else {
+      tombol.textContent = 'Tunggu ' + sisa + 's';
+    }
+  }, 1000);
+}
+
+function setelahSelesai(r, d, itemId) {
+  /* progres berubah → indeks kelas ikut berubah (item berikutnya
+     mungkin baru terbuka). Tanpa ini sidebar menampilkan keadaan lama. */
+  navSegarkan();
+
+  /* progres murid berubah → angka di beranda ikut berubah.
+     `bataliBeranda()` juga mengosongkan stempel waktunya (v1.12.8). */
+  if (State.ringkasan) {
+    if (typeof bataliBeranda === 'function') bataliBeranda();
+    else State.beranda = null;
+  }
+
+  /* Masih ada bagian berikutnya — muat bagian sesudahnya. */
+  if (!r.item_selesai) {
+    toast('Bagian ' + d.bagian_ke + ' selesai.', 'sukses', 2);
+    muatBagian(itemId, d.bagian_ke + 1);
+    return;
+  }
+
+  /* materi tuntas — pertemuan belum */
+  if (!r.pertemuan_selesai) {
+    dialog({
+      judul: '✅ Materi Selesai',
+      pesan: '<b>' + esc(d.judul) + '</b> sudah Anda tuntaskan.<br><br>' +
+             'Kemajuan pertemuan: ' + r.item_beres + ' dari ' +
+             r.item_wajib + ' item.',
+      tanpaBatal: true, labelYa: 'Lanjutkan'
+    }).then(function () { pergiKe('#/belajar/' + d.pertemuan_id); });
+    return;
+  }
+
+  /* seluruh pertemuan tuntas */
+  dialog({
+    judul: '🎉 Pertemuan Selesai',
+    pesan: 'Selamat! Anda telah menuntaskan seluruh item wajib pada ' +
+           'pertemuan ini.' +
+           (r.buka_berikutnya
+             ? '<br><br><b>Pertemuan ' + r.buka_berikutnya.urutan + ' — ' +
+               esc(r.buka_berikutnya.judul) + '</b> kini terbuka.'
+             : ''),
+    labelBatal: 'Kembali',
+    labelYa: r.buka_berikutnya ? 'Lanjut Pertemuan Berikutnya' : 'Selesai'
+  }).then(function (ya) {
+    if (ya && r.buka_berikutnya) pergiKe('#/belajar/' + r.buka_berikutnya.pertemuan_id);
+    else pergiKe('#/belajar/' + d.pertemuan_id);
+  });
+}
+</script>

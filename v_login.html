@@ -1,0 +1,54 @@
+<template id="tpl-login">
+  <div class="layar-login">
+    <div class="kotak-login">
+
+      <div class="login-merek">
+        <!-- Diisi js_auth dari APP_IKON / APP_NAMA (v1.15.6).
+             Nilai di sini hanya cadangan bila Code.gs belum
+             tersalin — layar masuk tidak boleh kosong. -->
+        <div class="ikon" id="merek-ikon-login">🌱</div>
+        <h1 id="merek-nama-login">LessonLen</h1>
+        <p>Belajar bertahap, tuntas per pertemuan</p>
+      </div>
+
+      <form id="form-login" autocomplete="on">
+        <div class="grup">
+          <label for="in-username">Nama Pengguna</label>
+          <input class="isian" id="in-username" name="username"
+                 autocomplete="username" placeholder="mis. siswa01"
+                 autocapitalize="off" spellcheck="false" required>
+        </div>
+
+        <div class="grup">
+          <label for="in-password">Kata Sandi</label>
+          <input class="isian" id="in-password" name="password" type="password"
+                 autocomplete="current-password" placeholder="••••••••" required>
+        </div>
+
+        <div class="pesan-salah" id="salah-login"></div>
+
+        <button class="btn btn-penuh mt-8" type="submit" id="btn-masuk">Masuk</button>
+      </form>
+
+      <div class="tengah mt-16">
+        <button class="btn btn-teks kecil" id="btn-lupa">Lupa kata sandi?</button>
+      </div>
+
+    </div>
+  </div>
+</template>
+
+
+<template id="tpl-lupa">
+  <div>
+    <div class="grup">
+      <label for="in-lupa">Nama pengguna atau email</label>
+      <input class="isian" id="in-lupa" placeholder="mis. siswa01"
+             autocapitalize="off" spellcheck="false">
+      <span class="bantuan">
+        Permintaan akan diteruskan ke guru. Anda akan diberi
+        kata sandi sementara.
+      </span>
+    </div>
+  </div>
+</template>

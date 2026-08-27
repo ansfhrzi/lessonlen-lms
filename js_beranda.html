@@ -1,0 +1,436 @@
+<script>
+/* ============================================================
+   LessonLen — js_beranda
+   Dashboard guru & murid, daftar pertemuan, notifikasi
+   ============================================================ */
+
+/* ---------------------------------------------- helper tampilan */
+
+function bilahProgres(persen, tipis) {
+  var p = Math.max(0, Math.min(100, Number(persen) || 0));
+  return '<div class="bilah' + (tipis ? ' bilah-tipis' : '') + '">' +
+         '<div class="bilah-isi' + (p >= 100 ? ' penuh' : '') +
+         '" style="width:' + p + '%"></div></div>';
+}
+
+function lencanaStatus(status) {
+  var peta = {
+    selesai:  ['lencana-sukses',   '✅ Selesai'],
+    berjalan: ['lencana',          '▶ Berjalan'],
+    terkunci: ['lencana-terkunci', '🔒 Terkunci'],
+    menunggu: ['lencana-peringatan','⏳ Menunggu'],
+    gagal:    ['lencana-bahaya',   '✕ Gagal']
+  };
+  var v = peta[status] || peta.berjalan;
+  return '<span class="lencana ' + v[0] + '">' + v[1] + '</span>';
+}
+
+/* kosongkan() & rangkaMuat() kini tinggal di js_core —
+   dipakai sembilan berkas, jadi harus di berkas inti. */
+
+/* ---------------------------------------------- RUTE: beranda */
+
+/* Umur cache beranda, dalam milidetik.
+ *
+ * LAPORAN LAPANGAN 24 Agu 2026 — 82 detik pemakaian nyata:
+ *
+ *     getBeranda dipanggil 5x  =  20,9 detik  =  57% SELURUH waktu
+ *
+ * Guru bolak-balik: beranda → Kelola Kelas → beranda → Kelola Murid →
+ * beranda → … Tiap kembali membayar biaya lantai Apps Script penuh
+ * (±1–2,5 detik, terukur lewat `getDaftarKelas` yang membaca NOL sel).
+ *
+ * `State.beranda` sebenarnya SUDAH disimpan sejak lama dan sudah punya
+ * tiga pembatal (logout, sesi mati, murid menyelesaikan item) — tetapi
+ * tidak pernah ada jalur yang MEMBACANYA. Cache yang ditulis tanpa
+ * pernah dibaca adalah biaya tanpa manfaat (§6.2 no. 68 dari sisi
+ * sebaliknya).
+ *
+ * 30 detik dipilih supaya: kembali dari layar lain terasa seketika,
+ * sementara data tidak pernah basi lebih lama daripada satu tarikan
+ * napas. Angka antrean koreksi tetap dibatalkan SEKETIKA oleh aksi
+ * yang mengubahnya — lihat `bataliBeranda()`. */
+var UMUR_CACHE_BERANDA = 30000;
+
+/* Waktu cache diisi. Dipisah dari State supaya jelas bahwa ini
+   milik beranda, bukan keadaan aplikasi yang dipakai bersama. */
+var _berandaDiisi = 0;
+
+/**
+ * Buang cache beranda — dipanggil oleh setiap aksi yang mengubah
+ * isinya (menilai LKPD, mengoreksi quiz, menilai tugas kelompok).
+ *
+ * Dipasang di `js_beranda` tetapi dipanggil dari berkas lain, jadi
+ * pemanggilnya WAJIB memakai penjaga `typeof` (§6.2 no. 82) — berkas
+ * ini mungkin belum tersalin di editor guru.
+ */
+function bataliBeranda() {
+  State.beranda = null;
+  _berandaDiisi = 0;
+}
+
+daftarRute('beranda', function () {
+  if (!State.user) { pergiKe('#/login'); return; }
+
+  var app = render('tpl-dashboard');
+  pasangTopbar(app);
+
+  /* Sidebar menu untuk GURU (v1.13.0). Murid tidak memerlukannya —
+     alurnya lurus (beranda → kelas → belajar) dan ia sudah punya
+     sidebar isi kelas sendiri lewat js_nav.
+
+     Penjaga `typeof`: bila js_menu belum tersalin ke editor, beranda
+     TETAP bekerja seperti sebelumnya — hanya tanpa sidebar
+     (§6.2 no. 82). */
+  var isi;
+  if (State.user.role === 'guru' && typeof menuRangka === 'function') {
+    isi = menuRangka(app, 'beranda');
+  } else {
+    isi = $('#isi-halaman', app);
+  }
+
+  /* Cache masih hangat → gambar SEKETIKA, tanpa memanggil server.
+     Inilah jalur yang selama ini hilang. */
+  if (State.beranda &&
+      (Date.now() - _berandaDiisi) < UMUR_CACHE_BERANDA) {
+    var c = State.beranda;
+    if (c.peran === 'guru' && typeof benihiKelasSidebar === 'function') {
+      benihiKelasSidebar(c.kelas);
+    }
+    if (c.peran === 'guru') gambarBerandaGuru(isi, c);
+    else                    gambarBerandaMurid(isi, c);
+    return;
+  }
+
+  isi.innerHTML = rangkaMuat(90, 3);
+
+  callApi('getBeranda', [], { diam: true })
+    .then(function (d) {
+      State.beranda = d;
+      _berandaDiisi = Date.now();
+      /* Sidebar dibenihi dari jawaban ini — `d.kelas` sudah memuat
+         kelas_id, nama_kelas, dan mapel, jadi tidak perlu memanggil
+         getDaftarKelas lagi (v1.13.4). */
+      if (d.peran === 'guru' && typeof benihiKelasSidebar === 'function') {
+        benihiKelasSidebar(d.kelas);
+      }
+      if (State.ringkasan) State.ringkasan.notif_belum_dibaca = d.notif_belum_dibaca;
+      pasangTopbar(app);
+      if (d.peran === 'guru') gambarBerandaGuru(isi, d);
+      else                    gambarBerandaMurid(isi, d);
+    })
+    .catch(function () {
+      /* getBeranda gagal → sidebar tidak akan pernah dibenihi.
+         Lepaskan supaya ia memuat daftar kelasnya sendiri, kalau
+         tidak daftar kelas kosong selamanya (v1.15.2). */
+      if (typeof lepasBenihSidebar === 'function') lepasBenihSidebar();
+      isi.innerHTML = kosongkan('⚠️', 'Gagal memuat', 'Periksa koneksi Anda.',
+        '<button class="btn btn-hantu btn-kecil mt-16" onclick="router()">Coba Lagi</button>');
+    });
+});
+
+/* ---------------------------------------------- beranda GURU */
+
+function gambarBerandaGuru(isi, d) {
+  var s = d.statistik, t = d.perlu_tindakan;
+
+  var html =
+    '<div class="kepala-halaman">' +
+      '<h1>Halo, ' + esc(d.user.nama) + '</h1>' +
+      '<p class="lembut kecil">Ringkasan kelas yang Anda ampu.</p>' +
+    '</div>' +
+
+    '<div class="kisi-statistik">' +
+      kartuStat('📚', s.jml_kelas, 'Kelas') +
+      kartuStat('👥', s.jml_murid, 'Murid') +
+      kartuStat('📅', s.jml_pertemuan, 'Pertemuan') +
+      kartuStat('🧩', s.jml_item, 'Item') +
+    '</div>';
+
+  /* perlu tindakan */
+  if (t.total > 0) {
+    html += '<div class="kartu panel-tindakan mb-16">' +
+      '<h3 class="mb-8">⚡ Perlu Tindakan</h3><div class="kolom sela-kecil">' +
+      (t.lkpd_menunggu ? btnTindakan('📝', 'LKPD menunggu penilaian',
+                                     t.lkpd_menunggu, '#/nilai-lkpd') : '') +
+      (t.quiz_menunggu ? btnTindakan('🎯', 'Quiz menunggu koreksi',
+                                     t.quiz_menunggu, '#/koreksi-quiz') : '') +
+      (t.kelompok_menunggu ? btnTindakan('👥', 'Tugas kelompok menunggu',
+                                     t.kelompok_menunggu,
+                                     '#/nilai-kelompok') : '') +
+      (t.reset_antre   ? btnTindakan('🔑', 'Permintaan reset kata sandi',
+                                     t.reset_antre, '#/reset') : '') +
+      '</div></div>';
+  }
+
+  /* pintasan kelola */
+  html += '<div class="baris sela-kecil mb-16" style="flex-wrap:wrap">' +
+    '<button class="btn btn-hantu btn-kecil" data-tautan="#/kelas">📚 Kelola Kelas</button>' +
+    '<button class="btn btn-hantu btn-kecil" data-tautan="#/murid">👥 Kelola Murid</button>' +
+    '<button class="btn btn-hantu btn-kecil" data-tautan="#/rekap">📊 Rekap Nilai</button>' +
+    '<button class="btn btn-hantu btn-kecil" data-tautan="#/api-key">🔑 Status API Key</button>' +
+    '</div>';
+
+  /* daftar kelas */
+  html += '<h2 class="mb-8">Kelas Saya</h2>';
+
+  if (!d.kelas.length) {
+    html += kosongkan('📚', 'Belum ada kelas',
+      'Kelas dan pertemuan dapat dibuat mulai Tahap 4.');
+  } else {
+    html += '<div class="kolom">' + d.kelas.map(function (k) {
+      /* Lencana % dan bilah progres DIHAPUS v1.12.4.
+         Angka itu memaksa server memindai 48.616 sel `progress` tiap
+         kali beranda dibuka — 95% biaya getBeranda yang 10,7 detik —
+         dan sheet itu tidak pernah di-cache. Guru menilainya jarang
+         dilihat; Rekap Nilai per kelas jauh lebih berguna dan kini
+         satu klik dari Kelola Kelas (v1.12.3). */
+      return '<button class="kartu-kelas" data-kelas="' + esc(k.kelas_id) + '">' +
+        '<div class="baris-antara mb-8">' +
+          '<div style="min-width:0">' +
+            '<div class="judul">' + esc(namaKelasLengkap(k)) + '</div>' +
+          '</div>' +
+        '</div>' +
+        '<div class="baris kecil lembut" style="gap:14px">' +
+          '<span>👥 ' + k.jml_murid + ' murid</span>' +
+          '<span>📅 ' + k.jml_pertemuan + ' pertemuan</span>' +
+          (k.jml_publish < k.jml_pertemuan
+            ? '<span class="lencana lencana-peringatan">' +
+              (k.jml_pertemuan - k.jml_publish) + ' draf</span>' : '') +
+        '</div>' +
+      '</button>';
+    }).join('') + '</div>';
+  }
+
+  isi.innerHTML = html;
+
+  isi.onclick = function (e) {
+    var kk = e.target.closest('[data-kelas]');
+    if (kk) { pergiKe('#/kelas/' + kk.dataset.kelas); return; }
+    var bt = e.target.closest('[data-tautan]');
+    if (bt) pergiKe(bt.dataset.tautan);
+  };
+}
+
+function kartuStat(ikon, angka, label) {
+  return '<div class="kartu kartu-statistik">' +
+    '<span class="ikon">' + ikon + '</span>' +
+    '<span class="angka">' + (angka || 0) + '</span>' +
+    '<span class="kecil lembut">' + esc(label) + '</span></div>';
+}
+
+function btnTindakan(ikon, label, jml, tautan) {
+  return '<button class="btn-tindakan" data-tautan="' + esc(tautan) + '">' +
+    '<span>' + ikon + '</span><span class="kecil">' + esc(label) + '</span>' +
+    '<span class="jml">' + jml + '</span></button>';
+}
+
+/* ---------------------------------------------- spanduk biodata (v1.10.0)
+
+   Guru memilih "diingatkan, boleh ditunda". Spanduk memakai kelas
+   `.panel-tindakan` yang SUDAH ADA (dipakai antrean koreksi di beranda
+   guru) supaya tampilannya konsisten dan tidak ada gaya baru yang
+   perlu dirawat.
+
+   Tidak muncul bila: bukan murid · biodata sudah lengkap · murid
+   menekan "Nanti" pada sesi ini. */
+
+function perluBiodata() {
+  return !!(State.user && State.user.role === 'murid' &&
+            State.user.biodata_kurang === true &&
+            typeof biodataDitunda === 'function' && !biodataDitunda());
+}
+
+function spandukBiodata() {
+  if (!perluBiodata()) return '';
+  return '<div class="kartu panel-tindakan mb-16" id="spanduk-bio">' +
+    '<div class="baris-antara" style="gap:12px;flex-wrap:wrap">' +
+      '<div style="min-width:0">' +
+        '<div class="tebal">🪪 Lengkapi biodata Anda</div>' +
+        '<div class="kecil lembut">NISN, email, dan nomor WhatsApp — ' +
+          'dipakai guru untuk menghubungi Anda.</div>' +
+      '</div>' +
+      '<div class="baris sela-kecil">' +
+        '<button class="btn btn-kecil" id="bio-isi">Lengkapi</button>' +
+        '<button class="btn btn-hantu btn-kecil" id="bio-nanti">Nanti</button>' +
+      '</div>' +
+    '</div></div>';
+}
+
+function pasangSpandukBiodata(isi) {
+  var b1 = $('#bio-isi', isi);
+  if (b1) b1.onclick = function (e) {
+    e.stopPropagation();
+    /* Dialog yang SAMA dengan yang muncul saat login — satu bentuk
+       isian saja, supaya tidak ada dua tempat berbeda yang harus
+       dirawat bila medannya berubah. Layar penuh `#/biodata` tetap
+       ada sebagai cadangan bila dialog gagal dimuat. */
+    if (typeof dialogBiodata === 'function') dialogBiodata();
+    else pergiKe('#/biodata');
+  };
+  var b2 = $('#bio-nanti', isi);
+  if (b2) b2.onclick = function (e) {
+    e.stopPropagation();
+    if (typeof tundaBiodata === 'function') tundaBiodata();
+    var sp = document.getElementById('spanduk-bio');
+    if (sp) sp.remove();
+  };
+}
+
+/* ---------------------------------------------- beranda MURID */
+
+function gambarBerandaMurid(isi, d) {
+  var r = d.ringkas;
+
+  var html =
+    '<div class="kepala-halaman">' +
+      '<h1>Halo, ' + esc(d.user.nama) + '</h1>' +
+      '<p class="lembut kecil">Lanjutkan belajar dari pertemuan terakhir Anda.</p>' +
+    '</div>';
+
+  /* Spanduk biodata (v1.10.0) — mengingatkan, TIDAK mengunci.
+
+     Dipasang sebelum penjaga "belum terdaftar di kelas" di bawah:
+     murid yang belum didaftarkan pun tetap perlu melengkapi datanya,
+     dan justru merekalah yang paling sering baru dibuatkan akun. */
+  html += spandukBiodata();
+
+  if (!d.kelas.length) {
+    isi.innerHTML = html + kosongkan('📚', 'Belum terdaftar di kelas mana pun',
+      'Hubungi guru Anda untuk didaftarkan.');
+    pasangSpandukBiodata(isi);
+    return;
+  }
+
+  /* progres keseluruhan */
+  html += '<div class="kartu mb-16">' +
+    '<div class="baris-antara mb-8">' +
+      '<span class="tebal">Progres Keseluruhan</span>' +
+      '<span class="lencana' + (r.progres >= 100 ? ' lencana-sukses' : '') + '">' +
+        r.progres + '%</span>' +
+    '</div>' +
+    bilahProgres(r.progres) +
+    '<div class="kecil lembut mt-8">' + r.selesai + ' dari ' +
+      r.total_pertemuan + ' pertemuan wajib selesai</div>' +
+    '</div>';
+
+  /* kartu lanjutkan */
+  var lanjut = null, kelasLanjut = null;
+  for (var i = 0; i < d.kelas.length; i++) {
+    if (d.kelas[i].lanjutkan) { lanjut = d.kelas[i].lanjutkan; kelasLanjut = d.kelas[i]; break; }
+  }
+  if (lanjut) {
+    html += '<div class="kartu mb-16" style="border-color:var(--hijau)">' +
+      '<div class="kecil lembut mb-8">▶ Lanjutkan belajar</div>' +
+      '<div class="tebal" style="font-size:1.05rem">Pertemuan ' + lanjut.urutan +
+        ' — ' + esc(lanjut.judul) + '</div>' +
+      '<div class="kecil lembut mb-8">' + esc(kelasLanjut.nama_kelas) + ' · ' +
+        lanjut.item_selesai + '/' + lanjut.jml_wajib + ' item selesai</div>' +
+      bilahProgres(lanjut.progres, true) +
+      '<button class="btn mt-16" data-ptm="' + esc(lanjut.pertemuan_id) + '">' +
+        'Lanjutkan</button>' +
+      '</div>';
+  }
+
+  /* Daftar kelas: judul + progres saja.
+
+     Rincian pertemuan sengaja tidak ditampilkan di sini — isinya sudah
+     ada di halaman kelas, dan menampilkannya dua kali membuat beranda
+     panjang tanpa menambah informasi. */
+  html += '<h2 class="mb-8">Kelas Saya</h2><div class="kolom">' +
+    d.kelas.map(function (k) {
+      return '<button class="kartu kartu-klik" data-kelas-murid="' +
+        esc(k.kelas_id) + '">' +
+        '<div class="baris-antara mb-8" style="gap:10px">' +
+          '<div style="min-width:0;text-align:left">' +
+            '<div class="tebal">' + esc(namaKelasLengkap(k)) + '</div>' +
+          '</div>' +
+          '<span class="lencana' + (k.progres >= 100 ? ' lencana-sukses' : '') +
+            '">' + k.progres + '%</span>' +
+        '</div>' +
+        bilahProgres(k.progres, true) +
+        '<div class="kecil lembut mt-8" style="text-align:left">' +
+          k.pertemuan_selesai + ' dari ' + k.jml_pertemuan +
+          ' pertemuan selesai</div>' +
+      '</button>';
+    }).join('') + '</div>';
+
+  isi.innerHTML = html;
+  pasangSpandukBiodata(isi);
+
+  isi.onclick = function (e) {
+    var km = e.target.closest('[data-kelas-murid]');
+    if (km) { pergiKe('#/kelas-saya/' + km.dataset.kelasMurid); return; }
+
+    var b = e.target.closest('[data-ptm]');
+    if (!b) return;
+    if (b.classList.contains('terkunci')) {
+      toast('Selesaikan pertemuan sebelumnya dahulu.', 'peringatan');
+      return;
+    }
+    pergiKe('#/belajar/' + b.dataset.ptm);
+  };
+}
+
+/* ---------------------------------------------- RUTE: notifikasi */
+
+daftarRute('notifikasi', function () {
+  if (!State.user) { pergiKe('#/login'); return; }
+
+  var app = render('tpl-dashboard');
+  pasangTopbar(app);
+  var isi = $('#isi-halaman', app);
+  isi.innerHTML = rangkaMuat(64, 4);
+
+  callApi('getNotifikasi', [50], { diam: true }).then(function (list) {
+    var html =
+      '<button class="tautan-balik" onclick="pergiKe(\'#/beranda\')">‹ Beranda</button>' +
+      '<div class="baris-antara mb-16">' +
+        '<h1>Notifikasi</h1>' +
+        (list.length ? '<button class="btn btn-hantu btn-kecil" id="btn-baca-semua">' +
+                       'Tandai semua dibaca</button>' : '') +
+      '</div>';
+
+    if (!list.length) {
+      isi.innerHTML = html + kosongkan('🔔', 'Belum ada notifikasi',
+        'Pemberitahuan akan muncul di sini.');
+      return;
+    }
+
+    html += '<div class="kartu" style="padding:8px">' +
+      list.map(function (n) {
+        return '<div class="notif-baris' + (n.dibaca ? '' : ' belum') +
+               '" data-notif="' + esc(n.notif_id) + '"' +
+               (n.link ? ' data-link="' + esc(n.link) + '"' : '') + '>' +
+          '<span class="ikon">' + n.ikon + '</span>' +
+          '<span class="tumbuh" style="min-width:0">' +
+            '<span class="tebal kecil" style="display:block">' + esc(n.judul) + '</span>' +
+            '<span class="kecil lembut" style="display:block">' + esc(n.pesan) + '</span>' +
+            '<span class="kecil lembut" style="opacity:.65">' + esc(n.relatif) + '</span>' +
+          '</span>' +
+          (n.dibaca ? '' : '<span class="notif-titik"></span>') +
+        '</div>';
+      }).join('') + '</div>';
+
+    isi.innerHTML = html;
+
+    var bs = $('#btn-baca-semua', isi);
+    if (bs) bs.onclick = function () {
+      callApi('tandaiDibaca', ['semua'], { tombol: bs }).then(function () {
+        if (State.ringkasan) State.ringkasan.notif_belum_dibaca = 0;
+        toast('Semua notifikasi ditandai dibaca.', 'sukses');
+        router();
+      });
+    };
+
+    isi.onclick = function (e) {
+      var b = e.target.closest('[data-notif]');
+      if (!b) return;
+      callApi('tandaiDibaca', [b.dataset.notif], { diam: true }).then(function () {
+        if (b.dataset.link) pergiKe(b.dataset.link);
+        else router();
+      });
+    };
+  });
+});
+</script>

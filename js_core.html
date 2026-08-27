@@ -1,0 +1,696 @@
+<script>
+/* ============================================================
+   LessonLen — js_core
+   State, callApi, router, komponen UI bersama
+   Acuan: KONVENSI-TEKNIS.md §5
+   ============================================================ */
+
+/* ---------------------------------------------- state global */
+var State = {
+  token: localStorage.getItem('ll_token') || '',
+  user: null,
+  ringkasan: null,
+  beranda: null,
+  kelasAktif: null,
+  pertemuanAktif: null,
+  cache: {}
+};
+
+function simpanToken(t) {
+  State.token = t || '';
+  if (t) localStorage.setItem('ll_token', t);
+  else   localStorage.removeItem('ll_token');
+}
+
+/* ---------------------------------------------- pemanggil API */
+/**
+ * Satu-satunya pintu ke backend. Dilarang memanggil
+ * google.script.run langsung di luar fungsi ini.
+ *
+ * @param {string} fn    nama fungsi backend
+ * @param {Array}  args  argumen SETELAH token
+ * @param {Object} opsi  { diam, tombol, tanpaToken }
+ * @returns {Promise}
+ */
+function callApi(fn, args, opsi) {
+  args = args || [];
+  opsi = opsi || {};
+
+  if (!opsi.diam) tampilkanMuat(true, opsi.pesanMuat);
+  var labelAsli = null;
+  if (opsi.tombol) {
+    opsi.tombol.disabled = true;
+    labelAsli = opsi.tombol.innerHTML;
+    opsi.tombol.innerHTML = '<span class="putar putar-kecil"></span>';
+  }
+
+  var selesai = false;
+  function bereskan() {
+    if (selesai) return;            /* jaga-jaga bila dipanggil dua kali */
+    selesai = true;
+    if (!opsi.diam) tampilkanMuat(false);
+    if (opsi.tombol) {
+      opsi.tombol.disabled = false;
+      if (labelAsli !== null) opsi.tombol.innerHTML = labelAsli;
+    }
+  }
+
+  return new Promise(function (resolve, reject) {
+    var param = opsi.tanpaToken ? args : [State.token].concat(args);
+
+    google.script.run
+      .withSuccessHandler(function (res) {
+        bereskan();
+        if (res && res.ok) return resolve(res.data);
+
+        if (res && res.error === 'SESI_INVALID') {
+          simpanToken('');
+          State.user = null;
+          State.ringkasan = null;
+          State.beranda = null;
+          if (typeof bataliBeranda === 'function') bataliBeranda();
+          /* jalur keluar KEDUA (sesi kedaluwarsa) — sama seperti
+             keluarAkun(), keadaan sidebar wajib ikut dibuang */
+          if (typeof navReset === 'function') navReset();
+          /* Daftar kelas di sidebar menu ikut dibuang — kalau tidak,
+             guru berikutnya di perangkat yang sama melihat kelas
+             milik yang lama (v1.13.0). */
+          if (typeof bataliMenuKelas === 'function') bataliMenuKelas();
+          toast('Sesi berakhir. Silakan masuk kembali.', 'peringatan');
+          pergiKe('#/login');
+          return reject(res);
+        }
+        /* Cetak ke console dalam bentuk TERBACA. Tanpa ini, peramban
+           hanya menampilkan "Uncaught (in promise) Object" — nama
+           fungsi dan pesan aslinya tersembunyi di dalam objek, dan
+           guru tidak punya cara melaporkannya. */
+        _lapor(fn, args, res);
+        toast((res && res.pesan) || 'Terjadi kesalahan.', 'bahaya');
+        reject(res || { error: 'KOSONG', fn: fn });
+      })
+      .withFailureHandler(function (err) {
+        bereskan();
+        _lapor(fn, args, { error: 'JARINGAN', pesan: String(err) });
+        toast('Gangguan jaringan. Coba lagi.', 'bahaya');
+        reject({ error: 'JARINGAN', pesan: String(err), fn: fn });
+      })[fn].apply(null, param);
+  });
+}
+
+/**
+ * Kotak "tidak ada isi" — dipakai hampir seluruh halaman.
+ *
+ * Tinggal di js_core, BUKAN js_beranda: sembilan berkas memakainya,
+ * dan bila berkas pendefinisinya gagal dimuat maka seluruh aplikasi
+ * ikut mati dengan "kosongkan is not defined". Fungsi yang dipakai
+ * bersama harus tinggal di berkas inti yang pasti termuat.
+ */
+function kosongkan(ikon, judul, pesan, tombol) {
+  return '<div class="kartu kosong">' +
+    '<div class="ikon">' + (ikon || '📭') + '</div>' +
+    '<h3>' + esc(judul || '') + '</h3>' +
+    '<p class="kecil">' + esc(pesan || '') + '</p>' +
+    (tombol || '') + '</div>';
+}
+
+/** Kerangka abu-abu selagi memuat. Dipakai hampir semua halaman. */
+function rangkaMuat(tinggi, jml) {
+  var out = '';
+  for (var i = 0; i < (jml || 3); i++) {
+    out += '<div class="rangka mb-8" style="height:' +
+           (tinggi || 76) + 'px"></div>';
+  }
+  return out;
+}
+
+/**
+ * Catat kegagalan API ke console peramban dengan jelas.
+ * Dipakai saat melaporkan bug: guru cukup menyalin barisnya.
+ */
+function _lapor(fn, args, res) {
+  try {
+    var ringkas = (res && res.error ? res.error : 'GALAT') + ' — ' +
+                  (res && res.pesan ? res.pesan : 'tanpa pesan');
+    console.error('[LessonLen] ' + fn + '() gagal: ' + ringkas);
+    console.error('  argumen :', JSON.stringify(args));
+    console.error('  respons :', JSON.stringify(res));
+  } catch (e) { /* console tidak tersedia → abaikan */ }
+}
+
+/* Jaring pengaman: promise yang ditolak tanpa .catch() tetap tercetak
+   sebagai "Uncaught (in promise)". Karena callApi() SUDAH menampilkan
+   toast dan mencatat rinciannya, penolakan itu tidak perlu memenuhi
+   console dengan objek buram. */
+window.addEventListener('unhandledrejection', function (e) {
+  var r = e.reason;
+  if (r && (r.error || r.pesan)) {
+    console.warn('[LessonLen] galat sudah ditangani: ' +
+      (r.fn ? r.fn + '() ' : '') + (r.error || '') + ' — ' + (r.pesan || ''));
+    e.preventDefault();
+  }
+});
+
+/* ---------------------------------------------- indikator & toast */
+/**
+ * Tirai muat global.
+ *
+ * @param {boolean} tampil
+ * @param {string=} pesan  keterangan untuk operasi yang LAMA (>2 detik).
+ *   Apps Script kerap butuh 3–8 detik untuk satu panggilan tulis;
+ *   pemutar tanpa teks membuat murid mengira aplikasinya menggantung
+ *   lalu menekan tombolnya berulang kali.
+ */
+function tampilkanMuat(tampil, pesan) {
+  var el = document.getElementById('tirai-muat');
+  if (!el) return;
+  var p = document.getElementById('pesan-muat');
+  if (p) p.textContent = tampil ? (pesan || '') : '';
+  el.classList.toggle('tampil', !!tampil);
+}
+
+function toast(pesan, jenis, detik) {
+  var wadah = document.getElementById('toast-wadah');
+  if (!wadah) return;
+  var d = document.createElement('div');
+  d.className = 'toast' + (jenis ? ' toast-' + jenis : '');
+  d.textContent = pesan;
+  wadah.appendChild(d);
+  setTimeout(function () {
+    d.style.opacity = '0';
+    d.style.transition = 'opacity .25s';
+    setTimeout(function () { d.remove(); }, 260);
+  }, (detik || 3) * 1000);
+}
+
+/* ---------------------------------------------- dialog */
+function dialog(opsi) {
+  return new Promise(function (resolve) {
+    var tirai = document.getElementById('tirai-dialog');
+    var isi   = document.getElementById('isi-dialog');
+
+    /* Lebar dialog jadi bagian KONTRAK, bukan manipulasi class dari
+       luar (v1.9.4).
+
+       Sebelumnya pemanggil harus menambah `.dialog-lebar` sendiri
+       lalu MELEPASNYA di `.then()` — bila lupa melepas, dialog
+       berikutnya ikut melebar. Pratinjau item menunjukkan
+       kebutuhannya: 420px terlalu sempit untuk membaca materi
+       berisi tabel & daftar (laporan guru v1.9.4).
+
+           lebar: 'sedang'  → 620px, form panjang
+           lebar: 'penuh'   → 900px, membaca konten
+           (tanpa opsi)     → 420px, konfirmasi biasa */
+    isi.classList.remove('dialog-lebar', 'dialog-penuh');
+    if (opsi.lebar === 'sedang') isi.classList.add('dialog-lebar');
+    else if (opsi.lebar === 'penuh') isi.classList.add('dialog-penuh');
+
+    isi.innerHTML =
+      '<h3>' + esc(opsi.judul) + '</h3>' +
+      '<p class="lembut">' + (opsi.pesan || '') + '</p>' +
+      (opsi.html || '') +
+      '<div class="dialog-aksi">' +
+        (opsi.tanpaBatal ? '' :
+          '<button class="btn btn-hantu" data-aksi="batal">' +
+          esc(opsi.labelBatal || 'Batal') + '</button>') +
+        '<button class="btn ' + (opsi.bahaya ? 'btn-bahaya' : '') +
+          '" data-aksi="ya">' + esc(opsi.labelYa || 'Ya') + '</button>' +
+      '</div>';
+
+    function tutup(hasil) {
+      tirai.classList.remove('tampil');
+      isi.onclick = null;
+      resolve(hasil);
+    }
+    isi.onclick = function (e) {
+      var b = e.target.closest('[data-aksi]');
+      if (!b) return;
+      tutup(b.dataset.aksi === 'ya');
+    };
+    tirai.classList.add('tampil');
+  });
+}
+
+function konfirmasi(judul, pesan, opsi) {
+  opsi = opsi || {};
+  opsi.judul = judul; opsi.pesan = pesan;
+  return dialog(opsi);
+}
+
+/* ---------------------------------------------- label kelas */
+
+/**
+ * Nama kelas + mapel, SUDAH di-escape dan siap ditempel ke HTML.
+ *
+ * Di LessonLen satu baris `kelas` sebenarnya adalah KELAS-MAPEL:
+ * rombel XII TKJ 1 yang mengambil tiga mapel = tiga baris kelas
+ * terpisah, semuanya bernama "XII TKJ 1".
+ *
+ * Menampilkan `nama_kelas` saja membuat dropdown berisi dua pilihan
+ * yang tertulis persis sama — guru tidak bisa memilih dengan benar
+ * (laporan v1.6.4). Mapel WAJIB ikut.
+ *
+ * Tinggal di js_core, BUKAN js_kelola: pemilih kelas ada di empat
+ * tempat berbeda dan cacat ini muncul di keempatnya. Satu helper
+ * bersama membuat dropdown berikutnya ikut benar tanpa perlu
+ * diingat — pelajaran §6.2 no. 30.
+ *
+ * @param {Object} k       objek kelas: butuh nama_kelas & mapel
+ * @param {string=} akhiran teks tambahan, mis. "(36 murid)"
+ */
+function labelKelas(k, akhiran) {
+  if (!k) return '';
+  var s = esc(k.nama_kelas || '');
+  var mapel = String(k.mapel || '').trim();
+  if (mapel) s += ' · ' + esc(mapel);
+  if (akhiran) s += ' ' + esc(akhiran);
+  return s;
+}
+
+/* ---------------------------------------------- bantu DOM */
+function esc(t) {
+  return String(t == null ? '' : t)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+/**
+ * Nama kelas lengkap: "XII TKJ 1 - PKPJ".
+ *
+ * Satu guru mengampu mapel yang sama di banyak kelas, dan satu kelas
+ * bisa memuat beberapa mapel. Nama kelas saja ambigu — terutama di
+ * daftar panjang dan hasil pencarian (permintaan guru v1.9.6).
+ *
+ * Ditaruh di js_core supaya ketiga kartu kelas (Kelola Kelas,
+ * beranda guru, beranda murid) memakai bentuk yang SAMA. Sebelumnya
+ * masing-masing menyusunnya sendiri dalam dua baris terpisah.
+ *
+ * Mengembalikan teks polos — pemanggil yang meng-escape, sebab
+ * sebagian menaruhnya di atribut, bukan hanya di isi elemen.
+ */
+function namaKelasLengkap(k) {
+  if (!k) return '';
+  var nama = String(k.nama_kelas || '').trim();
+  var mapel = String(k.mapel || '').trim();
+  if (!mapel) return nama;
+  if (!nama) return mapel;
+  return nama + ' - ' + mapel;
+}
+
+function $(sel, induk) { return (induk || document).querySelector(sel); }
+function $$(sel, induk) {
+  return Array.prototype.slice.call((induk || document).querySelectorAll(sel));
+}
+
+/** Ambil isi <template> berdasarkan id, kembalikan sebagai elemen. */
+function ambilTemplate(id) {
+  var t = document.getElementById(id);
+  if (!t) throw new Error('Template tidak ada: ' + id);
+  return t.content.cloneNode(true);
+}
+
+/** Render template ke #app. */
+function render(idTemplate) {
+  var app = document.getElementById('app');
+  app.innerHTML = '';
+  app.appendChild(ambilTemplate(idTemplate));
+  window.scrollTo(0, 0);
+  return app;
+}
+
+function pergiKe(hash) {
+  if (location.hash === hash) router();
+  else location.hash = hash;
+}
+
+/* ---------------------------------------------- segarkan layar
+
+   v1.14.3 — permintaan guru: tombol penyegaran pada layar penilaian
+   Quiz, LKPD, dan Tugas Kelompok.
+
+   Ketiga layar itu menampilkan ANTREAN yang berubah karena perbuatan
+   MURID, bukan guru: murid mengumpulkan LKPD baru selagi guru sedang
+   menilai yang lain. Tanpa tombol ini satu-satunya cara melihat
+   pekerjaan yang baru masuk adalah berpindah layar lalu kembali.
+
+   Sengaja MANUAL, bukan penyegaran otomatis: guru yang memutuskan
+   kapan daftarnya berubah di depan matanya. Daftar yang menyusun
+   ulang dirinya sendiri saat sedang dibaca justru membingungkan.  */
+
+/**
+ * Tombol segarkan untuk kepala halaman.
+ * @param {string} id  id tombol, dipasangi penangan oleh pemanggil
+ */
+function btnSegarkan(id) {
+  return '<button class="btn btn-hantu btn-kecil" id="' + esc(id) + '" ' +
+    'title="Muat ulang daftar dari server">\u21BB Segarkan</button>';
+}
+
+/**
+ * Pasang penangan tombol segarkan.
+ *
+ * Memanggil `router()`, bukan memuat ulang halaman: seluruh layar
+ * digambar ulang lewat jalur rute yang sama seperti saat pertama
+ * dibuka, jadi tidak ada logika pemuatan yang perlu disalin.
+ *
+ * @param {Element} induk  wadah tempat tombol berada
+ * @param {string}  id     id tombol
+ */
+function pasangSegarkan(induk, id) {
+  var b = $('#' + id, induk);
+  if (!b) return;
+  b.onclick = function () {
+    /* Tombol dilumpuhkan selagi memuat — tanpa ini guru yang menekan
+       berkali-kali memicu beberapa pemuatan sekaligus, dan yang
+       datang terakhir belum tentu yang terbaru. */
+    b.disabled = true;
+    b.textContent = '\u21BB Memuat…';
+    /* Antrean di beranda ikut basi: bila guru menyegarkan di sini
+       lalu kembali ke beranda, angka "N menunggu" harus sepakat
+       dengan daftar yang baru saja dilihatnya (§6.2 no. 68). */
+    if (typeof bataliBeranda === 'function') bataliBeranda();
+    router();
+  };
+}
+
+/* ---------------------------------------------- MathJax */
+/** WAJIB dipanggil setiap konten baru dirender (KONVENSI §7.7). */
+function renderRumus(el) {
+  if (window.MathJax && MathJax.typesetPromise) {
+    MathJax.typesetPromise([el || document.getElementById('app')])
+      .catch(function (e) { console.warn('MathJax:', e); });
+  }
+}
+
+/* ---------------------------------------------- router */
+var RUTE = {};
+
+function daftarRute(pola, penangan) { RUTE[pola] = penangan; }
+
+function router() {
+  var hash = location.hash || '#/';
+  var bagian = hash.slice(2).split('/').filter(function (x) { return x !== ''; });
+
+  /* belum login → paksa ke login */
+  if (!State.token && bagian[0] !== 'login') {
+    if (location.hash !== '#/login') { location.hash = '#/login'; return; }
+  }
+
+  /* wajib ganti password → kunci di layar itu */
+  if (State.user && State.user.harus_ganti_password && bagian[0] !== 'ganti-password') {
+    if (location.hash !== '#/ganti-password') {
+      location.hash = '#/ganti-password'; return;
+    }
+  }
+
+  var kunci = bagian[0] || (State.token ? 'beranda' : 'login');
+  var fn = RUTE[kunci];
+
+  /* Rute tak dikenal — mis. tautan lama, salah ketik, atau berkas JS
+     yang belum tersalin sehingga daftarRute()-nya tidak pernah jalan.
+
+     Dulu memanggil sebuah fungsi yang TIDAK PERNAH ADA:
+     seluruh router mati dengan ReferenceError dan aplikasi membeku di
+     layar kosong. Sekarang dialihkan ke beranda. */
+  if (!fn) {
+    /* Sebutkan rutenya di console. Bila sebuah rute yang seharusnya ada
+       muncul di sini, biasanya berkas JS-nya belum tersalin ke editor
+       Apps Script sehingga daftarRute()-nya tidak pernah dijalankan. */
+    try {
+      console.error('[LessonLen] rute tidak dikenal: "' + kunci + '"');
+      console.error('  rute tersedia :',
+        Object.keys(RUTE).sort().join(', '));
+    } catch (e) {}
+
+    /* Rute INTI yang hilang berarti berkasnya gagal dimuat — bukan
+       sekadar salah ketik. Sebutkan berkasnya supaya guru tahu mana
+       yang harus disalin ulang, dan JANGAN mengalihkan ke sana:
+       pengalihan ke rute yang tidak ada memicu loop hashchange. */
+    var ASAL = {
+      beranda: 'js_beranda', notifikasi: 'js_beranda',
+      login: 'js_auth', 'ganti-password': 'js_auth', reset: 'js_auth',
+      biodata: 'js_auth',
+      kelas: 'js_kelola', murid: 'js_kelola',
+      pertemuan: 'js_editor',
+      'kelas-saya': 'js_belajar', belajar: 'js_belajar', baca: 'js_belajar',
+      lkpd: 'js_lkpd', 'lkpd-kelas': 'js_lkpd', 'nilai-lkpd': 'js_lkpd',
+      quiz: 'js_quiz', soal: 'js_quiz', 'nilai-quiz': 'js_quiz',
+      'koreksi-quiz': 'js_quiz',
+      refleksi: 'js_refleksi', 'refleksi-kelas': 'js_refleksi',
+      'rekap-refleksi': 'js_refleksi',
+      rekap: 'js_rekap',
+      'nilai-kelompok': 'js_kelompok', 'tugas-kelompok': 'js_kelompok',
+      'api-key': 'js_core'
+    };
+    var berkas = ASAL[kunci];
+    if (berkas) {
+      try {
+        console.error('  \u26a0\ufe0f Rute ini seharusnya ada. Berkas "' +
+          berkas + '.html" kemungkinan belum tersalin atau gagal dimuat.');
+      } catch (e) {}
+    }
+
+    var adaBeranda = typeof RUTE.beranda === 'function';
+    if (kunci !== 'beranda' && adaBeranda) {
+      location.hash = State.token ? '#/beranda' : '#/login';
+      return;
+    }
+
+    /* Beranda sendiri hilang. Tampilkan pesan TANPA memanggil fungsi
+       dari berkas lain — berkas itu mungkin ikut gagal dimuat. */
+    var wadah = document.getElementById('isi-halaman');
+    if (!wadah) {
+      try { render('tpl-dashboard'); } catch (e) {}
+      wadah = document.getElementById('isi-halaman');
+    }
+    if (!wadah) wadah = document.body;
+    wadah.innerHTML =
+      '<div class="kartu" style="text-align:center;margin:24px">' +
+        '<div style="font-size:2rem">\ud83e\udded</div>' +
+        '<h3>Halaman tidak dapat dibuka</h3>' +
+        '<p class="kecil">Rute "' + String(kunci).replace(/[<>&]/g, '') +
+          '" tidak dikenali.' +
+          (berkas ? ' Berkas <b>' + berkas + '.html</b> kemungkinan belum ' +
+                    'tersalin ke editor Apps Script.' : '') +
+        '</p>' +
+        '<button class="btn btn-hantu btn-kecil mt-16" ' +
+          'onclick="location.reload()">Muat Ulang</button>' +
+      '</div>';
+    return;
+  }
+  fn(bagian.slice(1));
+}
+
+window.addEventListener('hashchange', router);
+
+/* ---------------------------------------------- header bersama */
+function pasangTopbar(induk) {
+  var el = $('#topbar-slot', induk);
+  if (!el || !State.user) return;
+
+  var jml = State.ringkasan ? State.ringkasan.notif_belum_dibaca : 0;
+
+  el.innerHTML =
+    '<div class="topbar"><div class="topbar-isi">' +
+      /* Ikon & nama dari Code.gs (v1.15.6) — satu tempat untuk
+         seluruh layar. Penjaga: bila Code.gs belum tersalin,
+         APP_IKON belum ada dan topbar TIDAK boleh kosong. */
+      '<div class="merek"><span class="merek-ikon">' +
+        (typeof APP_IKON !== 'undefined' ? APP_IKON : '\uD83C\uDF31') +
+        '</span>' +
+        '<span class="sembunyi-hp">' +
+        (typeof APP_NAMA !== 'undefined' ? esc(APP_NAMA) : 'LessonLen') +
+        '</span></div>' +
+      '<div class="tumbuh"></div>' +
+      '<button class="btn btn-teks lonceng" id="btn-lonceng" title="Notifikasi">🔔' +
+        (jml > 0 ? '<span class="lonceng-titik">' + (jml > 9 ? '9+' : jml) + '</span>' : '') +
+      '</button>' +
+      /* Nama menjadi TOMBOL — pintu masuk ke Profil Saya (v1.11.1).
+
+         MURID: sebelumnya biodata hanya bisa diisi lewat dialog yang
+         muncul saat login; begitu ditutup, ia tidak punya cara
+         mengubah nomor WA-nya sama sekali.
+
+         GURU: satu-satunya tempat mengisi nomor WA-nya sendiri
+         (v1.11.2). `daftarMurid()` menyaring role 'murid', jadi akun
+         guru tidak muncul di Kelola Murid — tanpa tombol ini nomor
+         guru tidak akan pernah terisi dan tombol "Hubungi Guru" di
+         layar murid tidak pernah muncul. */
+      '<button class="btn btn-teks tombol-profil" id="btn-profil" ' +
+        'title="Profil saya">👤 <span class="sembunyi-hp">' +
+        esc(State.user.nama) + '</span></button>' +
+      '<button class="btn btn-teks" id="btn-keluar">Keluar</button>' +
+    '</div></div>';
+
+  var bp = $('#btn-profil', el);
+  if (bp) bp.onclick = function () {
+    /* Kedua dialog tinggal di js_auth bersama dialogBiodata() — satu
+       berkas yang mengurus data diri pengguna. */
+    if (State.user.role === 'guru') {
+      if (typeof dialogProfilGuru === 'function') dialogProfilGuru();
+      else toast('Berkas js_auth belum tersalin.', 'peringatan');
+    } else {
+      if (typeof dialogProfil === 'function') dialogProfil();
+      else pergiKe('#/biodata');
+    }
+  };
+  $('#btn-keluar', el).onclick = keluarAkun;
+  $('#btn-lonceng', el).onclick = function () { pergiKe('#/notifikasi'); };
+  var m = $('.merek', el);
+  if (m) { m.style.cursor = 'pointer'; m.onclick = function () { pergiKe('#/beranda'); }; }
+}
+
+/**
+ * Dialog hasil reset kata sandi — dipakai BERSAMA (v1.11.3).
+ *
+ * Reset dijalankan dari dua layar: Kelola Murid dan Permintaan Reset.
+ * Sebelumnya keduanya menyalin dialognya sendiri-sendiri, sehingga
+ * tombol WhatsApp harus ditambahkan dua kali dan kalimatnya mudah
+ * berbeda. Ditaruh di js_core supaya keduanya memanggil yang sama.
+ *
+ * @param {Object}   d      hasil resetPasswordMurid
+ * @param {Function} sesudah dipanggil setelah dialog ditutup (opsional)
+ */
+function dialogHasilReset(d, sesudah) {
+  /* Tombol WA hanya digambar bila murid punya nomor yang sah.
+     `tautan_wa` dikosongkan server bila nomornya belum diisi atau
+     rusak — jangan pernah menampilkan tautan wa.me/ yang mati. */
+  var tombolWa = d.tautan_wa
+    ? '<a class="btn btn-hantu btn-penuh mt-8" href="' + esc(d.tautan_wa) +
+      '" target="_blank" rel="noopener">💬 Kirim lewat WhatsApp</a>'
+    : '<p class="bantuan mt-8">Murid belum mengisi nomor WhatsApp, ' +
+      'jadi sandi ini perlu diberikan langsung.</p>';
+
+  return dialog({
+    judul: 'Kata Sandi Sementara',
+    pesan: 'Berikan kepada <b>' + esc(d.nama) + '</b> (' +
+           esc(d.username) + '). Kode ini hanya tampil sekali.',
+    html: '<div class="kotak-kode mt-8">' + esc(d.password_sementara) +
+          '</div>' + tombolWa +
+          '<p class="bantuan mt-8">Murid wajib menggantinya saat masuk ' +
+          'berikutnya.</p>',
+    tanpaBatal: true, labelYa: 'Sudah Dicatat'
+  }).then(function () {
+    if (typeof sesudah === 'function') sesudah();
+  });
+}
+
+/**
+ * Sesudah "Minta Perbaikan" — tawarkan kirim lewat WhatsApp (v1.11.4).
+ *
+ * Dipakai BERSAMA oleh LKPD dan Tugas Kelompok. Untuk tugas kelompok
+ * penerimanya KETUA — dialah yang mengumpulkan, jadi dialah yang
+ * memperbaiki (keputusan guru).
+ *
+ * Bila tidak ada nomor yang sah, tidak ada yang digambar sama sekali
+ * dan fungsi ini langsung memanggil `sesudah`. Notifikasi in-app tetap
+ * terkirim dari server, jadi murid tidak kehilangan kabar — WhatsApp
+ * hanya jalur tambahan.
+ *
+ * @param {Object}   wa      `hasil.wa` dari nilaiLkpd / nilaiKelompok
+ * @param {Function} sesudah dipanggil setelah dialog ditutup
+ */
+function dialogPerbaikanWa(wa, sesudah) {
+  var lanjut = function () {
+    if (typeof sesudah === 'function') sesudah();
+  };
+
+  /* Tidak ada data sama sekali → memang tidak ada yang perlu
+     ditawarkan (mis. pekerjaan DITERIMA). Diam saja. */
+  if (!wa) { lanjut(); return; }
+
+  var kepada = wa.peran === 'ketua'
+    ? 'ketua kelompok <b>' + esc(wa.nama) + '</b>' +
+      (wa.nama_kelompok ? ' (' + esc(wa.nama_kelompok) + ')' : '')
+    : '<b>' + esc(wa.nama) + '</b>';
+
+  /* 🔴 v1.11.5 — dialog TETAP muncul walau tautannya kosong.
+
+     Versi pertama langsung `return` tanpa jejak apa pun. Guru
+     melaporkan "tidak muncul kirim WA" dan mengira fiturnya rusak,
+     padahal muridnya belum mengisi nomor WhatsApp. Diam bukan
+     jawaban: yang perlu diberi tahu justru MENGAPA tombolnya tidak
+     ada, dan apa yang harus dilakukan (§6.2 no. 63). */
+  var isi = wa.tautan
+    ? '<a class="btn btn-hantu btn-penuh mt-8" href="' +
+      esc(wa.tautan) + '" target="_blank" rel="noopener">' +
+      '💬 Kirim lewat WhatsApp</a>'
+    : '<div class="kartu panel-tindakan mt-8">' +
+        '<div class="tebal">📵 Belum ada nomor WhatsApp</div>' +
+        '<div class="kecil lembut">' +
+          (wa.peran === 'ketua'
+            ? 'Ketua kelompok ini belum melengkapi biodatanya. '
+            : 'Murid ini belum melengkapi biodatanya. ') +
+          'Nomor dapat diisikan lewat <b>Kelola Murid → Ubah</b>, ' +
+          'atau minta murid mengisinya sendiri dari menu ' +
+          '<b>👤 Profil Saya</b>.' +
+        '</div>' +
+      '</div>';
+
+  dialog({
+    judul: '↩ Dikembalikan untuk Diperbaiki',
+    pesan: 'Catatan Anda sudah tersimpan dan notifikasi terkirim. ' +
+           (wa.tautan
+             ? 'Ingin memberi tahu ' + kepada + ' lewat WhatsApp?'
+             : 'Namun ' + kepada + ' tidak dapat dihubungi lewat ' +
+               'WhatsApp.'),
+    html: isi,
+    tanpaBatal: true, labelYa: 'Tutup'
+  }).then(lanjut);
+}
+
+function keluarAkun() {
+  konfirmasi('Keluar', 'Anda yakin ingin keluar dari LessonLen?',
+             { labelYa: 'Keluar', bahaya: true })
+    .then(function (ya) {
+      if (!ya) return;
+      callApi('logout', [], { diam: true }).catch(function () {})
+        .then(function () {
+          simpanToken('');
+          State.user = null;
+          State.ringkasan = null;
+          State.beranda = null;
+          if (typeof bataliBeranda === 'function') bataliBeranda();
+          /* keadaan sidebar hidup di memori — buang juga, agar
+             pengguna berikutnya tidak melihat indeks milik yang lama */
+          if (typeof navReset === 'function') navReset();
+          /* Daftar kelas di sidebar menu ikut dibuang — kalau tidak,
+             guru berikutnya di perangkat yang sama melihat kelas
+             milik yang lama (v1.13.0). */
+          if (typeof bataliMenuKelas === 'function') bataliMenuKelas();
+          location.hash = '#/login';
+          router();
+        });
+    });
+}
+
+/* ---------------------------------------------- awal jalan */
+function mulai() {
+  if (!State.token) { router(); return; }
+
+  tampilkanMuat(true);
+  callApi('cekSesi', [], { diam: true })
+    .then(function (d) {
+      State.user = d.user;
+      State.user.harus_ganti_password = d.harus_ganti_password;
+      /* Muat ulang halaman kehilangan State — tanpa baris ini spanduk
+         biodata di beranda tidak pernah muncul lagi setelah F5
+         (v1.10.1). */
+      State.user.biodata_kurang = d.biodata_kurang === true;
+      return callApi('getRingkasanAwal', [], { diam: true });
+    })
+    .then(function (r) {
+      State.ringkasan = r;
+      tampilkanMuat(false);
+      router();
+    })
+    .catch(function () {
+      tampilkanMuat(false);
+      simpanToken('');
+      if (typeof navReset === 'function') navReset();
+      location.hash = '#/login';
+      router();
+    });
+}
+
+document.addEventListener('DOMContentLoaded', mulai);
+</script>

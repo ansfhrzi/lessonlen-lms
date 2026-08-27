@@ -1,0 +1,420 @@
+<script>
+/* ============================================================
+   LessonLen — js_refleksi
+   Murid: mengisi refleksi (pertanyaan terbuka + skala 1–5)
+   Guru : rekap sekelas + membalas
+   ============================================================ */
+
+var LABEL_SKALA = {
+  1: 'Belum paham sama sekali',
+  2: 'Masih banyak yang bingung',
+  3: 'Cukup paham, sebagian masih ragu',
+  4: 'Paham, tinggal perlu latihan',
+  5: 'Paham betul, bisa menjelaskan ke teman'
+};
+
+/* ---------------------------------------------- RUTE: murid */
+
+daftarRute('refleksi', function (arg) {
+  if (!State.user || State.user.role !== 'murid') { pergiKe('#/beranda'); return; }
+  var id = arg && arg[0];
+  if (!id) { pergiKe('#/beranda'); return; }
+
+  var app = render('tpl-dashboard');
+  pasangTopbar(app);
+  var luar = $('#isi-halaman', app);
+
+  /* Kerangka + sidebar digambar SEKARANG, tidak menunggu server —
+     pola yang sama dengan js_lkpd (pelajaran v0.8.2). */
+  Nav.aktifItem = id;
+  var isi = navRangka(luar);
+  isi.innerHTML = rangkaMuat(80, 3);
+  if (Nav.kelasId) navMuat(Nav.kelasId).then(navGambar);
+
+  callApi('bukaRefleksi', [id], { diam: true })
+    .then(function (d) {
+      gambarRefleksi(isi, d);
+      navPasangItem(d.pertemuan.kelas_id, d.pertemuan.pertemuan_id, id);
+    })
+    .catch(function (res) {
+      isi.innerHTML = kosongkan('🔒', 'Refleksi terkunci',
+        (res && res.pesan) || 'Anda belum dapat membukanya.',
+        '<button class="btn btn-hantu btn-kecil mt-16" ' +
+        'onclick="pergiKe(\'#/beranda\')">Kembali</button>');
+    });
+});
+
+function gambarRefleksi(isi, d) {
+  var terkirim = d.terkirim === true;
+
+  var html = navTombolLaci() +
+    '<button class="tautan-balik" onclick="pergiKe(\'#/belajar/' +
+      esc(d.pertemuan.pertemuan_id) + '\')">‹ ' +
+      esc(d.pertemuan.judul) + '</button>' +
+    '<div class="kepala-halaman">' +
+      '<h1>🪞 ' + esc(d.item.judul) + '</h1>' +
+      (d.item.deskripsi
+        ? '<p class="lembut kecil mt-8">' + esc(d.item.deskripsi) + '</p>'
+        : '') +
+    '</div>';
+
+  /* --- balasan guru, bila ada --- */
+  if (d.balasan_guru) {
+    html += '<div class="kartu kartu-balasan mb-16">' +
+      '<div class="kecil tebal mb-8">💬 Balasan guru</div>' +
+      '<div class="kecil">' + esc(d.balasan_guru) + '</div>' +
+    '</div>';
+  }
+
+  if (terkirim) {
+    html += '<div class="kartu mb-16" style="border-color:var(--sukses)">' +
+      '<div class="baris sela-kecil">' +
+        '<span style="font-size:1.3rem">✅</span>' +
+        '<div><div class="tebal">Refleksi sudah dikirim</div>' +
+        '<div class="kecil lembut">Terima kasih — jawaban Anda membantu ' +
+          'guru menyesuaikan pengajaran.</div></div>' +
+      '</div></div>';
+  } else {
+    html += '<div class="kartu mb-16">' +
+      '<p class="kecil lembut" style="margin:0">Jawablah dengan jujur. ' +
+      'Refleksi <b>tidak dinilai benar atau salah</b> — gunanya membantu ' +
+      'guru mengetahui bagian mana yang perlu diulang.</p></div>';
+  }
+
+  /* --- pertanyaan --- */
+  html += '<div class="kolom" id="daftar-tanya">';
+  d.pertanyaan.forEach(function (q, i) {
+    var jawab = d.jawaban[i] || '';
+    html += '<div class="kartu kartu-tanya">' +
+      '<label class="tebal kecil" for="rj-' + i + '">' +
+        q.no + '. ' + esc(q.t) +
+        (q.wajib ? ' <span class="wajib-tanda">*</span>'
+                 : ' <span class="lencana">opsional</span>') +
+      '</label>' +
+      (terkirim
+        ? '<div class="jawaban-terkunci mt-8">' +
+            (jawab ? esc(jawab) : '<span class="lembut">(tidak dijawab)</span>') +
+          '</div>'
+        : '<textarea class="isian mt-8" id="rj-' + i + '" rows="3" ' +
+          'maxlength="2000" placeholder="Tulis jawaban Anda…">' +
+          esc(jawab) + '</textarea>') +
+    '</div>';
+  });
+  html += '</div>';
+
+  /* --- skala pemahaman diri --- */
+  html += '<div class="kartu mt-16">' +
+    '<div class="tebal kecil mb-8">Seberapa paham Anda terhadap materi ini?' +
+      (terkirim ? '' : ' <span class="wajib-tanda">*</span>') + '</div>';
+
+  if (terkirim) {
+    html += '<div class="baris sela-kecil">' +
+      '<span class="skala-nilai">' + (d.skala || '–') + '</span>' +
+      '<span class="kecil lembut">' +
+        esc(LABEL_SKALA[d.skala] || 'belum diisi') + '</span></div>';
+  } else {
+    html += '<div class="skala-pilih" id="skala-pilih">';
+    for (var s = 1; s <= 5; s++) {
+      html += '<button type="button" class="skala-btn' +
+        (d.skala === s ? ' terpilih' : '') + '" data-skala="' + s + '">' +
+        s + '</button>';
+    }
+    html += '</div>' +
+      '<div class="kecil lembut mt-8" id="skala-ket">' +
+        esc(LABEL_SKALA[d.skala] || 'Pilih 1 (belum paham) sampai 5 (paham betul)') +
+      '</div>';
+  }
+  html += '</div>';
+
+  /* --- tombol --- */
+  if (!terkirim) {
+    html += '<div class="baris sela-kecil mt-16" style="flex-wrap:wrap">' +
+      '<button class="btn btn-hantu" id="btn-simpan-ref">Simpan Draf</button>' +
+      '<button class="btn" id="btn-kirim-ref">Kirim Refleksi</button>' +
+    '</div>';
+  }
+
+  html += navBilahItem(d.item.item_id);
+  isi.innerHTML = html;
+
+  if (window.MathJax && MathJax.typesetPromise) MathJax.typesetPromise();
+
+  if (terkirim) return;
+
+  /* --- interaksi skala --- */
+  var skalaTerpilih = d.skala || null;
+  var wadahSkala = $('#skala-pilih', isi);
+  wadahSkala.onclick = function (e) {
+    var b = e.target.closest('[data-skala]');
+    if (!b) return;
+    skalaTerpilih = Number(b.dataset.skala);
+    $$('.skala-btn', wadahSkala).forEach(function (x) {
+      x.classList.remove('terpilih');
+    });
+    b.classList.add('terpilih');
+    $('#skala-ket', isi).textContent = LABEL_SKALA[skalaTerpilih] || '';
+  };
+
+  function kumpulJawaban() {
+    return d.pertanyaan.map(function (q, i) {
+      var el = $('#rj-' + i, isi);
+      return el ? el.value : '';
+    });
+  }
+
+  $('#btn-simpan-ref', isi).onclick = function () {
+    callApi('simpanDrafRefleksi',
+            [d.item.item_id, kumpulJawaban(), skalaTerpilih],
+            { tombol: this })
+      .then(function () { toast('Draf tersimpan.', 'sukses'); });
+  };
+
+  $('#btn-kirim-ref', isi).onclick = function () {
+    var jawaban = kumpulJawaban();
+
+    /* diperiksa juga di server; ini hanya supaya pesannya cepat */
+    var kurang = [];
+    d.pertanyaan.forEach(function (q, i) {
+      if (q.wajib && !String(jawaban[i] || '').trim()) kurang.push(q.no);
+    });
+    if (kurang.length) {
+      toast('Pertanyaan ' + kurang.join(', ') + ' wajib dijawab.', 'peringatan');
+      return;
+    }
+    if (!skalaTerpilih) {
+      toast('Pilih skala pemahaman diri Anda.', 'peringatan');
+      return;
+    }
+
+    var tombol = this;
+    konfirmasi('Kirim Refleksi',
+      'Setelah dikirim, jawaban <b>tidak dapat diubah lagi</b>. ' +
+      'Guru akan membacanya dan mungkin membalas.',
+      { labelYa: 'Kirim' }).then(function (ya) {
+        if (!ya) return;
+        callApi('kirimRefleksi',
+                [d.item.item_id, jawaban, skalaTerpilih], { tombol: tombol })
+          .then(function () {
+            toast('Refleksi terkirim. Terima kasih!', 'sukses');
+            /* status item berubah → sidebar wajib ikut diperbarui */
+            navSegarkan();
+            router();
+          });
+      });
+  };
+}
+
+/* ---------------------------------------------- RUTE: guru — daftar */
+
+daftarRute('refleksi-kelas', function (arg) {
+  if (!State.user || State.user.role !== 'guru') { pergiKe('#/beranda'); return; }
+  var kid = arg && arg[0];
+  if (!kid) { pergiKe('#/kelas'); return; }
+
+  var app = render('tpl-dashboard');
+  pasangTopbar(app);
+  /* Sidebar menu guru (v1.13.2). */
+  var isi = (typeof menuRangka === 'function')
+    ? menuRangka(app, 'kelas') : $('#isi-halaman', app);
+  isi.innerHTML = rangkaMuat(72, 3);
+
+  callApi('getRefleksiKelas', [kid], { diam: true }).then(function (list) {
+    isi.innerHTML =
+      '<button class="tautan-balik" onclick="pergiKe(\'#/kelas/' +
+        esc(kid) + '\')">‹ Isi Kelas</button>' +
+      '<div class="kepala-halaman"><h1>🪞 Refleksi Murid</h1>' +
+        '<p class="lembut kecil">' + list.length + ' refleksi di kelas ini</p>' +
+      '</div>' +
+      (list.length
+        ? '<div class="kolom sela-kecil">' + list.map(function (r) {
+            var rata = r.rata_skala === null ? '–' : r.rata_skala;
+            return '<button class="kartu baris-antara kartu-klik" ' +
+              'data-buka="' + esc(r.item_id) + '" style="gap:12px">' +
+              '<span style="min-width:0;text-align:left">' +
+                '<span class="tebal" style="display:block">' +
+                  (r.nomor ? r.nomor + ' · ' : '') + esc(r.judul) + '</span>' +
+                '<span class="kecil lembut">' + esc(r.pertemuan_judul) +
+                  ' · ' + r.jml_terkirim + ' jawaban</span>' +
+              '</span>' +
+              '<span class="baris sela-kecil">' +
+                (r.perlu_diulang
+                  ? '<span class="lencana lencana-peringatan">perlu diulang</span>'
+                  : '') +
+                '<span class="skala-nilai kecil">' + rata + '</span>' +
+              '</span></button>';
+          }).join('') + '</div>'
+        : kosongkan('🪞', 'Belum ada refleksi',
+            'Tambahkan item bertipe Refleksi pada salah satu pertemuan.'));
+
+    isi.onclick = function (e) {
+      var b = e.target.closest('[data-buka]');
+      if (b) pergiKe('#/rekap-refleksi/' + b.dataset.buka);
+    };
+  });
+});
+
+/* ---------------------------------------------- RUTE: guru — rekap */
+
+daftarRute('rekap-refleksi', function (arg) {
+  if (!State.user || State.user.role !== 'guru') { pergiKe('#/beranda'); return; }
+  var id = arg && arg[0];
+  if (!id) { pergiKe('#/kelas'); return; }
+
+  var app = render('tpl-dashboard');
+  pasangTopbar(app);
+  /* Sidebar menu guru (v1.13.2). */
+  var isi = (typeof menuRangka === 'function')
+    ? menuRangka(app, 'kelas') : $('#isi-halaman', app);
+  isi.innerHTML = rangkaMuat(72, 4);
+
+  callApi('getRekapRefleksi', [id], { diam: true }).then(function (d) {
+    gambarRekapRefleksi(isi, d);
+  });
+});
+
+function gambarRekapRefleksi(isi, d) {
+  /* Payload dijaga agar halaman tidak pecah bila server mengirim
+     bentuk lama atau balasan terpotong. Satu properti hilang tidak
+     boleh membuat guru melihat "terjadi kesalahan". */
+  d = d || {};
+  d.item = d.item || {};
+  d.pertanyaan = d.pertanyaan || [];
+  d.jawaban = d.jawaban || [];
+  var sebaran = d.sebaran_skala || [0, 0, 0, 0, 0];
+  while (sebaran.length < 5) sebaran.push(0);
+  d.sebaran_skala = sebaran;
+
+  var maks = Math.max.apply(null, sebaran.concat([1]));
+
+  var html =
+    /* kembali ke daftar item pertemuannya — dari situlah tombol
+       "🪞 Penilaian" ditekan */
+    '<button class="tautan-balik" onclick="pergiKe(\'#/pertemuan/' +
+      esc(d.item.pertemuan_id) + '\')">‹ Kelola Item</button>' +
+    '<div class="kepala-halaman"><h1>🪞 ' + esc(d.item.judul) + '</h1>' +
+      '<p class="lembut kecil">' + d.jml_terkirim + ' dari ' + d.jml_murid +
+      ' murid sudah mengisi' +
+      (d.jml_belum ? ' · ' + d.jml_belum + ' belum' : '') + '</p></div>';
+
+  /* --- ringkasan skala --- */
+  html += '<div class="kartu mb-16">' +
+    '<div class="baris-antara mb-8">' +
+      '<span class="tebal kecil">Rata-rata pemahaman diri</span>' +
+      '<span class="skala-nilai">' +
+        (d.rata_skala === null ? '–' : d.rata_skala) + '</span>' +
+    '</div>' +
+    '<div class="sebaran">';
+  d.sebaran_skala.forEach(function (n, i) {
+    var tinggi = Math.round(n / maks * 100);
+    html += '<div class="sebaran-kolom" title="' + n + ' murid memilih ' +
+      (i + 1) + '">' +
+      '<div class="sebaran-bilah"><div class="sebaran-isi" style="height:' +
+        tinggi + '%"></div></div>' +
+      '<div class="kecil lembut">' + (i + 1) + '</div>' +
+      '<div class="kecil tebal">' + n + '</div></div>';
+  });
+  html += '</div>';
+
+  if (d.perlu_diulang) {
+    html += '<div class="panel-tindakan kartu-rapat mt-16" ' +
+      'style="border-radius:var(--radius-sm)">' +
+      '<b>⚠️ Rata-rata di bawah 3.</b> Sebagian besar murid merasa belum ' +
+      'paham — pertimbangkan mengulang materi ini sebelum melanjutkan.' +
+      '</div>';
+  }
+  html += '</div>';
+
+  if (!d.jawaban.length) {
+    isi.innerHTML = html + kosongkan('⏳', 'Belum ada yang mengisi',
+      'Jawaban murid akan muncul di sini.');
+    return;
+  }
+
+  /* --- jawaban per pertanyaan, bukan per murid ---
+     Guru membaca untuk menemukan POLA. Mengelompokkan per pertanyaan
+     membuat 36 jawaban atas satu pertanyaan terbaca sekali jalan;
+     per murid berarti melompat-lompat antar topik. */
+  d.pertanyaan.forEach(function (q, qi) {
+    html += '<div class="kartu mb-16">' +
+      '<div class="tebal kecil mb-8">' + q.no + '. ' + esc(q.t) + '</div>' +
+      '<div class="kolom sela-kecil">';
+    var adaIsi = false;
+    d.jawaban.forEach(function (j) {
+      var teks = j.jawaban[qi];
+      if (!teks) return;
+      adaIsi = true;
+      html += '<div class="jawaban-baris">' +
+        '<span class="skala-titik s' + (j.skala || 0) + '">' +
+          (j.skala || '–') + '</span>' +
+        '<div style="min-width:0">' +
+          '<div class="kecil tebal">' + esc(j.nama) + '</div>' +
+          '<div class="kecil">' + esc(teks) + '</div>' +
+        '</div></div>';
+    });
+    if (!adaIsi) {
+      html += '<span class="kecil lembut">Belum ada yang menjawab.</span>';
+    }
+    html += '</div></div>';
+  });
+
+  /* --- balas per murid --- */
+  html += '<h2 class="mb-8">Balas Murid</h2><div class="kolom sela-kecil">';
+  d.jawaban.forEach(function (j) {
+    html += '<div class="kartu kartu-rapat baris-antara" style="gap:10px">' +
+      '<span style="min-width:0;text-align:left">' +
+        '<span class="kecil tebal">' + esc(j.nama) + '</span>' +
+        '<span class="kecil lembut" style="display:block">' +
+          (j.balasan_guru
+            ? '💬 ' + esc(_potongRef(j.balasan_guru, 48)) +
+              (j.dibaca_murid ? '' : ' · belum dibaca')
+            : 'belum dibalas') + '</span>' +
+      '</span>' +
+      '<button class="btn btn-hantu btn-kecil" data-balas="' +
+        esc(j.submission_id) + '" data-nama="' + esc(j.nama) + '" ' +
+        'data-isi="' + esc(j.balasan_guru) + '">' +
+        (j.balasan_guru ? 'Ubah' : 'Balas') + '</button>' +
+    '</div>';
+  });
+  html += '</div>';
+
+  isi.innerHTML = html;
+
+  isi.onclick = function (e) {
+    var b = e.target.closest('[data-balas]');
+    if (!b) return;
+    panelBalasRefleksi(d.item.item_id, b.dataset.balas,
+                       b.dataset.nama, b.dataset.isi);
+  };
+}
+
+function _potongRef(t, n) {
+  t = String(t || '');
+  return t.length > n ? t.slice(0, n - 1) + '…' : t;
+}
+
+function panelBalasRefleksi(itemId, submissionId, nama, isiLama) {
+  panel('Balas ' + nama,
+    '<div class="grup"><label>Balasan</label>' +
+      '<textarea class="isian" id="ref-balas" rows="4" maxlength="1000" ' +
+      'placeholder="Tulis tanggapan singkat…">' + esc(isiLama || '') +
+      '</textarea>' +
+      '<span class="bantuan">Murid mendapat notifikasi dan dapat ' +
+      'membacanya di halaman refleksinya.</span></div>',
+
+    '<button class="btn btn-hantu" data-tutup="1">Batal</button>' +
+    '<button class="btn" id="btn-kirim-balas">Kirim</button>'
+  );
+
+  $('#btn-kirim-balas').onclick = function () {
+    var isi = $('#ref-balas').value.trim();
+    if (!isi) { toast('Balasan tidak boleh kosong.', 'peringatan'); return; }
+    callApi('balasRefleksi', [submissionId, isi], { tombol: this })
+      .then(function () {
+        tutupPanel(false);
+        toast('Balasan terkirim.', 'sukses');
+        pergiKe('#/rekap-refleksi/' + itemId);
+        router();
+      });
+  };
+}
+</script>
