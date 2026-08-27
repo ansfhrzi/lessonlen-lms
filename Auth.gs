@@ -356,6 +356,7 @@ var Auth = (function () {
  *  Dipakai bila akun guru terkunci atau lupa kata sandi.
  * ============================================================ */
 function resetGuruDarurat() {
+  _hanyaEditor();
   var guru = Db.saring('users', { role: 'guru' });
   if (!guru.length) { Logger.log('Tidak ada akun guru.'); return; }
 
