@@ -276,6 +276,7 @@ var URUTAN_SHEET = ['users','kelas','enrollment','materi_pokok',
 
 /** Buat database + isi seed. Jalankan ini untuk memulai. */
 function setupLengkap() {
+  _hanyaEditor();
   var id = setupDatabase();
   isiSeedData();
   Logger.log('');
@@ -295,6 +296,7 @@ function setupLengkap() {
 
 /** Buat spreadsheet + 15 sheet berikut header, validasi, format. */
 function setupDatabase() {
+  _hanyaEditor();
   var P = PropertiesService.getScriptProperties();
   var idLama = P.getProperty('DB_ID');
 
@@ -499,6 +501,7 @@ function _tambah(nama, objArr) {
  * ============================================================ */
 
 function isiSeedData() {
+  _hanyaEditor();
   var ss = _db();
   if (ss.getSheetByName('users').getLastRow() > 1) {
     Logger.log('Data sudah ada — seed dilewati. Pakai resetTotal() bila ingin mengosongkan.');
@@ -759,6 +762,7 @@ function isiSeedData() {
 
 /** Hapus seluruh baris bertanda [CONTOH] beserta turunannya. */
 function hapusSeedData() {
+  _hanyaEditor();
   var ss = _db();
 
   var kelasSh = ss.getSheetByName('kelas');
@@ -823,6 +827,7 @@ function _hapusBarisJika(ss, nama, namaKol, daftarNilai) {
 
 /** Kosongkan SEMUA data, struktur tetap. Hati-hati. */
 function resetTotal() {
+  _hanyaEditor();
   var ss = _db();
   URUTAN_SHEET.forEach(function (nama) {
     var sh = ss.getSheetByName(nama);
@@ -849,6 +854,7 @@ function resetTotal() {
  * kolomnya masing-masing.
  */
 function migrasiStruktur() {
+  _hanyaEditor();
   var ss = _db();
   var total = 0;
   var laporan = [];
@@ -1094,6 +1100,7 @@ function _formatUlang(sh, def) {
 
 /** Ringkasan isi database + peringatan kapasitas. */
 function infoDatabase() {
+  _hanyaEditor();
   var ss = _db();
   Logger.log('=== ' + NAMA_DB + ' ===');
   Logger.log('ID  : ' + ss.getId());

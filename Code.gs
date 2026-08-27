@@ -1091,6 +1091,7 @@ function simpanApiKeys(token, daftar) {
  * tertinggal di kode maupun repositori (§10.1b).
  */
 function pasangApiKeysManual() {
+  _hanyaEditor();
   var KEYS = [
     // 'AIza...1',
     // 'AIza...2',
@@ -1133,6 +1134,7 @@ function pasangApiKeysManual() {
  * @returns {Object} { ok, data: { token }, pesan }
  */
 function _sesiGuruDiagnostik() {
+  _hanyaEditor();
   var guru = Db.saring('users', { role: 'guru', status: 'aktif' });
   if (!guru.length) {
     return { ok: false,
@@ -1145,6 +1147,7 @@ function _sesiGuruDiagnostik() {
 
 
 function ujiTahap2() {
+  _hanyaEditor();
   Logger.log('=== UJI TAHAP 2 ===');
   Logger.log('1. DB_ID  : ' + Db.idDb());
   Logger.log('2. users  : ' + Db.baca('users').length + ' baris');
@@ -1166,6 +1169,7 @@ function ujiTahap2() {
 }
 
 function ujiTahap3() {
+  _hanyaEditor();
   Logger.log('=== UJI TAHAP 3 ===');
 
   var g = _sesiGuruDiagnostik();  /* tanpa password (v1.9.11) */
@@ -1215,6 +1219,7 @@ function ujiTahap3() {
 }
 
 function ujiTahap4() {
+  _hanyaEditor();
   Logger.log('=== UJI TAHAP 4 ===');
   var g = _sesiGuruDiagnostik();  /* tanpa password (v1.9.11) */
   if (!g.ok) { Logger.log('Login gagal'); return; }
@@ -1256,6 +1261,7 @@ function ujiTahap4() {
 }
 
 function ujiTahap5() {
+  _hanyaEditor();
   Logger.log('=== UJI TAHAP 5 ===');
   var m = Auth.login('siswa01', 'siswa123');
   if (!m.ok) { Logger.log('Login murid gagal'); return; }
@@ -1305,6 +1311,7 @@ function ujiTahap5() {
 }
 
 function ujiTahap6A() {
+  _hanyaEditor();
   Logger.log('=== UJI TAHAP 6A — LKPD ===');
   var m = Auth.login('siswa01', 'siswa123');
   if (!m.ok) { Logger.log('Login murid gagal'); return; }
@@ -1360,6 +1367,7 @@ function ujiTahap6A() {
  * yang dibuat sekali, lalu dibersihkan di akhir.
  */
 function ujiTahap6B() {
+  _hanyaEditor();
   Logger.log('=== UJI TAHAP 6B — QUIZ ===');
 
   var g = _sesiGuruDiagnostik();  /* tanpa password (v1.9.11) */
@@ -1543,6 +1551,7 @@ function ujiTahap6B() {
  * pertemuan uji tersendiri yang dihapus di akhir.
  */
 function ujiTahap7() {
+  _hanyaEditor();
   Logger.log('=== UJI TAHAP 7 — GENERATOR AI ===');
 
   var g = _sesiGuruDiagnostik();  /* tanpa password (v1.9.11) */
@@ -1721,6 +1730,7 @@ function ujiTahap7() {
  * ============================================================
  */
 function ujiTahap9() {
+  _hanyaEditor();
   Logger.log('=== UJI TAHAP 9 — HIERARKI & REFLEKSI (v' + APP_VERSI + ') ===');
   var mulai = new Date();
 
@@ -2080,6 +2090,7 @@ function ujiTahap9() {
  * ============================================================
  */
 function diagRefleksi() {
+  _hanyaEditor();
   Logger.log('=== DIAGNOSTIK REKAP REFLEKSI (v' + APP_VERSI + ') ===');
 
   var g = _sesiGuruDiagnostik();  /* tanpa password (v1.9.11) */
@@ -2213,6 +2224,7 @@ function diagRefleksi() {
  * ============================================================
  */
 function diagUbahMateriPokok() {
+  _hanyaEditor();
   Logger.log('=== DIAGNOSTIK: Ubah Materi Pokok (v' + APP_VERSI + ') ===');
 
   var g = _sesiGuruDiagnostik();  /* tanpa password (v1.9.11) */
@@ -2322,6 +2334,7 @@ function diagUbahMateriPokok() {
  * ============================================================
  */
 function ujiTahap10() {
+  _hanyaEditor();
   Logger.log('=== UJI TAHAP 10 — GENERATOR SOAL AI (v' + APP_VERSI + ') ===');
   var mulai = new Date();
 
@@ -2573,6 +2586,7 @@ function ujiTahap10() {
  * tidak menumpuk berkas uji.
  */
 function ujiTahap11() {
+  _hanyaEditor();
   Logger.log('=== UJI TAHAP 11 — REKAP NILAI (v' + APP_VERSI + ') ===');
   var mulai = new Date();
 
@@ -2821,6 +2835,7 @@ function ujiTahap11() {
  * termasuk username murid uji (pelajaran v1.5.3). Aman diulang.
  */
 function ujiTahap12() {
+  _hanyaEditor();
   Logger.log('=== UJI TAHAP 12 — KELOMPOK SOAL (v' + APP_VERSI + ') ===');
   var mulai = new Date();
 
@@ -3096,6 +3111,7 @@ function ujiTahap12() {
  * `Kelas.hapus()` sengaja tidak menyentuhnya (pelajaran v1.5.3).
  */
 function ujiTahap13() {
+  _hanyaEditor();
   Logger.log('=== UJI TAHAP 13 — TUGAS KELOMPOK (v' + APP_VERSI + ') ===');
   var mulai = new Date();
 
@@ -3458,6 +3474,7 @@ function ujiTahap13() {
  * akhir, termasuk menghapus baris `users`.
  */
 function ujiTahap14() {
+  _hanyaEditor();
   Logger.log('=== UJI TAHAP 14 — BUKA KUNCI (v' + APP_VERSI + ') ===');
   var mulai = new Date();
 
@@ -3716,6 +3733,7 @@ function ujiTahap14() {
  * AMAN DIULANG.
  */
 function ujiTahap15() {
+  _hanyaEditor();
   Logger.log('=== UJI TAHAP 15 — KERANGKA SEMESTER (v' + APP_VERSI + ') ===');
   var mulai = new Date();
 
@@ -4030,6 +4048,7 @@ function ujiTahap15() {
  * Aman diulang: seluruh data uji dihapus di akhir.
  */
 function ujiTahap16() {
+  _hanyaEditor();
   Logger.log('=== UJI TAHAP 16 — KEGIATAN KERANGKA (v' + APP_VERSI + ') ===');
   var mulai = new Date();
 
@@ -4279,6 +4298,7 @@ function ujiTahap16() {
  * Aman diulang: seluruh data uji dihapus di akhir.
  */
 function ujiTahap17() {
+  _hanyaEditor();
   /* 8 murid, BUKAN 36.
 
      Di dunia nyata 36 murid = 36 EKSEKUSI TERPISAH, masing-masing
@@ -4553,6 +4573,7 @@ function ujiTahap17() {
  *  ES5 saja — Apps Script tidak menerima sintaks yang lebih baru.
  * ============================================================ */
 function ujiTahap18() {
+  _hanyaEditor();
   Logger.log('=== UJI TAHAP 18 — BIODATA MURID (v' + APP_VERSI + ') ===');
   var mulai = new Date();
   var lolos = 0, gagal = 0;
@@ -4861,6 +4882,7 @@ function ujiTahap18() {
 
 
 function tesKoneksiAI() {
+  _hanyaEditor();
   Logger.log('=== TES KONEKSI GEMINI ===');
   var st = Ai.statusKeys();
   if (!st.terpasang) {
@@ -4943,6 +4965,7 @@ function tesKoneksiAI() {
  * berkas itu masih versi lama.
  */
 function cekBerkasUI() {
+  _hanyaEditor();
   Logger.log('=== CEK BERKAS UI — LessonLen v' + APP_VERSI + ' ===');
   Logger.log('');
   Logger.log('Memeriksa apakah berkas HTML/CSS sudah versi terbaru.');
@@ -5565,6 +5588,7 @@ function cekBerkasUI() {
  *  mengajar adalah risiko yang tidak sepadan.
  * ============================================================ */
 function resetTahunAjaran(frasa) {
+  _hanyaEditor();
   Logger.log('=== RESET TAHUN AJARAN (v' + APP_VERSI + ') ===');
   Logger.log('');
 
@@ -5661,6 +5685,7 @@ function resetTahunAjaran(frasa) {
 
 
 function cekNomorWa() {
+  _hanyaEditor();
   Logger.log('=== CEK NOMOR WHATSAPP (v' + APP_VERSI + ') ===');
   Logger.log('');
 
@@ -5762,6 +5787,7 @@ function cekNomorWa() {
 
 
 function cekKesehatan() {
+  _hanyaEditor();
   Logger.log('=== CEK KESEHATAN LessonLen v' + APP_VERSI + ' ===');
   var masalah = [];
 
@@ -5902,6 +5928,7 @@ function cekKesehatan() {
  * Aman dijalankan berulang — trigger lama dibuang lebih dulu.
  */
 function pasangTriggerHarian() {
+  _hanyaEditor();
   var jml = 0;
   ScriptApp.getProjectTriggers().forEach(function (t) {
     if (t.getHandlerFunction() === 'tugasHarianQuiz') {

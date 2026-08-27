@@ -404,3 +404,27 @@ var Util = (function () {
     catatLog: catatLog
   };
 })();
+
+
+/**
+ * Penjaga fungsi editor (diagnostik, setup, reset darurat).
+ *
+ * google.script.run dapat memanggil SETIAP fungsi global. Tanpa
+ * penjaga ini, murid di browser bisa menjalankan ujiTahap*,
+ * resetGuruDarurat, _sesiGuruDiagnostik, dll.
+ *
+ * Dari editor Apps Script: ActiveUser = EffectiveUser = pemilik.
+ * Dari web app “Execute as: Me”: pengunjung ≠ pemilik (atau kosong).
+ *
+ * Trigger waktu (tugasHarianQuiz) JANGAN memakai penjaga ini.
+ * Cara pakai editor tidak berubah: pilih fungsi → Run.
+ */
+function _hanyaEditor() {
+  var aktif = '';
+  var efektif = '';
+  try { aktif = Session.getActiveUser().getEmail() || ''; } catch (e) {}
+  try { efektif = Session.getEffectiveUser().getEmail() || ''; } catch (e) {}
+  if (!aktif || aktif !== efektif) {
+    throw new Error('Hanya dijalankan dari editor Apps Script.');
+  }
+}
