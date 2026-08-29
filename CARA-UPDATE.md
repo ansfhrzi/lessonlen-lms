@@ -4,12 +4,13 @@ Panduan singkat setiap kali ada berkas yang berubah.
 
 ---
 
-## Pembaruan Terkini — v1.17.0: Lupa Nama Pengguna + Sesi 30 Hari
+## Pembaruan Terkini — v1.17.1: Lupa Nama Pengguna, Sesi 30 Hari, Tambalan Keamanan
 
-### Langkah 1 — Salin 5 berkas
+### Langkah 1 — Salin 6 berkas
 
 | Berkas | Jenis di editor |
 |---|---|
+| `Setup.gs` | Script |
 | `Auth.gs` | Script |
 | `Kelas.gs` | Script |
 | `Code.gs` | Script |
@@ -23,6 +24,10 @@ Buka tiap berkas → `Ctrl+A` → tempel isi baru → `Ctrl+S`.
 > bertemu guru, tidak ada yang rusak. Bila `js_auth` yang tertinggal,
 > tombolnya **ADA tetapi tidak melakukan apa-apa** — murid mengira
 > sudah meminta lalu menunggu. Yang kedua jauh lebih buruk.
+
+> ⚠️ **`Setup.gs` memuat tambalan keamanan.** Tanpa berkas ini, murid
+> yang paham `google.script.run` bisa membuat akun guru untuk dirinya
+> sendiri. Rinciannya di `PERUBAHAN.md` bagian v1.17.1.
 
 ### Langkah 2 — Tidak ada migrasi
 

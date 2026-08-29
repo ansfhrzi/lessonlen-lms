@@ -11536,6 +11536,109 @@ dihapus, dan klien melompati kunci bagian.
 
 ---
 
+## v1.17.1 — `_tambah()`: celah eskalasi hak yang lolos dari v1.16.x
+
+Audit lanjutan dari penjaga `_hanyaEditor()` (commit `f2959b1`).
+
+### Yang dicari hanya satu, yang ditemukan dua
+
+`migrasiHierarki()` (`Setup.gs`) adalah satu-satunya fungsi setup yang
+terlewat saat penjaga dipasang — saudaranya di berkas yang sama
+(`setupLengkap`, `setupDatabase`, `isiSeedData`, `hapusSeedData`,
+`resetTotal`, `migrasiStruktur`, `infoDatabase`) semuanya sudah
+berpenjaga.
+
+Tetapi saat seluruh fungsi top-level diaudit ulang berdasarkan
+**apakah argumennya bisa diserialkan peramban**, muncul yang jauh
+lebih parah:
+
+### 🔴 `_tambah(nama, objArr)`
+
+```js
+function _tambah(nama, objArr) {
+  if (!objArr || !objArr.length) return;
+  var sh = _db().getSheetByName(nama);
+  ...
+  sh.getRange(sh.getLastRow() + 1, 1, baris.length, head.length).setValues(baris);
+}
+```
+
+Kedua argumennya — nama sheet (string) dan larik baris (objek biasa)
+— **bisa dikirim dari peramban**. Jadi ini benar-benar berjalan:
+
+```js
+google.script.run._tambah('users',
+  [{ user_id:'USR-9999', username:'penyusup', role:'guru', status:'aktif', … }])
+```
+
+Satu panggilan, dan murid punya akun guru. Seluruh penjaga peran di
+`_bungkus()` menjadi tidak relevan karena akunnya **memang** guru.
+
+Rantainya lengkap dari peramban tanpa alat bantu apa pun:
+`_salt()` memberi salt → `_hash(sandi, salt)` memberi hash yang sah →
+`_tambah()` menanam barisnya. Ketiganya fungsi global, ketiganya
+menerima argumen yang bisa diserialkan.
+
+### Kapan sebuah fungsi terjangkau dari peramban
+
+Awalan garis bawah adalah **konvensi manusia, bukan pembatas akses**.
+`google.script.run` memanggil fungsi global apa pun. Yang menentukan
+keterjangkauan adalah bentuk argumennya:
+
+| Argumen | Terjangkau? | Contoh |
+|---|---|---|
+| string, angka, boolean, larik, objek biasa | **ya** | `_tambah`, `_hash`, `_buatId` |
+| objek `Spreadsheet` / `Sheet` | tidak | `_buatSheet`, `_formatUlang` |
+| tanpa argumen | **ya** | `migrasiHierarki`, `_pasangCounter` |
+
+Enam fungsi terakhir tidak dijaga karena menuntut objek Spreadsheet/Sheet
+sebagai argumen pertama, dan `_pad()` karena murni merapikan teks untuk
+Logger. Alasannya ditulis sebagai komentar di blok "UTILITAS INTERNAL"
+supaya keputusan ini tidak perlu diambil ulang dari nol.
+
+### Pertahanan berlapis
+
+Menariknya, serangan di atas **sudah** terbendung bahkan sebelum
+`_tambah()` dijaga — karena `_tambah()` memanggil `_db()`, dan begitu
+`_db()` berpenjaga, rantai itu putus. Penjaga `_tambah()` adalah
+lapisan kedua, bukan satu-satunya.
+
+Ini justru alasan penjaga dipasang di keduanya: mengandalkan satu
+lapisan berarti satu refactor yang tidak berhati-hati bisa membuka
+kembali lubang yang sama.
+
+### Uji — dan satu hijau palsu yang harus diakui
+
+15 pemeriksaan, memuat `Setup.gs` + `Util.gs` **asli** dengan `Session`
+yang bisa diatur:
+
+- ketujuh fungsi ditolak dari konteks browser (`ActiveUser` kosong)
+- ketujuhnya lulus dari konteks editor (`ActiveUser == EffectiveUser`)
+- serangan `_tambah('users',[{role:'guru'}])` diblokir, nol baris tertulis
+- `_pad()` tetap bebas
+
+**Versi pertama uji ini HIJAU PALSU.** Penjaga `_tambah()` dihapus
+sungguh-sungguh, uji tetap lolos 22/22 — karena yang melempar adalah
+`_db()` di dalamnya, bukan `_tambah()` sendiri. Uji itu mengukur
+penjaga yang salah (§6.2 no. 7: bedakan bug nyata dari cacat uji).
+
+Diperbaiki dengan melumpuhkan **semua penjaga lain** sebelum menguji
+satu fungsi, sehingga yang tersisa hanya penjaga milik fungsi itu.
+Setelah itu dibuktikan merah: buang penjaga `_tambah()` → 2 gagal;
+buang penjaga `migrasiHierarki()` → 1 gagal.
+
+### Cakupan penjaga
+
+35 → **42 fungsi** berpenjaga. Tujuh penambahan: `migrasiHierarki`,
+`_tambah`, `_db`, `_buatId`, `_salt`, `_hash`, `_pasangCounter`.
+
+### Yang TIDAK berubah
+
+`Setup.gs` dan `Code.gs` saja. **Tidak ada berkas HTML yang berubah**,
+jadi tidak ada penanda `cekBerkasUI` baru dan tidak ada migrasi.
+
+---
+
 ## v1.17.0 — Pemulihan username + sesi 30 hari
 
 **Laporan lapangan:** *"banyak siswa yang lupa user dan password."*
@@ -11670,6 +11773,7 @@ menggigit dengan membuang tombolnya.
 | 0.1.0 | 1 | `Setup.gs` — 14 sheet + seed PKPJ |
 | 0.2.0 | 2 | `Db` `Util` `Auth` `Code` + login, sesi, reset kata sandi |
 | 0.3.0 | 3 | `Notif` `Beranda` `js_beranda` + dashboard, unlock logic, MathJax |
+| 1.17.1 | 🔴 **`_tambah()` — eskalasi hak** | `Setup` `Code` — murid bisa memanggil `_tambah('users',[{role:'guru'}])` dari browser dan membuat akun guru; 7 fungsi Setup berpenjaga (35 → 42); uji penjaga terisolasi, satu hijau palsu diakui & diperbaiki |
 | 1.17.0 | 🔑 **lupa username selesai tanpa guru** | `Auth` `Kelas` `Code` `js_auth` `v_login` — pemulihan username lewat email + nomor WA (bukan login); sesi 12 jam → 30 hari; satu bentuk kegagalan untuk semua sebab; batas 5 percobaan/email; akun ganda dikembalikan semua |
 | 1.16.1 | 🔴 **v1.16.0 dibatalkan — materi tidak pernah selesai** | `js_belajar` `Belajar` `Code` — melewatkan `tandaiBagianSelesai` bagian tengah membuat panggilan terakhir ditolak `ITEM_TERKUNCI`; tiap bagian kembali menandai ke server |
 | 1.16.0 | 📖 ~~baca materi 9 panggilan → 2~~ **DIBATALKAN** | `Util` `Belajar` `js_belajar` `Code` — seluruh bagian dikirim sekaligus; pindah bagian tanpa server; tandai selesai di bagian terakhir + saat murid pergi |
