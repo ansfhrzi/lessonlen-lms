@@ -4,7 +4,7 @@ Panduan singkat setiap kali ada berkas yang berubah.
 
 ---
 
-## Pembaruan Terkini — v1.17.1: Lupa Nama Pengguna, Sesi 30 Hari, Tambalan Keamanan
+## Pembaruan Terkini — v1.18.0: Lupa Nama Pengguna, Sesi 30 Hari, Tambalan Keamanan
 
 ### Langkah 1 — Salin 6 berkas
 
@@ -66,6 +66,14 @@ Bila ada penanda v1.17.0 yang disebut basi, salin ulang berkas itu.
    ada kebocoran — jangan dipakai dulu.
 4. Ulangi 6 kali dengan email yang sama → harus muncul *"Terlalu
    Banyak Percobaan"*.
+5. Tekan **Lupa kata sandi?** → isi username yang **tidak ada** →
+   harus muncul *"Tidak Dapat Diproses — Nama pengguna tidak
+   ditemukan atau akun Anda nonaktif"*, **bukan** "Permintaan
+   Diterima".
+6. Isi username murid yang **nonaktif** → pesannya harus **sama persis**
+   dengan langkah 5. Bila berbeda, ada kebocoran status akun.
+7. Isi username murid aktif → "Permintaan Diterima", dan permintaannya
+   muncul di layar **Permintaan Reset**.
 
 **Catatan penting untuk guru:** murid hanya bisa memulihkan username
 sendiri bila dia **sudah mengisi biodata** (email + nomor WA). Yang

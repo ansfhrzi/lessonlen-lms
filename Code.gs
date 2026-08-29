@@ -8,7 +8,7 @@
  */
 
 var APP_NAMA  = 'LessonLen';
-var APP_VERSI = '1.17.1';
+var APP_VERSI = '1.18.0';
 
 /**
  * Ikon aplikasi — SATU tempat untuk seluruh layar (v1.15.6).
@@ -5410,6 +5410,17 @@ function cekBerkasUI() {
     ['js_auth', "callApi('pulihkanAkun'", '1.17.0',
      'tombol "Lupa nama pengguna?" ada tetapi TIDAK MELAKUKAN ' +
      'APA-APA — murid mengira sudah meminta lalu menunggu'],
+
+    /* ---- reset menolak akun tak ada, v1.18.0 ----
+       HANYA js_auth yang berubah di sisi klien (Auth.gs tidak
+       diperiksa cekBerkasUI). Bila berkas ini tertinggal, server
+       sudah menolak dengan benar tetapi layar tetap menampilkan
+       "Permintaan Diterima" — murid kembali menunggu sesuatu yang
+       tidak pernah terkirim. Gejala persis seperti sebelum v1.18.0. */
+    ['js_auth', "'Tidak Dapat Diproses'", '1.18.0',
+     'server sudah menolak akun yang tidak ada/nonaktif, tetapi ' +
+     'layar tetap menampilkan "Permintaan Diterima" — murid menunggu ' +
+     'permintaan yang tidak pernah terkirim'],
 
     ['js_menu', 'Menu.ringkas', '1.15.7',
      'kartu Kelola Kelas menampilkan "undefined murid / undefined ' +

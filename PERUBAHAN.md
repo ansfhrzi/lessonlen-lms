@@ -11536,6 +11536,112 @@ dihapus, dan klien melompati kunci bagian.
 
 ---
 
+## v1.18.0 — Reset kata sandi menolak akun yang tidak ada atau nonaktif
+
+**Permintaan guru:** *"jika akun siswa nonaktif atau tidak ada
+usernamenya, tidak bisa mengirim permintaan reset. Cek dulu apakah ada
+username yang cocok di database, baru kirim permintaan."*
+
+### Jalan buntu yang senyap
+
+Sebelumnya `ajukanReset()` membalas `{diterima:true}` **apa pun**
+hasilnya. Murid yang salah mengetik username melihat dialog
+*"Permintaan Diterima"*, lalu menunggu selamanya — tidak ada baris yang
+sampai ke antrean guru, tidak ada notifikasi, tidak ada kabar.
+
+Sekarang akun diperiksa lebih dulu. Tidak ditemukan atau nonaktif →
+ditolak dengan pesan, dan **tidak ada baris `permintaan_reset` yang
+dibuat**.
+
+### Keputusan: satu pesan untuk dua sebab
+
+Guru meminta pesan *"username nonaktif atau tidak ada"*. Dipakai satu
+pesan gabungan untuk keduanya, bukan dua pesan terpisah:
+
+> Nama pengguna tidak ditemukan atau akun Anda nonaktif. Silakan
+> hubungi guru Anda untuk mendapatkan nama pengguna dan kata sandi.
+
+Memisahkannya akan memberi tahu orang luar bahwa murid tertentu sudah
+dikeluarkan dari kelas — bocoran yang tidak perlu, dan murid yang
+bersangkutan tetap harus melakukan hal yang sama: menemui guru.
+
+### Syarat mutlak yang ikut dipasang
+
+**Batas 5 pencarian per nilai input per 15 menit** (`MAKS_CARI_RESET`).
+
+Sebelumnya batas 3 permintaan/24 jam hanya berlaku **bila akun
+ditemukan** — `if (user) { … }`. Pencarian yang tidak cocok tidak
+dibatasi sama sekali. Selama balasannya seragam itu tidak berbahaya.
+Begitu balasannya berbeda, fungsi ini jadi alat memastikan username
+mana yang ada, dan tanpa batas orang bisa menebak ribuan kali dalam
+sejam.
+
+Ini bukan hiasan. **Perubahan yang diminta guru tidak aman tanpa ini.**
+
+### Risiko yang diterima, secara terbuka
+
+Perubahan ini memang membuka oracle keberadaan username. Tiga hal yang
+membuatnya lebih kecil dari kelihatannya di aplikasi ini:
+
+1. `Auth.login()` **sudah** membocorkan hal yang sama sejak lama —
+   akun nonaktif dibalas *"Akun Anda dinonaktifkan"*, yang tidak ada
+   dibalas *"Nama pengguna atau kata sandi salah"* (`Auth.gs:166`).
+2. Username dibuat dari nama oleh `Kelas._usernameDari()` — nama depan
+   + huruf awal nama belakang. Sudah sangat mudah ditebak tanpa
+   bantuan aplikasi.
+3. Yang bocor hanya keberadaan akun. Kata sandi tidak, dan login tetap
+   dikunci 5 percobaan / 15 menit.
+
+Keputusan ini **berlawanan arah** dengan `pulihkanAkun()` (v1.17.0)
+yang justru menjaga satu bentuk kegagalan. Bedanya disengaja:
+`pulihkanAkun()` menerima **satu** masukan murah (username), sedangkan
+pemulihan username menuntut **dua** data (email + nomor WA). Yang murah
+harus dibatasi ketat.
+
+### Efek samping: baris yatim berhenti menumpuk
+
+Sebelumnya baris `permintaan_reset` tetap dibuat dengan `user_id`
+kosong lalu disembunyikan `getPermintaanReset()`
+(`.filter(r => r.user_id)`) dan `Beranda.untukGuru()`. Baris-baris itu
+mengendap di sheet selamanya dengan status `antre`.
+
+Sekarang baris hanya dibuat bila akunnya ada dan aktif. Saringan di
+kedua tempat itu **sengaja dibiarkan** — sheet produksi masih memuat
+baris yatim dari versi sebelumnya.
+
+### Batas harian kini dijelaskan
+
+Permintaan ke-4 dalam 24 jam dulunya dibalas `{diterima:true}` dan
+diam — jalan buntu senyap yang sama. Sekarang:
+
+> Anda sudah meminta reset 3 kali dalam 24 jam terakhir. Silakan
+> hubungi guru Anda langsung.
+
+### Berkas
+
+`Auth.gs` · `Code.gs` (versi + 1 penanda) · `js_auth.html`.
+**Tidak ada migrasi.**
+
+### Uji
+
+28 pemeriksaan, `Auth.gs` asli di atas mock `Db`:
+
+- akun sah → diterima, baris ber-`user_id`, notifikasi menyebut nama
+- email dan username beda kapital tetap cocok
+- tidak ada / nonaktif → ditolak, **nol baris**, **nol notifikasi**
+- pesan "tak ada" dan "nonaktif" **identik**
+- batas pencarian: input berbeda tidak saling blokir, input sama ke-6
+  ditolak, berhasil setelah 3 kali gagal
+- batas harian: ke-4 ditolak tanpa menambah baris
+- regresi rantai v1.17.0 (`pulihkanAkun` → `ajukanReset`)
+- 5 pengajuan dengan 4 salah → hanya 1 baris, semua ber-`user_id`
+
+**Dibuktikan merah** dengan empat sabotase: pemeriksaan nonaktif
+dibuang (4 gagal), batas pencarian dimatikan (1), pesan dipisah (2),
+pembuatan baris yatim dikembalikan (5).
+
+---
+
 ## v1.17.1 — `_tambah()`: celah eskalasi hak yang lolos dari v1.16.x
 
 Audit lanjutan dari penjaga `_hanyaEditor()` (commit `f2959b1`).
@@ -11773,6 +11879,7 @@ menggigit dengan membuang tombolnya.
 | 0.1.0 | 1 | `Setup.gs` — 14 sheet + seed PKPJ |
 | 0.2.0 | 2 | `Db` `Util` `Auth` `Code` + login, sesi, reset kata sandi |
 | 0.3.0 | 3 | `Notif` `Beranda` `js_beranda` + dashboard, unlock logic, MathJax |
+| 1.18.0 | 🚫 **reset menolak akun tak ada / nonaktif** | `Auth` `Code` `js_auth` — cek akun dulu baru kirim permintaan; tidak ada lagi baris yatim; **syarat mutlak:** batas 5 pencarian/input karena balasannya kini berbeda; satu pesan untuk dua sebab; batas harian tak lagi diam |
 | 1.17.1 | 🔴 **`_tambah()` — eskalasi hak** | `Setup` `Code` — murid bisa memanggil `_tambah('users',[{role:'guru'}])` dari browser dan membuat akun guru; 7 fungsi Setup berpenjaga (35 → 42); uji penjaga terisolasi, satu hijau palsu diakui & diperbaiki |
 | 1.17.0 | 🔑 **lupa username selesai tanpa guru** | `Auth` `Kelas` `Code` `js_auth` `v_login` — pemulihan username lewat email + nomor WA (bukan login); sesi 12 jam → 30 hari; satu bentuk kegagalan untuk semua sebab; batas 5 percobaan/email; akun ganda dikembalikan semua |
 | 1.16.1 | 🔴 **v1.16.0 dibatalkan — materi tidak pernah selesai** | `js_belajar` `Belajar` `Code` — melewatkan `tandaiBagianSelesai` bagian tengah membuat panggilan terakhir ditolak `ITEM_TERKUNCI`; tiap bagian kembali menandai ke server |
