@@ -8,7 +8,7 @@
  */
 
 var APP_NAMA  = 'LessonLen';
-var APP_VERSI = '1.16.1';
+var APP_VERSI = '1.17.0';
 
 /**
  * Ikon aplikasi — SATU tempat untuk seluruh layar (v1.15.6).
@@ -152,6 +152,20 @@ function gantiPassword(token, lama, baru) {
 function ajukanReset(inputUser) {
   return _bungkus('', 'publik', function () {
     return Auth.ajukanReset(inputUser);
+  });
+}
+
+/**
+ * Cari username dari email + nomor WhatsApp (v1.17.0).
+ * Tanpa token — diakses dari halaman login, SEBELUM murid punya sesi.
+ *
+ * Ini PEMULIHAN, bukan login: tidak ada sesi yang dibuat. Yang
+ * dikembalikan hanya username; kata sandi tetap direset guru. Alasan
+ * dan aturan keamanannya ada di `Auth.pulihkanAkun()`.
+ */
+function pulihkanAkun(inputEmail, inputWa) {
+  return _bungkus('', 'publik', function () {
+    return Auth.pulihkanAkun(inputEmail, inputWa);
   });
 }
 
@@ -5381,6 +5395,21 @@ function cekBerkasUI() {
     ['js_belajar', 'mulai: 0, timer: null };', '1.16.1',
      'masih memakai jalur v1.16.0 — materi tidak pernah bisa ' +
      'diselesaikan, murid mentok di bagian terakhir'],
+
+    /* ---- pemulihan username, v1.17.0 ----
+       TIGA berkas berubah bersama dan harus tersalin bersama.
+       Bila v_login tertinggal, tombolnya tidak ada — murid tetap
+       harus bertemu guru. Bila js_auth tertinggal, tombolnya ADA
+       tetapi tidak melakukan apa-apa: lebih buruk, karena murid
+       mengira sudah meminta dan menunggu. */
+    ['v_login', 'id="btn-pulihkan"', '1.17.0',
+     'tombol "Lupa nama pengguna?" tidak ada di layar masuk — ' +
+     'murid yang lupa username tetap harus bertemu guru'],
+    ['v_login', 'id="tpl-pulihkan"', '1.17.0',
+     'dialog pemulihan tidak punya isian email & nomor WA'],
+    ['js_auth', "callApi('pulihkanAkun'", '1.17.0',
+     'tombol "Lupa nama pengguna?" ada tetapi TIDAK MELAKUKAN ' +
+     'APA-APA — murid mengira sudah meminta lalu menunggu'],
 
     ['js_menu', 'Menu.ringkas', '1.15.7',
      'kartu Kelola Kelas menampilkan "undefined murid / undefined ' +

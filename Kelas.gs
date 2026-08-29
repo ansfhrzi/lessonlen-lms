@@ -1158,13 +1158,8 @@ var Kelas = (function () {
   function kontakGuru(sesi) {
     var murid = Db.cariBarisCache('users', 'user_id', sesi.user_id);
 
-    var guru = Db.saring('users', { role: 'guru', status: 'aktif' })
-      .filter(function (g) { return !!Util.normalisasiWa(g.no_wa); });
-
-    if (!guru.length) return { ada: false };
-
-    var g = guru[0];
-    var wa = Util.normalisasiWa(g.no_wa);
+    var g = _guruBergWa();
+    if (!g) return { ada: false };
 
     var siapa = murid ? murid.nama : '';
     var rombel = murid && murid.rombel ? ' (' + murid.rombel + ')' : '';
@@ -1174,9 +1169,70 @@ var Kelas = (function () {
     return {
       ada: true,
       nama: g.nama,
-      tautan: 'https://wa.me/' + wa +
-              '?text=' + encodeURIComponent(sapaan)
+      tautan: _tautanWa(g.no_wa, sapaan)
     };
+  }
+
+  /**
+   * Guru aktif pertama yang nomor WhatsApp-nya sah (v1.17.0).
+   *
+   * Sebelumnya pencariaan ini hanya ada di dalam `kontakGuru()`, yang
+   * WAJIB menerima sesi. Pemulihan username dijalankan SEBELUM login,
+   * jadi tidak punya sesi untuk diberikan. Daripada menyalin
+   * pencariannya — dua tempat yang bisa berbeda nanti — ia diangkat
+   * ke sini dan `kontakGuru()` ikut memakainya.
+   *
+   * @returns {Object|null} baris `users` guru, atau null
+   */
+  function _guruBergWa() {
+    var guru = Db.saring('users', { role: 'guru', status: 'aktif' })
+      .filter(function (g) { return !!Util.normalisasiWa(g.no_wa); });
+    return guru.length ? guru[0] : null;
+  }
+
+  /** Satu tempat penyusun tautan wa.me. */
+  function _tautanWa(noWa, pesan) {
+    var wa = Util.normalisasiWa(noWa);
+    if (!wa) return '';
+    return 'https://wa.me/' + wa + '?text=' + encodeURIComponent(pesan);
+  }
+
+  /**
+   * Tautan WhatsApp murid → guru untuk meminta reset kata sandi
+   * (v1.17.0).
+   *
+   * APLIKASI INI TIDAK BISA MENGIRIM WHATSAPP. Tidak ada gateway di
+   * seluruh kode — setiap fitur WA adalah tautan `wa.me` yang diklik
+   * manusia (lihat juga `tautanResetWa` dan `kontakGuru`). Jadi yang
+   * dikembalikan di sini adalah tautan untuk MURID: dia menekan,
+   * WhatsApp-nya terbuka dengan pesan sudah tersusun, lalu dia yang
+   * mengirim.
+   *
+   * Sifat yang menguntungkan: guru menerima pesan dari NOMOR MURID
+   * ITU SENDIRI, bukan dari sistem. Guru bisa langsung membalas, dan
+   * pesannya memuat username sehingga tidak perlu ditanya lagi.
+   *
+   * Sengaja TIDAK membuat baris `permintaan_reset` di sini. Murid
+   * yang hanya lupa USERNAME tidak butuh reset sama sekali — membuat
+   * permintaan akan menaruh pekerjaan palsu di antrean guru. Bila
+   * sandinya juga lupa, layar menawarkan tombol yang membuka dialog
+   * `ajukanReset()` yang sudah ada, TERISI username yang baru
+   * ditemukan. Seluruh mesin reset lama dipakai ulang tanpa diubah.
+   *
+   * @returns {string} tautan wa.me, atau '' bila guru belum isi nomor
+   */
+  function tautanPulihWa(nama, username) {
+    var g = _guruBergWa();
+    if (!g) return '';
+
+    var pesan =
+      'Assalamualaikum Pak/Bu, saya ' + String(nama || '') +
+      ' (nama pengguna: ' + String(username || '') + ').\n\n' +
+      'Saya lupa kata sandi LessonLen. Data saya sudah dicocokkan ' +
+      'lewat aplikasi, mohon bantuan reset kata sandinya.\n\n' +
+      'Terima kasih.';
+
+    return _tautanWa(g.no_wa, pesan);
   }
 
   /**
@@ -1240,7 +1296,7 @@ var Kelas = (function () {
     pratinjauImpor: pratinjauImpor, duplikat: duplikat,
     biodataSaya: biodataSaya, simpanBiodata: simpanBiodata,
     kontakGuru: kontakGuru, tautanResetWa: tautanResetWa,
-    tautanPerbaikanWa: tautanPerbaikanWa,
+    tautanPerbaikanWa: tautanPerbaikanWa, tautanPulihWa: tautanPulihWa,
     profilGuru: profilGuru, simpanProfilGuru: simpanProfilGuru,
     csvBiodata: csvBiodata
   };

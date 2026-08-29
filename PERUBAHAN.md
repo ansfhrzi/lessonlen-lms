@@ -11536,6 +11536,133 @@ dihapus, dan klien melompati kunci bagian.
 
 ---
 
+## v1.17.0 — Pemulihan username + sesi 30 hari
+
+**Laporan lapangan:** *"banyak siswa yang lupa user dan password."*
+
+### Akarnya bukan sandinya
+
+`Auth.gs` memakai `TTL_SESI_JAM = 12`. Sesi mati tiap 12 jam, jadi
+murid **wajib mengetik ulang kredensialnya setiap hari sekolah**.
+Lupa dalam kondisi itu kepastian statistik, bukan kecelakaan.
+
+`TTL_SESI_JAM` dinaikkan ke **720 (30 hari)**.
+
+Efek samping yang menguntungkan: sheet `session` justru tumbuh lebih
+lambat. Setiap login menambah satu baris, dan token lama yang
+tertimpa di `localStorage` tidak pernah dibaca lagi sehingga tidak
+pernah dibersihkan `validasiToken()`. Dengan 12 jam satu murid
+menyumbang ±20 baris/bulan; dengan 30 hari ±1 baris/bulan.
+
+Pembersihan sesi kedaluwarsa dipindahkan ke `_buatSesi()` — satu-satunya
+tempat yang pasti dijalankan — karena token yatim tidak akan pernah
+dibaca lagi.
+
+### Lupa username kini selesai tanpa guru
+
+Jalur baru di layar masuk: **"Lupa nama pengguna?"** Murid memasukkan
+email + nomor WhatsApp yang sudah dia daftarkan di biodata. Bila
+cocok, username-nya ditampilkan.
+
+**Ini pemulihan, BUKAN login.** Tidak ada sesi yang dibuat. Yang
+dikembalikan hanya username; kata sandi tetap direset guru lewat
+jalur `#/reset` yang sudah ada. Karena itu membocorkan username bukan
+membocorkan akun — dan syaratnya cukup dua data yang dikumpulkan
+murid sendiri.
+
+Bila keduanya juga lupa sandinya, dialog menawarkan tombol yang
+membuka `ajukanReset()` **sudah terisi username yang baru ditemukan**.
+Seluruh mesin reset lama dipakai ulang tanpa diubah — tidak ada UI
+baru di sisi guru sama sekali.
+
+### Tiga aturan keamanan
+
+**1. Satu bentuk kegagalan untuk semua sebab.** Pasangan salah,
+biodata belum lengkap, akun tidak ada, akun nonaktif, format input
+salah — semuanya dibalas `{ketemu:false}` yang identik. Membedakannya
+membuat fungsi ini jadi alat memastikan apakah sebuah email dan
+sebuah nomor HP milik orang yang sama, dan orang itu murid di sini.
+Itu bocoran privasi walau tanpa username.
+
+Aturan guru menolong di sini: murid yang datanya belum lengkap
+**memang** harus bertemu guru, jadi satu pesan itu sudah benar.
+
+**2. Batas 5 percobaan per email per 15 menit** (`MAKS_PULIH`),
+mengikuti pola `_tambahGagal()` yang sudah dipakai penguncian login.
+Tanpa ini aturan 1 bisa dibongkar dengan menebak berulang kali.
+Catatan jujur: `google.script.run` tidak memberi alamat IP
+pengunjung, jadi batasnya hanya bisa per nilai input.
+
+**3. Email dan nomor WA harus cocok pada BARIS YANG SAMA.** Email
+baris A + nomor baris B ditolak.
+
+### Satu email bisa cocok dua kali
+
+`imporMurid()` membuat `user_id` baru per baris dan hanya menghindari
+tabrakan username (`andi`, `andis2`, …). Murid yang ikut dua kelas
+punya DUA baris `users`, dan `simpanBiodata()` menulis email + WA per
+baris. Jadi pasangan yang sama bisa cocok dua kali.
+
+**Semuanya dikembalikan** beserta label kelas + mapelnya. Menampilkan
+yang pertama saja akan membuat murid memulihkan akun yang salah dan
+kehilangan kelasnya yang lain.
+
+### WhatsApp: murid yang menekan
+
+Aplikasi ini **tidak bisa mengirim WhatsApp** — tidak ada gateway di
+seluruh kode. `Kelas.tautanPulihWa()` mengembalikan tautan `wa.me`
+untuk MURID: dia menekan, WhatsApp-nya terbuka dengan pesan tersusun,
+dia yang mengirim. Guru menerima dari **nomor murid itu sendiri** dan
+bisa langsung membalas.
+
+Pencarian guru bernomor diangkat dari `kontakGuru()` ke
+`_guruBergWa()`, karena `kontakGuru()` wajib menerima sesi sementara
+pemulihan username berjalan SEBELUM login. `kontakGuru()` kini
+memakainya — bukan salinan kedua.
+
+### Yang sengaja TIDAK dikerjakan
+
+- **Tidak ada baris `permintaan_reset`** di jalur ini. Murid yang
+  hanya lupa username tidak butuh reset; membuat permintaan akan
+  menaruh pekerjaan palsu di antrean guru.
+- **Login Google tidak dikerjakan.** Perlu proyek Google Cloud, layar
+  persetujuan, dan memaksa keputusan model data per-orang vs
+  per-kelas. Lihat catatan sesi: `imporMurid()` membuat satu baris
+  `users` per (murid, kelas), jadi satu email tidak bisa dipetakan ke
+  satu identitas tanpa migrasi.
+- **`harus_ganti_password` setelah reset guru tetap ada.** Murid masih
+  dipaksa mengarang sandi baru — lingkaran yang memproduksi insiden
+  berikutnya. Belum disentuh.
+
+### Uji
+
+42 pemeriksaan di atas `Auth.gs`, `Kelas.gs`, `Util.gs` **asli**
+(mock hanya `Db` + layanan Apps Script):
+
+- jalur bahagia, dua akun, label kelas memuat mapel
+- normalisasi `Andi@Gmail.COM` + spasi, `0812…`, `+62 812 …`
+- **anti-oracle**: enam sebab kegagalan berbeda menghasilkan JSON
+  yang identik, dan `Object.keys()`-nya hanya `ketemu`
+- silang baris ditolak
+- batas percobaan: ke-6 dibatasi, email lain tidak ikut, berhasil
+  setelah 3 kali gagal
+- tautan WA: nomor baku, pesan memuat nama + username, kosong bila
+  guru tak bernomor
+- TTL 720 jam; sesi basi terhapus per murid, sesi hidup dan milik
+  murid lain tidak tersentuh
+- regresi `kontakGuru()` sesudah refactor
+- regresi `ajukanReset()` tetap utuh
+
+**Dibuktikan merah** dengan tiga sabotase: syarat nomor WA dibuang
+(8 gagal), sebab kegagalan dibocorkan (1 gagal), batas percobaan
+dimatikan (1 gagal).
+
+`cekBerkasUI()` dijalankan terhadap berkas HTML nyata: **158 penanda
+ditemukan, nol basi** — termasuk 3 penanda v1.17.0 yang dibuktikan
+menggigit dengan membuang tombolnya.
+
+---
+
 ## Riwayat Versi Aplikasi
 
 | Versi | Tahap | Isi |
@@ -11543,6 +11670,7 @@ dihapus, dan klien melompati kunci bagian.
 | 0.1.0 | 1 | `Setup.gs` — 14 sheet + seed PKPJ |
 | 0.2.0 | 2 | `Db` `Util` `Auth` `Code` + login, sesi, reset kata sandi |
 | 0.3.0 | 3 | `Notif` `Beranda` `js_beranda` + dashboard, unlock logic, MathJax |
+| 1.17.0 | 🔑 **lupa username selesai tanpa guru** | `Auth` `Kelas` `Code` `js_auth` `v_login` — pemulihan username lewat email + nomor WA (bukan login); sesi 12 jam → 30 hari; satu bentuk kegagalan untuk semua sebab; batas 5 percobaan/email; akun ganda dikembalikan semua |
 | 1.16.1 | 🔴 **v1.16.0 dibatalkan — materi tidak pernah selesai** | `js_belajar` `Belajar` `Code` — melewatkan `tandaiBagianSelesai` bagian tengah membuat panggilan terakhir ditolak `ITEM_TERKUNCI`; tiap bagian kembali menandai ke server |
 | 1.16.0 | 📖 ~~baca materi 9 panggilan → 2~~ **DIBATALKAN** | `Util` `Belajar` `js_belajar` `Code` — seluruh bagian dikirim sekaligus; pindah bagian tanpa server; tandai selesai di bagian terakhir + saat murid pergi |
 | 1.15.7 | 🔴 **"undefined murid" di Kelola Kelas** | `js_menu` `Code` — benih 3 kolom dari beranda dipakai layar sebagai daftar utuh; ditandai `Menu.ringkas` |

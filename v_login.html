@@ -32,6 +32,10 @@
 
       <div class="tengah mt-16">
         <button class="btn btn-teks kecil" id="btn-lupa">Lupa kata sandi?</button>
+        <!-- v1.17.0 — jalur pemulihan username. Dipisah dari "Lupa kata
+             sandi?" karena dua masalah ini berbeda: yang ini SELESAI di
+             sini tanpa melibatkan guru, yang itu tidak. -->
+        <button class="btn btn-teks kecil" id="btn-pulihkan">Lupa nama pengguna?</button>
       </div>
 
     </div>
@@ -48,6 +52,30 @@
       <span class="bantuan">
         Permintaan akan diteruskan ke guru. Anda akan diberi
         kata sandi sementara.
+      </span>
+    </div>
+  </div>
+</template>
+
+
+<!-- ============ potongan: pulihkan nama pengguna (v1.17.0) ============ -->
+<template id="tpl-pulihkan">
+  <div>
+    <div class="grup">
+      <label for="in-pulih-email">Email yang Anda daftarkan</label>
+      <input class="isian" id="in-pulih-email" type="email"
+             placeholder="mis. nama@gmail.com"
+             autocapitalize="off" spellcheck="false" autocomplete="email">
+    </div>
+    <div class="grup">
+      <label for="in-pulih-wa">Nomor WhatsApp yang Anda daftarkan</label>
+      <input class="isian" id="in-pulih-wa" type="tel"
+             placeholder="mis. 081234567890"
+             autocapitalize="off" spellcheck="false" autocomplete="tel">
+      <span class="bantuan">
+        Keduanya harus sama persis dengan yang Anda isi di
+        <b>Lengkapi Biodata</b>. Bila belum pernah mengisi, temui
+        guru Anda langsung.
       </span>
     </div>
   </div>

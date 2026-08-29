@@ -82,29 +82,151 @@ daftarRute('login', function () {
       });
   };
 
-  $('#btn-lupa', app).onclick = function () {
-    var tpl = document.getElementById('tpl-lupa');
+  $('#btn-lupa', app).onclick = function () { dialogLupaSandi(''); };
+
+  /* v1.17.0 — pemulihan username lewat email + nomor WA. */
+  $('#btn-pulihkan', app).onclick = function () {
+    var tpl = document.getElementById('tpl-pulihkan');
     var html = tpl ? tpl.innerHTML : '';
-    dialog({ judul: 'Lupa Kata Sandi', html: html, labelYa: 'Kirim Permintaan' })
+    dialog({ judul: 'Lupa Nama Pengguna', html: html, lebar: 'sedang',
+             labelYa: 'Cari Nama Pengguna' })
       .then(function (ya) {
         if (!ya) return;
-        var el = document.getElementById('in-lupa');
-        var v = el ? el.value.trim() : '';
-        if (!v) { toast('Isi nama pengguna dulu.', 'peringatan'); return; }
+        var elEm = document.getElementById('in-pulih-email');
+        var elWa = document.getElementById('in-pulih-wa');
+        var vEm = elEm ? elEm.value.trim() : '';
+        var vWa = elWa ? elWa.value.trim() : '';
 
-        callApi('ajukanReset', [v], { tanpaToken: true }).then(function () {
-          /* respons sengaja seragam — tidak membocorkan username yang valid */
-          dialog({
-            judul: 'Permintaan Diterima',
-            pesan: 'Bila akun ditemukan, guru akan segera memproses ' +
-                   'permintaan Anda. Silakan hubungi guru untuk menerima ' +
-                   'kata sandi sementara.',
-            tanpaBatal: true, labelYa: 'Mengerti'
-          });
-        });
+        if (!vEm || !vWa) {
+          toast('Isi email dan nomor WhatsApp dulu.', 'peringatan');
+          return;
+        }
+
+        callApi('pulihkanAkun', [vEm, vWa], { tanpaToken: true })
+          .then(function (d) { gambarHasilPulih(d); });
       });
   };
 });
+
+/**
+ * Dialog "Lupa Kata Sandi" (v1.17.0 — diangkat dari badan rute login).
+ *
+ * Dipakai DUA tempat: tombol di layar masuk, dan tombol "Lupa Kata
+ * Sandi Juga" pada hasil pemulihan username. Tempat kedua inilah
+ * alasannya diangkat — murid yang baru menemukan username-nya tidak
+ * perlu mengetiknya ulang, dan dua salinan dialog yang harus dirawat
+ * sendiri pasti berbeda kalimat suatu saat nanti (§6.2 no. 30).
+ *
+ * @param {string} nilaiAwal isian awal kotak username; '' = kosong
+ */
+function dialogLupaSandi(nilaiAwal) {
+  var tpl = document.getElementById('tpl-lupa');
+  var html = tpl ? tpl.innerHTML : '';
+
+  var janji = dialog({ judul: 'Lupa Kata Sandi', html: html,
+                       labelYa: 'Kirim Permintaan' });
+
+  /* `dialog()` mengisi DOM secara sinkron di dalam executor Promise,
+     jadi saat fungsi itu kembali isian-nya SUDAH ada dan bisa langsung
+     diisi — tidak perlu menunggu, tidak ada kedipan. */
+  if (nilaiAwal) {
+    var isi = document.getElementById('in-lupa');
+    if (isi) isi.value = nilaiAwal;
+  }
+
+  janji.then(function (ya) {
+    if (!ya) return;
+    var el = document.getElementById('in-lupa');
+    var v = el ? el.value.trim() : '';
+    if (!v) { toast('Isi nama pengguna dulu.', 'peringatan'); return; }
+
+    callApi('ajukanReset', [v], { tanpaToken: true }).then(function () {
+      /* respons sengaja seragam — tidak membocorkan username yang valid */
+      dialog({
+        judul: 'Permintaan Diterima',
+        pesan: 'Bila akun ditemukan, guru akan segera memproses ' +
+               'permintaan Anda. Silakan hubungi guru untuk menerima ' +
+               'kata sandi sementara.',
+        tanpaBatal: true, labelYa: 'Mengerti'
+      });
+    });
+  });
+}
+
+/**
+ * Gambar hasil pemulihan username (v1.17.0).
+ *
+ * TIGA cabang, dan bentuknya disengaja:
+ *
+ *   tunggu_menit  → batas percobaan tercapai. Dijelaskan apa adanya;
+ *                   menyembunyikannya membuat murid menekan berulang
+ *                   kali tanpa tahu kenapa tidak berhasil.
+ *   !ketemu       → SATU pesan untuk SEMUA sebab: pasangan salah,
+ *                   biodata belum lengkap, akun tidak ada, akun
+ *                   nonaktif. Membedakannya mengubah dialog ini jadi
+ *                   alat memastikan email + nomor WA milik orang yang
+ *                   sama — bocoran privasi walau tanpa username.
+ *                   Karena murid yang datanya kurang MEMANG harus
+ *                   bertemu guru, satu pesan ini sudah benar.
+ *   ketemu        → tampilkan username + dua jalur minta reset.
+ */
+function gambarHasilPulih(d) {
+  if (d && d.tunggu_menit) {
+    dialog({
+      judul: 'Terlalu Banyak Percobaan',
+      pesan: 'Pencarian dibatasi untuk melindungi data murid. Coba lagi ' +
+             'dalam ' + d.tunggu_menit + ' menit, atau temui guru Anda.',
+      tanpaBatal: true, labelYa: 'Mengerti'
+    });
+    return;
+  }
+
+  if (!d || !d.ketemu) {
+    dialog({
+      judul: 'Data Tidak Ditemukan',
+      pesan: 'Email dan nomor WhatsApp tidak cocok dengan data murid, ' +
+             'atau biodata Anda belum lengkap. Silakan temui guru Anda ' +
+             'untuk mendapatkan nama pengguna dan kata sandi.',
+      tanpaBatal: true, labelYa: 'Mengerti'
+    });
+    return;
+  }
+
+  var daftar = d.akun.map(function (a) {
+    return '<div class="kotak-kode mt-8">' + esc(a.username) + '</div>' +
+           '<p class="bantuan">' + esc(a.nama) +
+             (a.label_kelas ? ' · ' + esc(a.label_kelas) : '') + '</p>';
+  }).join('');
+
+  /* Tombol WA mengikuti pola `dialogHasilReset()`: hanya digambar bila
+     tautannya ada. `tautanPulihWa()` mengembalikan '' bila tidak ada
+     guru bernomor sah — jangan pernah menampilkan wa.me/ yang mati. */
+  var tombolWa = d.tautan_wa_guru
+    ? '<a class="btn btn-hantu btn-penuh mt-16" href="' +
+        esc(d.tautan_wa_guru) + '" target="_blank" rel="noopener">' +
+        '💬 Beri Tahu Guru lewat WhatsApp</a>'
+    : '';
+
+  dialog({
+    judul: 'Nama Pengguna Ditemukan',
+    pesan: d.akun.length > 1
+      ? 'Data Anda cocok dengan lebih dari satu akun. Pakai yang sesuai ' +
+        'kelasnya:'
+      : 'Nama pengguna Anda:',
+    html: daftar + tombolWa +
+          '<p class="bantuan mt-16">Masih bisa masuk? Selesai. Lupa kata ' +
+          'sandinya juga? Tekan tombol di bawah.</p>',
+    lebar: 'sedang',
+    labelBatal: 'Selesai',
+    labelYa: 'Lupa Kata Sandi Juga'
+  }).then(function (mintaReset) {
+    if (!mintaReset) return;
+    /* Satu akun → username-nya sudah pasti, isikan langsung.
+       Lebih dari satu → biarkan murid memilih sendiri; menebak akan
+       mengajukan reset untuk akun yang salah. */
+    dialogLupaSandi(d.akun.length === 1 ? d.akun[0].username : '');
+  });
+}
 
 /* ---------------------------------------------- GANTI PASSWORD */
 daftarRute('ganti-password', function () {

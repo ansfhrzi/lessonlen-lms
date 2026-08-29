@@ -4,7 +4,75 @@ Panduan singkat setiap kali ada berkas yang berubah.
 
 ---
 
-## Pembaruan Terkini — Tag Kelas, Lihat Sandi, Ekspor CSV
+## Pembaruan Terkini — v1.17.0: Lupa Nama Pengguna + Sesi 30 Hari
+
+### Langkah 1 — Salin 5 berkas
+
+| Berkas | Jenis di editor |
+|---|---|
+| `Auth.gs` | Script |
+| `Kelas.gs` | Script |
+| `Code.gs` | Script |
+| `js_auth.html` | HTML |
+| `v_login.html` | HTML |
+
+Buka tiap berkas → `Ctrl+A` → tempel isi baru → `Ctrl+S`.
+
+> ⚠️ **`js_auth` dan `v_login` wajib tersalin BERSAMA.**
+> Bila `v_login` tertinggal, tombolnya tidak ada — murid tetap harus
+> bertemu guru, tidak ada yang rusak. Bila `js_auth` yang tertinggal,
+> tombolnya **ADA tetapi tidak melakukan apa-apa** — murid mengira
+> sudah meminta lalu menunggu. Yang kedua jauh lebih buruk.
+
+### Langkah 2 — Tidak ada migrasi
+
+Rilis ini **tidak mengubah struktur sheet**. Jangan jalankan
+`setupLengkap()` maupun `migrasiStruktur()` — tidak diperlukan.
+
+Yang dipakai hanya kolom `email` dan `no_wa` yang sudah ada sejak
+v1.10.0.
+
+### Langkah 3 — Deploy
+
+**Deploy → Manage deployments → ✏️ (edit) → Version: New version → Deploy**
+
+Tanpa langkah ini, perubahan hanya berlaku saat dijalankan dari editor,
+bukan di aplikasi yang dibuka murid.
+
+### Langkah 4 — Verifikasi
+
+**Di editor Apps Script**, jalankan **`cekBerkasUI`**. Harus tampil:
+
+```
+✅ SELURUH BERKAS UI SUDAH VERSI TERBARU
+   158 penanda ditemukan.
+```
+
+Bila ada penanda v1.17.0 yang disebut basi, salin ulang berkas itu.
+
+**Di aplikasi** (keluar dulu bila sedang masuk):
+
+1. Layar masuk menampilkan **dua** tautan: *Lupa kata sandi?* dan
+   *Lupa nama pengguna?*
+2. Tekan **Lupa nama pengguna?** → isi email + nomor WA seorang murid
+   yang **sudah** melengkapi biodata → username-nya muncul.
+3. Ulangi dengan nomor WA yang salah → harus muncul *"Data Tidak
+   Ditemukan"*, **bukan** pesan yang berbeda. Bila pesannya berbeda,
+   ada kebocoran — jangan dipakai dulu.
+4. Ulangi 6 kali dengan email yang sama → harus muncul *"Terlalu
+   Banyak Percobaan"*.
+
+**Catatan penting untuk guru:** murid hanya bisa memulihkan username
+sendiri bila dia **sudah mengisi biodata** (email + nomor WA). Yang
+belum, tetap harus menemui Anda — dan itu disengaja, sekaligus jadi
+alasan bagi murid untuk melengkapi biodatanya.
+
+Lihat `cekNomorWa()` di editor untuk mengetahui berapa banyak murid
+yang nomornya sudah terisi dan terbaca.
+
+---
+
+## Pembaruan Sebelumnya — Tag Kelas, Lihat Sandi, Ekspor CSV
 
 ### Langkah 1 — Salin 6 berkas
 
