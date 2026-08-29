@@ -8,7 +8,7 @@
  */
 
 var APP_NAMA  = 'LessonLen';
-var APP_VERSI = '1.18.2';
+var APP_VERSI = '1.18.3';
 
 /**
  * Ikon aplikasi — SATU tempat untuk seluruh layar (v1.15.6).

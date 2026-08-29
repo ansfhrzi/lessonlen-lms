@@ -4,9 +4,31 @@ Panduan singkat setiap kali ada berkas yang berubah.
 
 ---
 
-## Pembaruan Terkini — v1.18.2
+## Pembaruan Terkini — v1.18.3
 
-### Langkah 1 — Salin 7 berkas
+### 🔴 MENDASAK: fungsi editor terkunci?
+
+Bila menjalankan fungsi apa pun dari editor memberi:
+
+```
+Error: Hanya dijalankan dari editor Apps Script.
+```
+
+…padahal Anda memang di editor, itu regresi penjaga dari v1.16.x yang
+diperbaiki di **v1.18.3**. Salin `Util.gs` terbaru, lalu:
+
+1. **Project Settings** (ikon gerigi di panel kiri)
+2. **Script Properties** → *Add script property*
+3. Property: `IZIN_EDITOR` — Value: `YA`
+4. Simpan, jalankan lagi fungsinya
+5. **Hapus properti itu setelah selesai** — selama terpasang, penjaga
+   mati untuk semua orang, termasuk murid
+
+Saklar ini sengaja dirancang agar bisa dipasang **tanpa menjalankan
+kode**, karena justru kode itulah yang sedang diblokir.
+
+
+### Langkah 1 — Salin 8 berkas
 
 | Berkas | Jenis di editor |
 |---|---|
@@ -16,6 +38,7 @@ Panduan singkat setiap kali ada berkas yang berubah.
 | `Code.gs` | Script |
 | `js_auth.html` | HTML |
 | `js_kelola.html` | HTML |
+| `Util.gs` | Script |
 | `v_login.html` | HTML |
 
 Buka tiap berkas → `Ctrl+A` → tempel isi baru → `Ctrl+S`.

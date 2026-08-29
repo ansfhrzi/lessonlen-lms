@@ -411,20 +411,73 @@ var Util = (function () {
  *
  * google.script.run dapat memanggil SETIAP fungsi global. Tanpa
  * penjaga ini, murid di browser bisa menjalankan ujiTahap*,
- * resetGuruDarurat, _sesiGuruDiagnostik, dll.
+ * resetGuruDarurat, _sesiGuruDiagnostik, hapusSeedData, dll.
  *
- * Dari editor Apps Script: ActiveUser = EffectiveUser = pemilik.
- * Dari web app “Execute as: Me”: pengunjung ≠ pemilik (atau kosong).
+ * ─────────────────────────────────────────────────────────────
+ * v1.18.3 — PERBAIKAN: penjaga versi lama MEMBLOKIR EDITOR.
+ *
+ * Versi f2959b1 hanya membandingkan ActiveUser dengan EffectiveUser.
+ * Asumsinya: dari editor keduanya sama dengan pemilik. Itu TIDAK
+ * selalu benar. `Session.getActiveUser().getEmail()` mengembalikan
+ * string kosong bila email pengguna tidak diungkapkan ke skrip
+ * (mis. akun di luar domain pemilik, atau skrip dibagikan sebagai
+ * editor bukan pemilik). Akibatnya guru melihat:
+ *
+ *     Error: Hanya dijalankan dari editor Apps Script.
+ *     _hanyaEditor @ Util.gs:428
+ *     hapusSeedData @ Setup.gs:808
+ *
+ * …padahal dia memang di editor. 25 fungsi admin ikut terkunci:
+ * cekKesehatan, setupLengkap, cekBerkasUI, resetTahunAjaran,
+ * hapusSeedData, cekNomorWa, dan lainnya.
+ *
+ * Karena email tidak bisa diandalkan, ditambah satu saklar yang
+ * hanya bisa dipasang guru sendiri — lewat Project Settings, TANPA
+ * menjalankan kode apa pun. Murid di browser tidak bisa memasang
+ * Script Property, jadi penjaga tetap berlaku penuh selama saklar
+ * itu tidak ada.
  *
  * Trigger waktu (tugasHarianQuiz) JANGAN memakai penjaga ini.
- * Cara pakai editor tidak berubah: pilih fungsi → Run.
  */
 function _hanyaEditor() {
+  /* 1. Saklar eksplisit guru. Dipasang dari:
+        Project Settings (ikon gerigi) → Script Properties
+        → Add script property → IZIN_EDITOR = YA
+     Tidak memerlukan kode berjalan, jadi tetap bisa dipasang
+     justru ketika penjaga ini sedang memblokir semuanya. */
+  try {
+    if (PropertiesService.getScriptProperties()
+          .getProperty('IZIN_EDITOR') === 'YA') {
+      Logger.log('⚠️  _hanyaEditor: IZIN_EDITOR=YA aktif — penjaga ' +
+                 'sedang DILEWATI. Hapus properti ini setelah selesai.');
+      return;
+    }
+  } catch (e) { /* PropertiesService gagal → jangan dianggap izin */ }
+
+  /* 2. Editor normal: pengguna aktif = pengguna efektif = pemilik. */
   var aktif = '';
   var efektif = '';
   try { aktif = Session.getActiveUser().getEmail() || ''; } catch (e) {}
   try { efektif = Session.getEffectiveUser().getEmail() || ''; } catch (e) {}
-  if (!aktif || aktif !== efektif) {
-    throw new Error('Hanya dijalankan dari editor Apps Script.');
-  }
+  if (aktif && aktif === efektif) return;
+
+  /* 3. Sisanya ditolak — dengan pesan yang menjelaskan jalan keluarnya,
+        bukan sekadar melarang. Pesan versi lama ("Hanya dijalankan dari
+        editor Apps Script.") tidak memberi tahu apa pun kepada guru
+        yang MEMANG berada di editor. */
+  throw new Error(
+    'Ditolak: fungsi ini hanya boleh dijalankan dari editor Apps Script.\n\n' +
+    'Bila Anda MEMANG menjalankannya dari editor dan tetap melihat pesan ' +
+    'ini, artinya akun Google Anda bukan pemilik skrip ini, atau email ' +
+    'Anda tidak diungkapkan ke skrip — sehingga pemeriksaan tidak dapat ' +
+    'memastikan. Ini keterbatasan penjaga, bukan kesalahan Anda.\n\n' +
+    'Cara membuka kunci (tidak melemahkan penjaga untuk murid):\n' +
+    '  1. Project Settings (ikon gerigi di panel kiri)\n' +
+    '  2. Script Properties → Add script property\n' +
+    '  3. Property: IZIN_EDITOR    Value: YA\n' +
+    '  4. Simpan, lalu jalankan lagi fungsinya\n' +
+    '  5. HAPUS properti itu setelah selesai\n\n' +
+    'Murid tidak bisa memasang Script Property, jadi selama properti itu ' +
+    'tidak ada, google.script.run tetap ditolak.'
+  );
 }

@@ -11536,7 +11536,119 @@ dihapus, dan klien melompati kunci bagian.
 
 ---
 
+## v1.18.3 — 🔴 Penjaga editor memblokir guru dari editornya sendiri
+
+**Laporan guru:**
+
+```
+Error: Hanya dijalankan dari editor Apps Script.
+_hanyaEditor @ Util.gs:428
+hapusSeedData @ Setup.gs:808
+```
+
+Ini **regresi yang saya perkenalkan di `f2959b1`**, bukan bug lama.
+
+### Apa yang salah
+
+Penjaga versi lama hanya membandingkan dua email:
+
+```js
+if (!aktif || aktif !== efektif) throw new Error('Hanya dijalankan dari
+editor Apps Script.');
+```
+
+Asumsinya tertulis di komentarnya sendiri: *"Dari editor Apps Script:
+ActiveUser = EffectiveUser = pemilik."* **Asumsi itu tidak selalu
+benar.** `Session.getActiveUser().getEmail()` mengembalikan string
+kosong bila email pengguna tidak diungkapkan ke skrip — misalnya akun
+di luar domain pemilik, atau skrip dibagikan sebagai editor bukan
+sebagai pemilik. Bila kosong, `!aktif` langsung melempar.
+
+Jadi guru yang memang duduk di editor Apps Script ditolak oleh penjaga
+yang dibuat untuk melindunginya.
+
+### Cakupannya bukan satu fungsi
+
+42 pemanggilan, **25 fungsi admin terkunci**:
+
+`cekKesehatan` · `setupLengkap` · `setupDatabase` · `cekBerkasUI` ·
+`cekNomorWa` · `resetTahunAjaran` · `hapusSeedData` · `isiSeedData` ·
+`resetTotal` · `migrasiStruktur` · `migrasiHierarki` · `infoDatabase` ·
+`pasangTriggerHarian` · `pasangApiKeysManual` · `tesKoneksiAI` ·
+`resetGuruDarurat` · `_sesiGuruDiagnostik` · `diagRefleksi` ·
+`diagUbahMateriPokok` · `_db` · `_buatId` · `_salt` · `_hash` ·
+`_tambah` · `_pasangCounter`
+
+### Yang TIDAK rusak, dan sudah diverifikasi
+
+Saya sempat khawatir seluruh aplikasi murid ikut mati karena `_db()`
+berpenjaga dan dipanggil setiap permintaan. **Tidak.** Diperiksa:
+
+- `Db.gs:45` memakai `SpreadsheetApp.openById(idDb())`, **bukan** `_db()`
+- `_db()` hanya dipanggil dari dalam `Setup.gs` (6 tempat)
+- `_hash()` dan `_salt()` hanya dipanggil dari `Setup.gs` (7 tempat);
+  jalur login memakai hash di `Util.gs`
+
+Jadi yang rusak murni perkakas admin, bukan aplikasi murid. Klaim ini
+pernah saya ucapkan terbalik di percakapan dan sudah dikoreksi.
+
+### Perbaikannya
+
+Email tidak bisa diandalkan, jadi ditambah satu saklar yang **hanya
+bisa dipasang guru sendiri, tanpa menjalankan kode apa pun**:
+
+```js
+if (PropertiesService.getScriptProperties()
+      .getProperty('IZIN_EDITOR') === 'YA') return;
+```
+
+Dipasang dari **Project Settings → Script Properties → `IZIN_EDITOR` =
+`YA`**. Murid di browser tidak bisa memasang Script Property, jadi
+penjaga tetap berlaku penuh selama properti itu tidak ada — dan
+`PropertiesService` yang gagal dianggap **tidak memberi izin** (fail
+closed).
+
+Pesan error juga ditulis ulang. Versi lama hanya bilang *"Hanya
+dijalankan dari editor Apps Script"* kepada orang yang memang sedang
+berada di editor — tidak memberi jalan keluar apa pun. Versi baru
+menyebut penyebabnya, lima langkah memperbaikinya, dan perintah
+menghapus properti setelah selesai.
+
+### Trade-off yang diterima
+
+Selama `IZIN_EDITOR = YA` terpasang, penjaga **mati untuk semua**. Bila
+guru lupa menghapusnya, murid bisa memanggil fungsi editor. Diterima
+karena alternatifnya adalah guru tidak bisa mengelola aplikasinya sama
+sekali. `_hanyaEditor()` mencatat peringatan ke `Logger` setiap kali
+saklar ini dipakai, supaya ada jejak.
+
+### Uji
+
+16 pemeriksaan baru (`/tmp/uji/editor.js`), `Util.gs` asli:
+
+- browser tetap ditolak: email kosong, email murid, `IZIN_EDITOR`
+  bernilai `TIDAK`/kosong, dan `PropertiesService` yang meledak
+- editor normal (aktif = efektif) tetap diizinkan
+- **saklar: skenario persis laporan guru ditolak tanpa saklar, lolos
+  dengan saklar**
+- pesan error menyebut `IZIN_EDITOR`, Project Settings, dan perintah
+  menghapus properti
+- `hapusSeedData()` masih memanggil `_hanyaEditor()`
+
+**Dibuktikan merah** dengan tiga sabotase: saklar dibuang (2 gagal),
+penjaga dibuat selalu lolos (10), pesan lama dikembalikan (5). Sabotase
+ketiga sempat **hijau palsu** karena `perl` menyisipkan teks tanpa
+mengganti pesan — diulang dengan benar setelah keadaan berkas
+diperiksa. Suite penjaga lama tetap 15/15.
+
+### Berkas
+
+`Util.gs` · `Code.gs` (versi). **Tanpa migrasi, tanpa perubahan HTML.**
+
+---
+
 ## v1.18.2 — v1.18.0 dibatalkan
+
 
 **Keputusan guru:** perubahan reset di v1.18.0 ditolak setelah risiko
 oracle keberadaan username dijelaskan.
@@ -12029,6 +12141,7 @@ menggigit dengan membuang tombolnya.
 | 0.1.0 | 1 | `Setup.gs` — 14 sheet + seed PKPJ |
 | 0.2.0 | 2 | `Db` `Util` `Auth` `Code` + login, sesi, reset kata sandi |
 | 0.3.0 | 3 | `Notif` `Beranda` `js_beranda` + dashboard, unlock logic, MathJax |
+| 1.18.3 | 🔴 **penjaga editor mengunci guru** | `Util` `Code` — regresi f2959b1: 25 fungsi admin tak bisa dijalankan dari editor karena `getActiveUser()` bisa kosong; ditambah saklar `IZIN_EDITOR` yang dipasang guru tanpa menjalankan kode; pesan error kini menjelaskan jalan keluar; aplikasi murid tidak terpengaruh (diverifikasi) |
 | 1.18.2 | ⛔ **v1.18.0 dibatalkan** | `Auth` `js_auth` `Code` — atas keputusan guru; `ajukanReset()` dikembalikan byte-per-byte ke v1.17.1; jalan buntu senyap & baris yatim diterima kembali demi menghindari oracle username; v1.18.1 tetap berlaku |
 | 1.18.1 | 🔴 **layar masuk mengiklankan akun seed** | `v_login` `js_kelola` `Code` — placeholder `siswa01` dibuang dari 3 tempat; akun seed itu nyata, bersandi `siswa123`, `harus_ganti_password: false`; nama akun tidak diulang di komentar HTML karena komentar tetap terkirim; **`cekKesehatan()` masih belum memeriksa seed yang tersisa** |
 | 1.18.0 | 🚫 **reset menolak akun tak ada / nonaktif** | `Auth` `Code` `js_auth` — cek akun dulu baru kirim permintaan; tidak ada lagi baris yatim; **syarat mutlak:** batas 5 pencarian/input karena balasannya kini berbeda; satu pesan untuk dua sebab; batas harian tak lagi diam |
