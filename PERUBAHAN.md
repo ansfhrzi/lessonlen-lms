@@ -11536,7 +11536,55 @@ dihapus, dan klien melompati kunci bagian.
 
 ---
 
+## v1.18.2 — v1.18.0 dibatalkan
+
+**Keputusan guru:** perubahan reset di v1.18.0 ditolak setelah risiko
+oracle keberadaan username dijelaskan.
+
+### Yang dikembalikan
+
+`Auth.ajukanReset()` kembali persis seperti sebelum v1.18.0 —
+diverifikasi identik byte-per-byte dengan `83b0bc8` (v1.17.1) lewat
+`git show 83b0bc8:Auth.gs | diff - Auth.gs`:
+
+- semua pengajuan dibalas `{diterima:true}`, apa pun hasilnya
+- baris `permintaan_reset` tetap dibuat, termasuk dengan `user_id`
+  kosong bila akun tidak ditemukan
+- batas 3 permintaan/24 jam kembali hanya berlaku bila akun ditemukan
+- `MAKS_CARI_RESET` dan `_kunciCariReset()` dihapus
+- penanda `'Tidak Dapat Diproses'` di `cekBerkasUI()` dihapus
+- dialog di `js_auth.html` kembali ke bentuk semula
+
+### Pertukaran yang dipilih, secara jujur
+
+Yang dihindari: fungsi publik yang bisa dipakai memastikan username
+mana yang ada.
+
+Yang diterima kembali: **jalan buntu yang senyap.** Murid yang salah
+mengetik username melihat "Permintaan Diterima" lalu menunggu
+selamanya — tidak ada baris yang sampai ke antrean guru, tidak ada
+kabar. Dan baris yatim ber-`user_id` kosong kembali menumpuk di sheet.
+
+Ini keputusan yang sah. `Auth.login()` sudah membocorkan keberadaan
+akun sejak lama, jadi v1.18.0 bukan membuka kelas kebocoran baru —
+tetapi memperluasnya ke endpoint tanpa autentikasi dengan batas
+pencobaan yang jauh lebih longgar adalah lain soal.
+
+### Bagian v1.18.0 tetap ada di dokumen ini
+
+Sengaja tidak dihapus, hanya diberi tanda ⛔. Analisisnya tidak salah;
+pertukarannya yang tidak diterima.
+
+### Berkas
+
+`Auth.gs` · `js_auth.html` · `Code.gs` (versi, penanda v1.18.0
+dibuang). **`v_login.html` dan `js_kelola.html` dari v1.18.1 tidak
+tersentuh** — perbaikan placeholder tetap berlaku.
+
+---
+
 ## v1.18.1 — Placeholder layar masuk mengiklankan akun seed
+
 
 **Laporan guru:** *"hapus tulisan contoh siswa01 pada form login, itu
 membocorkan username."*
@@ -11627,6 +11675,18 @@ placeholdernya.
 ---
 
 ## v1.18.0 — Reset kata sandi menolak akun yang tidak ada atau nonaktif
+
+> ### ⛔ DIBATALKAN di v1.18.2
+>
+> Guru memutuskan menolak perubahan ini setelah risiko oracle
+> keberadaan username dijelaskan. Perilakunya sudah dikembalikan
+> persis seperti sebelumnya.
+>
+> Bagian ini **sengaja tidak dihapus** (§7.4: tulis juga kegagalan).
+> Isinya tetap berguna — analisisnya tidak salah, hanya
+> pertukarannya yang tidak diterima. Bila suatu saat masalah "murid
+> menunggu permintaan yang tidak pernah terkirim" muncul lagi, ini
+> titik awalnya.
 
 **Permintaan guru:** *"jika akun siswa nonaktif atau tidak ada
 usernamenya, tidak bisa mengirim permintaan reset. Cek dulu apakah ada
@@ -11969,6 +12029,7 @@ menggigit dengan membuang tombolnya.
 | 0.1.0 | 1 | `Setup.gs` — 14 sheet + seed PKPJ |
 | 0.2.0 | 2 | `Db` `Util` `Auth` `Code` + login, sesi, reset kata sandi |
 | 0.3.0 | 3 | `Notif` `Beranda` `js_beranda` + dashboard, unlock logic, MathJax |
+| 1.18.2 | ⛔ **v1.18.0 dibatalkan** | `Auth` `js_auth` `Code` — atas keputusan guru; `ajukanReset()` dikembalikan byte-per-byte ke v1.17.1; jalan buntu senyap & baris yatim diterima kembali demi menghindari oracle username; v1.18.1 tetap berlaku |
 | 1.18.1 | 🔴 **layar masuk mengiklankan akun seed** | `v_login` `js_kelola` `Code` — placeholder `siswa01` dibuang dari 3 tempat; akun seed itu nyata, bersandi `siswa123`, `harus_ganti_password: false`; nama akun tidak diulang di komentar HTML karena komentar tetap terkirim; **`cekKesehatan()` masih belum memeriksa seed yang tersisa** |
 | 1.18.0 | 🚫 **reset menolak akun tak ada / nonaktif** | `Auth` `Code` `js_auth` — cek akun dulu baru kirim permintaan; tidak ada lagi baris yatim; **syarat mutlak:** batas 5 pencarian/input karena balasannya kini berbeda; satu pesan untuk dua sebab; batas harian tak lagi diam |
 | 1.17.1 | 🔴 **`_tambah()` — eskalasi hak** | `Setup` `Code` — murid bisa memanggil `_tambah('users',[{role:'guru'}])` dari browser dan membuat akun guru; 7 fungsi Setup berpenjaga (35 → 42); uji penjaga terisolasi, satu hijau palsu diakui & diperbaiki |

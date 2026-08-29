@@ -39,16 +39,6 @@ var Auth = (function () {
      ditebak berulang kali tanpa konsekuensi. */
   var MAKS_PULIH     = 5;
 
-  /* Percobaan pencarian akun pada `ajukanReset()` per nilai input
-     dalam satu jendela kunci (v1.18.0).
-
-     WAJIB sejak balasannya dibedakan: selama semua balasan identik,
-     menebak username tidak memberi informasi apa pun dan tidak perlu
-     dibatasi. Begitu "tidak ditemukan" dibalas berbeda, fungsi ini
-     jadi alat memastikan username mana yang ada — tanpa batas, ribuan
-     tebakan bisa dicoba dalam sejam. */
-  var MAKS_CARI_RESET = 5;
-
   /* -------------------------------------------------- sesi */
 
   /**
@@ -249,65 +239,15 @@ var Auth = (function () {
 
   /* -------------------------------------------------- lupa password */
 
-  function _kunciCariReset(input) { return 'carirset_' + input; }
-
   /**
-   * Ajukan reset kata sandi. Dipanggil TANPA login.
-   *
-   * v1.18.0 — PERILAKU BERUBAH atas keputusan guru.
-   *
-   * SEBELUMNYA respons SELALU `{diterima:true}` apa pun hasilnya, agar
-   * tidak bisa dipakai menebak username yang valid. Konsekuensinya:
-   * murid yang salah mengetik username melihat "Permintaan Diterima",
-   * lalu menunggu selamanya — tidak ada baris yang sampai ke guru,
-   * tidak ada kabar. Jalan buntu yang senyap.
-   *
-   * SEKARANG akun diperiksa lebih dulu. Tidak ditemukan atau nonaktif
-   * → ditolak dengan pesan, dan TIDAK ada baris `permintaan_reset`
-   * yang dibuat.
-   *
-   * YANG HARUS DIKETAHUI TENTANG RISIKONYA
-   *
-   * Ini memang membuka oracle: orang bisa memastikan username mana
-   * yang ada. Tiga hal yang membuat risikonya lebih kecil dari
-   * kelihatannya di aplikasi ini:
-   *
-   *   1. `Auth.login()` SUDAH membocorkan hal yang sama — akun
-   *      nonaktif dibalas "Akun Anda dinonaktifkan", yang tidak ada
-   *      dibalas "Nama pengguna atau kata sandi salah" (baris 166).
-   *      Jadi kebocoran ini bukan baru.
-   *   2. Username dibuat dari nama oleh `Kelas._usernameDari()`
-   *      (nama depan + huruf awal nama belakang). Sudah sangat
-   *      mudah ditebak tanpa bantuan aplikasi.
-   *   3. Yang bocor hanya keberadaan akun — bukan kata sandi, dan
-   *      login tetap dikunci 5 percobaan / 15 menit.
-   *
-   * SYARAT MUTLAK: batas percobaan di bawah. Sebelumnya batas 3/24 jam
-   * hanya berlaku BILA akun ditemukan (`if (user) {…}`), jadi pencarian
-   * yang tidak cocok tidak dibatasi sama sekali. Selama balasannya
-   * seragam itu tidak berbahaya. Begitu balasannya berbeda, tanpa
-   * batas ini orang bisa menebak ribuan username dalam sejam.
-   *
-   * @returns {Object} { diterima } atau { diterima:false, error, pesan }
+   * Diajukan tanpa login. Respons SELALU sama apa pun hasilnya,
+   * agar tidak bisa dipakai menebak username yang valid.
    */
   function ajukanReset(inputUser) {
     var input = String(inputUser || '').trim();
+    var balasan = { diterima: true };
 
-    if (!input) {
-      return { diterima: false, error: 'VALIDASI_GAGAL',
-               pesan: 'Isi nama pengguna atau email dulu.' };
-    }
-
-    /* Batas pencarian per nilai input. Lihat catatan di atas — ini
-       bukan hiasan, ini syarat agar perubahan di atas aman. */
-    var cache = CacheService.getScriptCache();
-    var n = (Number(cache.get(_kunciCariReset(input)) || '0') + 1);
-    cache.put(_kunciCariReset(input), String(n), MENIT_KUNCI * 60);
-    if (n > MAKS_CARI_RESET) {
-      return { diterima: false, error: 'TERLALU_BANYAK',
-               pesan: 'Terlalu banyak percobaan. Coba lagi dalam ' +
-                      MENIT_KUNCI + ' menit.' };
-    }
+    if (!input) return balasan;
 
     var u = Util.normalisasiUsername(input);
     var user = Db.cari('users', 'username', u);
@@ -315,53 +255,33 @@ var Auth = (function () {
       user = Db.cari('users', 'email', input.toLowerCase());
     }
 
-    /* SATU pesan untuk dua sebab. Memisahkannya ("tidak ada" vs
-       "nonaktif") akan memberi tahu orang luar bahwa murid tertentu
-       sudah dikeluarkan dari kelas — bocoran yang tidak perlu, dan
-       murid yang bersangkutan tetap harus melakukan hal yang sama:
-       menemui guru. */
-    if (!user || user.status !== 'aktif') {
-      Util.catatLog('', 'reset_akun_tak_dapat_direset',
-                    'input=' + input.slice(0, 50) +
-                    (user ? ' sebab=nonaktif' : ' sebab=tidak_ada'), 'gagal');
-      return { diterima: false, error: 'AKUN_TAK_DAPAT_DIRESET',
-               pesan: 'Nama pengguna tidak ditemukan atau akun Anda ' +
-                      'nonaktif. Silakan hubungi guru Anda untuk ' +
-                      'mendapatkan nama pengguna dan kata sandi.' };
-    }
-
-    try { cache.remove(_kunciCariReset(input)); } catch (e) {}
-
     /* rate limit 3 permintaan / 24 jam */
-    var batas = new Date(Date.now() - 86400000);
-    var jml = Db.saring('permintaan_reset', { user_id: user.user_id })
-      .filter(function (r) { return new Date(r.dibuat_at) > batas; }).length;
-    if (jml >= MAKS_RESET_HARI) {
-      /* Dulunya dibalas `{diterima:true}` dan diam — jalan buntu senyap
-         yang sama. Sekarang dijelaskan. */
-      return { diterima: false, error: 'BATAS_HARIAN',
-               pesan: 'Anda sudah meminta reset ' + jml +
-                      ' kali dalam 24 jam terakhir. Silakan hubungi ' +
-                      'guru Anda langsung.' };
+    if (user) {
+      var batas = new Date(Date.now() - 86400000);
+      var jml = Db.saring('permintaan_reset', { user_id: user.user_id })
+        .filter(function (r) { return new Date(r.dibuat_at) > batas; }).length;
+      if (jml >= MAKS_RESET_HARI) {
+        Util.catatLog(user.user_id, 'reset_ditolak', 'melebihi batas harian', 'gagal');
+        return balasan;
+      }
     }
 
-    /* Baris HANYA dibuat bila akunnya ada dan aktif. Sebelumnya baris
-       tetap dibuat dengan `user_id` kosong lalu disembunyikan
-       `getPermintaanReset()` — mengendap selamanya di sheet. */
     Db.tambah('permintaan_reset', {
       request_id: Util.buatId('RST'),
-      user_id: user.user_id,
+      user_id: user ? user.user_id : '',
       input_user: input.slice(0, 100),
       status: 'antre',
       dibuat_at: Util.sekarang(),
       diproses_at: ''
     });
 
-    _notifGuru('permintaan_reset', 'Permintaan reset kata sandi',
-               user.nama + ' (' + user.username + ') meminta reset kata sandi.');
-
-    Util.catatLog(user.user_id, 'reset_diminta', '');
-    return { diterima: true };
+    if (user) {
+      _notifGuru('permintaan_reset', 'Permintaan reset kata sandi',
+                 user.nama + ' (' + user.username + ') meminta reset kata sandi.');
+    } else {
+      Util.catatLog('', 'reset_user_tidak_ada', 'input=' + input.slice(0, 50), 'gagal');
+    }
+    return balasan;
   }
 
   /** Daftar permintaan reset yang masih antre — hanya guru. */

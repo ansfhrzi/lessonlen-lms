@@ -140,35 +140,13 @@ function dialogLupaSandi(nilaiAwal) {
     var v = el ? el.value.trim() : '';
     if (!v) { toast('Isi nama pengguna dulu.', 'peringatan'); return; }
 
-    callApi('ajukanReset', [v], { tanpaToken: true }).then(function (d) {
-      /* v1.18.0 — kegagalan kini DIJELASKAN, tidak lagi dibalas
-         "Permintaan Diterima".
-
-         Sebelumnya murid yang salah mengetik username melihat dialog
-         sukses lalu menunggu selamanya: tidak ada baris yang sampai
-         ke antrean guru, tidak ada notifikasi, tidak ada kabar.
-         Jalan buntu yang senyap.
-
-         Tidak ada tombol "Coba Lagi": untuk akun yang tidak ada atau
-         nonaktif, mengulang tidak mengubah apa pun — murid memang
-         harus menemui guru. Menawarkan tombol yang tidak menolong
-         hanya memperpanjang kebingungan. */
-      if (d && d.diterima === false) {
-        dialog({
-          judul: 'Tidak Dapat Diproses',
-          pesan: d.pesan || 'Permintaan tidak dapat diproses. ' +
-                            'Silakan hubungi guru Anda.',
-          tanpaBatal: true, labelYa: 'Mengerti'
-        });
-        return;
-      }
-
-      /* Tidak lagi berbunyi "bila akun ditemukan" — sekarang server
-         sudah memastikan akunnya ada dan aktif sebelum membalas. */
+    callApi('ajukanReset', [v], { tanpaToken: true }).then(function () {
+      /* respons sengaja seragam — tidak membocorkan username yang valid */
       dialog({
         judul: 'Permintaan Diterima',
-        pesan: 'Permintaan Anda sudah diteruskan ke guru. Silakan ' +
-               'hubungi guru untuk menerima kata sandi sementara.',
+        pesan: 'Bila akun ditemukan, guru akan segera memproses ' +
+               'permintaan Anda. Silakan hubungi guru untuk menerima ' +
+               'kata sandi sementara.',
         tanpaBatal: true, labelYa: 'Mengerti'
       });
     });

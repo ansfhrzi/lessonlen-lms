@@ -4,7 +4,7 @@ Panduan singkat setiap kali ada berkas yang berubah.
 
 ---
 
-## Pembaruan Terkini — v1.18.1
+## Pembaruan Terkini — v1.18.2
 
 ### Langkah 1 — Salin 7 berkas
 
@@ -67,15 +67,7 @@ Bila ada penanda v1.17.0 yang disebut basi, salin ulang berkas itu.
    ada kebocoran — jangan dipakai dulu.
 4. Ulangi 6 kali dengan email yang sama → harus muncul *"Terlalu
    Banyak Percobaan"*.
-5. Tekan **Lupa kata sandi?** → isi username yang **tidak ada** →
-   harus muncul *"Tidak Dapat Diproses — Nama pengguna tidak
-   ditemukan atau akun Anda nonaktif"*, **bukan** "Permintaan
-   Diterima".
-6. Isi username murid yang **nonaktif** → pesannya harus **sama persis**
-   dengan langkah 5. Bila berbeda, ada kebocoran status akun.
-7. Isi username murid aktif → "Permintaan Diterima", dan permintaannya
-   muncul di layar **Permintaan Reset**.
-8. Lihat layar masuk: isian **Nama Pengguna** tidak boleh menampilkan
+5. Lihat layar masuk: isian **Nama Pengguna** tidak boleh menampilkan
    teks contoh apa pun.
 
 ### ⚠️ Bila Anda pernah menjalankan `setupLengkap()`
