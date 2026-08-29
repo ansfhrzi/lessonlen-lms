@@ -4,9 +4,9 @@ Panduan singkat setiap kali ada berkas yang berubah.
 
 ---
 
-## Pembaruan Terkini — v1.18.0: Lupa Nama Pengguna, Sesi 30 Hari, Tambalan Keamanan
+## Pembaruan Terkini — v1.18.1
 
-### Langkah 1 — Salin 6 berkas
+### Langkah 1 — Salin 7 berkas
 
 | Berkas | Jenis di editor |
 |---|---|
@@ -15,6 +15,7 @@ Panduan singkat setiap kali ada berkas yang berubah.
 | `Kelas.gs` | Script |
 | `Code.gs` | Script |
 | `js_auth.html` | HTML |
+| `js_kelola.html` | HTML |
 | `v_login.html` | HTML |
 
 Buka tiap berkas → `Ctrl+A` → tempel isi baru → `Ctrl+S`.
@@ -74,6 +75,25 @@ Bila ada penanda v1.17.0 yang disebut basi, salin ulang berkas itu.
    dengan langkah 5. Bila berbeda, ada kebocoran status akun.
 7. Isi username murid aktif → "Permintaan Diterima", dan permintaannya
    muncul di layar **Permintaan Reset**.
+8. Lihat layar masuk: isian **Nama Pengguna** tidak boleh menampilkan
+   teks contoh apa pun.
+
+### ⚠️ Bila Anda pernah menjalankan `setupLengkap()`
+
+Aplikasi membuat akun contoh: satu guru dan tiga murid, semuanya
+bersandi baku dan **tidak pernah dipaksa menggantinya**. Placeholder
+yang menyebut salah satunya sudah dibuang di v1.18.1, tetapi
+**akunnya sendiri masih ada** dan `cekKesehatan()` belum
+memeriksanya.
+
+Bersihkan dari editor Apps Script:
+
+```
+hapusSeedData()
+```
+
+Aman — hanya menghapus baris bertanda `[CONTOH]`. Materi, kelas, dan
+murid sungguhan tidak tersentuh.
 
 **Catatan penting untuk guru:** murid hanya bisa memulihkan username
 sendiri bila dia **sudah mengisi biodata** (email + nomor WA). Yang

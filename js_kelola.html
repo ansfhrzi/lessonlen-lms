@@ -1008,7 +1008,12 @@ function gambarFormMurid(userId, data, kelas, kelasTerpilih) {
       '<input class="isian" id="m-nama" value="' + esc(data ? data.nama : '') + '"></div>' +
     (userId ? '' :
       '<div class="grup"><label>Nama Pengguna *</label>' +
-      '<input class="isian" id="m-username" placeholder="mis. siswa01" ' +
+      /* v1.18.1 — placeholder akun seed dibuang. Layar ini memang
+         khusus guru, jadi bocornya jauh lebih kecil daripada di layar
+         masuk — tetapi namanya tetap akun seed nyata, dan contoh yang
+         sama di dua tempat berarti dua tempat yang harus diingat saat
+         membersihkannya (§6.2 no. 120). */
+      '<input class="isian" id="m-username" ' +
       'autocapitalize="off"><span class="bantuan">Huruf kecil tanpa spasi. ' +
       'Dipakai untuk masuk.</span></div>') +
     '<div class="grup"><label>Rombel (opsional)</label>' +

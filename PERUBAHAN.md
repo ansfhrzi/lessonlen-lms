@@ -11536,6 +11536,96 @@ dihapus, dan klien melompati kunci bagian.
 
 ---
 
+## v1.18.1 — Placeholder layar masuk mengiklankan akun seed
+
+**Laporan guru:** *"hapus tulisan contoh siswa01 pada form login, itu
+membocorkan username."*
+
+Benar, dan lebih serius dari sekadar contoh yang kurang pantas.
+
+### `siswa01` bukan nama karangan
+
+`Setup.isiSeedData()` membuatnya sebagai akun nyata (`Setup.gs:576-587`):
+
+```js
+['Ahmad Fauzi','Bella Kusuma','Candra Wijaya'].forEach(function (nm, i) {
+  murid.push({
+    username: 'siswa0' + (i + 1),
+    password_hash: _hash('siswa123', s), salt: s,
+    pwd_awal: 'siswa123',
+    nama: '[CONTOH] ' + nm, role: 'murid',
+    status: 'aktif', harus_ganti_password: false,
+    ...
+```
+
+Tiga akun murid — `siswa01`, `siswa02`, `siswa03` — semuanya bersandi
+`siswa123`, semuanya `status: 'aktif'`, dan **`harus_ganti_password:
+false`** sehingga tidak pernah dipaksa mengganti sandinya. Ditambah
+akun `guru` / `guru123` (`Setup.gs:525-526`).
+
+Placeholder di layar masuk — yang terlihat oleh **siapa pun tanpa
+login** — mengiklankan salah satu username itu.
+
+### Yang dihapus
+
+| Berkas | Layar | Siapa yang melihat |
+|---|---|---|
+| `v_login.html:18` | isian nama pengguna | **siapa pun, tanpa login** |
+| `v_login.html:50` | dialog Lupa Kata Sandi | **siapa pun, tanpa login** |
+| `js_kelola.html:1011` | form Murid Baru | guru saja |
+
+Yang ketiga ikut dibersihkan walau risikonya jauh lebih kecil — contoh
+yang sama di dua tempat berarti dua tempat yang harus diingat saat
+membersihkannya (§6.2 no. 120).
+
+Sengaja **tidak diganti contoh lain**. Format username asli dibuat
+`Kelas._usernameDari()` (nama depan + huruf awal nama belakang), jadi
+contoh apa pun yang mirip nama akan mengajarkan pola itu. Label isian
+sudah cukup.
+
+### Nama akunnya tidak diulang di komentar
+
+Komentar HTML **tetap terkirim ke peramban**. Versi pertama perbaikan
+ini menjelaskan alasannya dengan menyebut nama akunnya — yang berarti
+memindahkan bocorannya dari `placeholder` ke `<!-- -->`. Nama dan sandi
+seed kini hanya ada di `Setup.gs` dan `PERUBAHAN.md`, tidak di berkas
+HTML mana pun.
+
+Diverifikasi: `grep -rn "siswa01\|siswa123\|guru123" *.html` → **nol
+kemunculan**.
+
+### 🔴 Yang belum dikerjakan dan lebih penting
+
+**`cekKesehatan()` tidak memeriksa akun seed yang tersisa.** Ia
+memeriksa modul, sheet, cache, `LockService`, dan `Ai.gs` — tidak
+pernah melihat apakah `siswa01` masih hidup.
+
+Artinya: guru yang menjalankan `setupLengkap()` lalu lupa menjalankan
+`hapusSeedData()` punya empat akun bersandi baku yang aktif permanen,
+dan tidak ada satu pun alat diagnostik yang memberi tahu. Menghapus
+placeholder menutup satu jalan menemukan username itu; **akunnya
+sendiri masih ada.**
+
+`hapusSeedData()` sudah ada dan aman (`Setup.gs:765`) — ia hanya
+menghapus baris bertanda `[CONTOH]`. Yang belum ada adalah peringatan
+otomatis.
+
+### Penanda berbasis komentar
+
+Perubahan ini **menghapus** teks, jadi tidak ada string baru yang bisa
+dijadikan penanda kecuali komentarnya. Penanda berbasis komentar rapuh
+— bisa terhapus tanpa mengubah perilaku (pelajaran v1.12.7). Diterima
+di sini karena akibatnya kecil: placeholder kembali muncul, bukan layar
+yang rusak. Dibuktikan tetap menggigit dengan mengembalikan
+placeholdernya.
+
+### Berkas
+
+`v_login.html` · `js_kelola.html` · `Code.gs` (versi + 2 penanda).
+**Tidak ada perubahan `.gs` berperilaku, tidak ada migrasi.**
+
+---
+
 ## v1.18.0 — Reset kata sandi menolak akun yang tidak ada atau nonaktif
 
 **Permintaan guru:** *"jika akun siswa nonaktif atau tidak ada
@@ -11879,6 +11969,7 @@ menggigit dengan membuang tombolnya.
 | 0.1.0 | 1 | `Setup.gs` — 14 sheet + seed PKPJ |
 | 0.2.0 | 2 | `Db` `Util` `Auth` `Code` + login, sesi, reset kata sandi |
 | 0.3.0 | 3 | `Notif` `Beranda` `js_beranda` + dashboard, unlock logic, MathJax |
+| 1.18.1 | 🔴 **layar masuk mengiklankan akun seed** | `v_login` `js_kelola` `Code` — placeholder `siswa01` dibuang dari 3 tempat; akun seed itu nyata, bersandi `siswa123`, `harus_ganti_password: false`; nama akun tidak diulang di komentar HTML karena komentar tetap terkirim; **`cekKesehatan()` masih belum memeriksa seed yang tersisa** |
 | 1.18.0 | 🚫 **reset menolak akun tak ada / nonaktif** | `Auth` `Code` `js_auth` — cek akun dulu baru kirim permintaan; tidak ada lagi baris yatim; **syarat mutlak:** batas 5 pencarian/input karena balasannya kini berbeda; satu pesan untuk dua sebab; batas harian tak lagi diam |
 | 1.17.1 | 🔴 **`_tambah()` — eskalasi hak** | `Setup` `Code` — murid bisa memanggil `_tambah('users',[{role:'guru'}])` dari browser dan membuat akun guru; 7 fungsi Setup berpenjaga (35 → 42); uji penjaga terisolasi, satu hijau palsu diakui & diperbaiki |
 | 1.17.0 | 🔑 **lupa username selesai tanpa guru** | `Auth` `Kelas` `Code` `js_auth` `v_login` — pemulihan username lewat email + nomor WA (bukan login); sesi 12 jam → 30 hari; satu bentuk kegagalan untuk semua sebab; batas 5 percobaan/email; akun ganda dikembalikan semua |

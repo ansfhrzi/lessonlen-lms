@@ -14,8 +14,24 @@
       <form id="form-login" autocomplete="on">
         <div class="grup">
           <label for="in-username">Nama Pengguna</label>
+          <!-- v1.18.1 — placeholder berisi nama akun seed DIBUANG.
+
+               Yang tadinya tertulis di situ bukan contoh karangan: ia
+               akun nyata yang dibuat `Setup.isiSeedData()`, sandinya
+               baku, dan `harus_ganti_password: false`. Layar masuk
+               terlihat oleh siapa pun tanpa login.
+
+               Nama akunnya sengaja TIDAK diulang di komentar ini —
+               komentar HTML tetap terkirim ke peramban, jadi
+               menuliskannya di sini hanya memindahkan bocorannya.
+               Rincian ada di PERUBAHAN.md bagian v1.18.1.
+
+               Juga sengaja TIDAK diganti contoh lain: format username
+               asli dibuat `_usernameDari()` (nama depan + huruf awal
+               nama belakang), jadi contoh apa pun yang mirip nama akan
+               mengajarkan pola itu. Label di atas sudah cukup. -->
           <input class="isian" id="in-username" name="username"
-                 autocomplete="username" placeholder="mis. siswa01"
+                 autocomplete="username"
                  autocapitalize="off" spellcheck="false" required>
         </div>
 
@@ -47,7 +63,9 @@
   <div>
     <div class="grup">
       <label for="in-lupa">Nama pengguna atau email</label>
-      <input class="isian" id="in-lupa" placeholder="mis. siswa01"
+      <!-- v1.18.1 — placeholder akun seed dibuang; lihat catatan pada
+           isian nama pengguna di atas. -->
+      <input class="isian" id="in-lupa"
              autocapitalize="off" spellcheck="false">
       <span class="bantuan">
         Permintaan akan diteruskan ke guru. Anda akan diberi

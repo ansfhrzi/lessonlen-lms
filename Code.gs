@@ -8,7 +8,7 @@
  */
 
 var APP_NAMA  = 'LessonLen';
-var APP_VERSI = '1.18.0';
+var APP_VERSI = '1.18.1';
 
 /**
  * Ikon aplikasi — SATU tempat untuk seluruh layar (v1.15.6).
@@ -5421,6 +5421,18 @@ function cekBerkasUI() {
      'server sudah menolak akun yang tidak ada/nonaktif, tetapi ' +
      'layar tetap menampilkan "Permintaan Diterima" — murid menunggu ' +
      'permintaan yang tidak pernah terkirim'],
+
+    /* ---- placeholder siswa01 dibuang, v1.18.1 ----
+       Perubahan ini MENGHAPUS teks, jadi tidak ada string baru yang
+       bisa dijadikan penanda kecuali komentarnya. Penanda berbasis
+       komentar memang rapuh — bisa terhapus tanpa mengubah perilaku
+       (pelajaran v1.12.7). Diterima di sini karena akibatnya kecil:
+       placeholder kembali muncul, bukan layar yang rusak. */
+    ['v_login', 'placeholder berisi nama akun seed DIBUANG', '1.18.1',
+     'layar masuk masih mengiklankan nama akun seed — akun nyata ' +
+     'bersandi baku yang terlihat oleh siapa pun tanpa login'],
+    ['js_kelola', 'placeholder akun seed dibuang', '1.18.1',
+     'form Murid Baru masih memakai nama akun seed sebagai contoh'],
 
     ['js_menu', 'Menu.ringkas', '1.15.7',
      'kartu Kelola Kelas menampilkan "undefined murid / undefined ' +
