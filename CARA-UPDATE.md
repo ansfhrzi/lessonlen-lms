@@ -4,7 +4,7 @@ Panduan singkat setiap kali ada berkas yang berubah.
 
 ---
 
-## Pembaruan Terkini — v1.18.3
+## Pembaruan Terkini — v1.18.4
 
 ### 🔴 MENDASAK: fungsi editor terkunci?
 

@@ -11536,7 +11536,90 @@ dihapus, dan klien melompati kunci bagian.
 
 ---
 
+## v1.18.4 — Kelas baru tidak muncul sampai halaman dimuat ulang
+
+**Laporan guru:** *"saat saya membuat kelas baru, di UI belum muncul
+kelas baru, saat saya refresh baru muncul kelas baru."*
+
+### Bukan cache yang lupa dibuang
+
+Dugaan pertama saya salah dan perlu dicatat: `Db.tambah()` **sudah**
+memanggil `invalidasi(nama)` (`Db.gs:796`), dan klien **sudah**
+memanggil `bataliMenuKelas()` setelah menyimpan. Keduanya ada. Yang
+salah adalah **urutannya**.
+
+```js
+callApi('simpanKelas', [p], …)
+  .then(function (r) {
+    _panelKotor = false;
+    tutupPanel(true);                       /* ← router() → gambar layar */
+    if (typeof bataliMenuKelas === 'function') bataliMenuKelas();  /* ← TERLAMBAT */
+    toast(…);
+  });
+```
+
+`tutupPanel(true)` menjalankan `router()`, yang langsung memanggil
+`daftarKelasBersama()` **tanpa** `paksa`. Saat itu `Menu.kelas` masih
+berisi daftar lama dan umurnya belum lewat `UMUR_MENU_KELAS` (5 menit,
+`js_menu.html:47`), jadi layar digambar dari cache basi. Baru
+sesudahnya cache dibuang — sudah tidak ada yang membacanya lagi.
+
+Refresh menyembuhkannya karena halaman dimuat dari nol dan `Menu.kelas`
+mulai dari `null`.
+
+### Kenapa hanya "membuat" yang terasa rusak
+
+| Aksi | Urutan | |
+|---|---|---|
+| buat / ubah kelas (`formKelas`) | render → batali | ❌ |
+| duplikat kelas (`panelDuplikat`) | render → batali | ❌ |
+| hapus kelas (`hapusKelasKonfirmasi`) | batali → render | ✅ |
+
+`hapusKelas()` sudah benar sejak awal. Itu sebabnya menghapus kelas
+langsung terlihat, tetapi membuat tidak — dan kenapa bug duplikat
+belum pernah dilaporkan: menduplikat jauh lebih jarang daripada
+membuat kelas.
+
+Dua pemanggil lain di `js_core.html:78` dan `:659` juga sudah benar —
+keduanya jalur keluar, invalisasi sebelum `router()`.
+
+### Perbaikan
+
+Dua baris ditukar di `formKelas()` dan `panelDuplikat()`. Aturannya
+ditulis di komentar: **buang dulu, gambar kemudian.**
+
+### Uji
+
+7 pemeriksaan (`/tmp/uji/urut.js`), dua lapis:
+
+**Statis** — pada `js_kelola.html` yang benar-benar dikirim, komentar
+dibuang lebih dulu (teks penjelasan menyebut nama kedua fungsi dan
+akan ikut terhitung), lalu tiap fungsi sasaran dipotong dan dipastikan
+`bataliMenuKelas` muncul sebelum `tutupPanel(true)`/`router()`.
+Ketiganya terperiksa.
+
+**Eksekusi** — `daftarKelasBersama()` dan `bataliMenuKelas()` **asli**
+dari `js_menu.html` dijalankan di atas mock. Ini yang membuktikan
+urutan memang menentukan hasil, bukan sekadar gaya:
+
+- urutan salah → **1 kelas** (cache basi)
+- urutan benar → **2 kelas**, dan kelas barunya ada di hasilnya
+
+Dibuktikan merah dua kali. Sabotase kedua **sempat tidak menggigit** —
+saya membuang `Menu.kelas = null` tetapi `Menu.diisi = 0` saja sudah
+cukup memaksa muat ulang, jadi perilaku tidak berubah dan uji lolos
+dengan sah. Diulang dengan melumpuhkan keduanya (2 gagal). Sabotase
+pertama: urutan dikembalikan (1 gagal).
+
+### Berkas
+
+`js_kelola.html` · `Code.gs` (versi + 1 penanda). **Tanpa perubahan
+`.gs` berperilaku, tanpa migrasi.**
+
+---
+
 ## v1.18.3 — 🔴 Penjaga editor memblokir guru dari editornya sendiri
+
 
 **Laporan guru:**
 
@@ -12141,6 +12224,7 @@ menggigit dengan membuang tombolnya.
 | 0.1.0 | 1 | `Setup.gs` — 14 sheet + seed PKPJ |
 | 0.2.0 | 2 | `Db` `Util` `Auth` `Code` + login, sesi, reset kata sandi |
 | 0.3.0 | 3 | `Notif` `Beranda` `js_beranda` + dashboard, unlock logic, MathJax |
+| 1.18.4 | 🔄 **kelas baru tak muncul sampai refresh** | `js_kelola` `Code` — bukan cache lupa dibuang: `tutupPanel(true)` menggambar layar SEBELUM `bataliMenuKelas()`; dua baris ditukar di `formKelas` & `panelDuplikat`; `hapusKelas` sudah benar sejak awal; diuji statis + eksekusi kode asli |
 | 1.18.3 | 🔴 **penjaga editor mengunci guru** | `Util` `Code` — regresi f2959b1: 25 fungsi admin tak bisa dijalankan dari editor karena `getActiveUser()` bisa kosong; ditambah saklar `IZIN_EDITOR` yang dipasang guru tanpa menjalankan kode; pesan error kini menjelaskan jalan keluar; aplikasi murid tidak terpengaruh (diverifikasi) |
 | 1.18.2 | ⛔ **v1.18.0 dibatalkan** | `Auth` `js_auth` `Code` — atas keputusan guru; `ajukanReset()` dikembalikan byte-per-byte ke v1.17.1; jalan buntu senyap & baris yatim diterima kembali demi menghindari oracle username; v1.18.1 tetap berlaku |
 | 1.18.1 | 🔴 **layar masuk mengiklankan akun seed** | `v_login` `js_kelola` `Code` — placeholder `siswa01` dibuang dari 3 tempat; akun seed itu nyata, bersandi `siswa123`, `harus_ganti_password: false`; nama akun tidak diulang di komentar HTML karena komentar tetap terkirim; **`cekKesehatan()` masih belum memeriksa seed yang tersisa** |

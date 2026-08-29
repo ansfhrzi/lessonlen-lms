@@ -8,7 +8,7 @@
  */
 
 var APP_NAMA  = 'LessonLen';
-var APP_VERSI = '1.18.3';
+var APP_VERSI = '1.18.4';
 
 /**
  * Ikon aplikasi — SATU tempat untuk seluruh layar (v1.15.6).
@@ -5422,6 +5422,16 @@ function cekBerkasUI() {
      'bersandi baku yang terlihat oleh siapa pun tanpa login'],
     ['js_kelola', 'placeholder akun seed dibuang', '1.18.1',
      'form Murid Baru masih memakai nama akun seed sebagai contoh'],
+
+    /* ---- urutan bataliMenuKelas, v1.18.4 ----
+       Perubahannya MENUKAR dua baris, jadi tidak ada string perilaku
+       baru — penandanya komentar, dengan kerapuhan yang sama seperti
+       v1.18.1. Yang menjaga substansinya adalah /tmp/uji/urut.js,
+       yang memeriksa urutan pada sumber yang benar-benar dikirim. */
+    ['js_kelola', 'v1.18.4 — URUTAN DIPERBAIKI', '1.18.4',
+     'kelas yang baru dibuat atau diduplikat TIDAK MUNCUL sampai ' +
+     'halaman dimuat ulang — layar tergambar dari cache daftar kelas ' +
+     'yang belum sempat dibuang'],
 
     ['js_menu', 'Menu.ringkas', '1.15.7',
      'kartu Kelola Kelas menampilkan "undefined murid / undefined ' +
