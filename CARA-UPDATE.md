@@ -4,7 +4,7 @@ Panduan singkat setiap kali ada berkas yang berubah.
 
 ---
 
-## Pembaruan Terkini — v1.18.5
+## Pembaruan Terkini — v1.19.0
 
 ### 🔴 MENDASAK: fungsi editor terkunci?
 
@@ -28,31 +28,38 @@ Saklar ini sengaja dirancang agar bisa dipasang **tanpa menjalankan
 kode**, karena justru kode itulah yang sedang diblokir.
 
 
-### Langkah 1 — Salin 9 berkas
+### Langkah 1 — Salin 4 berkas
+
+Rilis v1.19.0 (pramuat materi) mengubah:
 
 | Berkas | Jenis di editor |
 |---|---|
-| `Setup.gs` | Script |
-| `Auth.gs` | Script |
-| `Kelas.gs` | Script |
+| `Belajar.gs` | Script |
 | `Code.gs` | Script |
-| `js_auth.html` | HTML |
-| `js_kelola.html` | HTML |
-| `Util.gs` | Script |
+| `js_belajar.html` | HTML |
 | `js_core.html` | HTML |
-| `v_login.html` | HTML |
 
 Buka tiap berkas → `Ctrl+A` → tempel isi baru → `Ctrl+S`.
 
-> ⚠️ **`js_auth` dan `v_login` wajib tersalin BERSAMA.**
-> Bila `v_login` tertinggal, tombolnya tidak ada — murid tetap harus
-> bertemu guru, tidak ada yang rusak. Bila `js_auth` yang tertinggal,
-> tombolnya **ADA tetapi tidak melakukan apa-apa** — murid mengira
-> sudah meminta lalu menunggu. Yang kedua jauh lebih buruk.
+> ⚠️ **`Belajar.gs` dan `js_belajar.html` wajib tersalin BERSAMA.**
+> Bila `js_belajar.html` tertinggal, tidak ada yang rusak — murid
+> membaca seperti sebelumnya, hanya tetap menunggu tiap bagian. Bila
+> `Belajar.gs` yang tertinggal, `pramuatMateriPokok` tidak ada; klien
+> gagal memuat lalu **otomatis kembali ke jalur lama**, jadi murid
+> tetap bisa membaca. Kedua arah aman, tetapi pramuatnya belum jalan
+> sebelum keduanya tersalin.
 
-> ⚠️ **`Setup.gs` memuat tambalan keamanan.** Tanpa berkas ini, murid
-> yang paham `google.script.run` bisa membuat akun guru untuk dirinya
-> sendiri. Rinciannya di `PERUBAHAN.md` bagian v1.17.1.
+> ⚠️ **`Belajar.gs` juga memuat perbaikan keamanan** — penjaga kunci
+> kini ikut dipasang di jalur penulisan progres (`tandaiBagianSelesai`),
+> bukan hanya di jalur baca. Tanpa berkas ini, murid yang memanggil
+> fungsi itu langsung bisa menandai pertemuan terkunci sebagai selesai.
+> Rinciannya di `PERUBAHAN.md` bagian v1.19.0.
+
+> ⚠️ **Bila Anda belum menyalin sejak v1.17.1 atau lebih awal,** rilis
+> itu memuat `Setup.gs`, `Auth.gs`, `Util.gs`, `Kelas.gs`, `js_auth.html`,
+> `v_login.html`, dan `js_kelola.html`. Salin yang tertinggal lebih dulu —
+> daftarnya ada di `PERUBAHAN.md`. Peringatan khususnya: `js_auth` dan
+> `v_login` wajib bersama, dan `Setup.gs` memuat tambalan keamanan.
 
 ### Langkah 2 — Tidak ada migrasi
 

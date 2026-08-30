@@ -8,7 +8,24 @@
  *
  *  ATURAN KEAMANAN:
  *   - seluruh pengecekan kunci dilakukan di SERVER
- *   - konten item terkunci TIDAK PERNAH dikirim ke klien
+ *   - konten QUIZ yang terkunci TIDAK PERNAH dikirim ke klien
+ *     (kunci jawaban & peta acak opsi ikut di dalamnya)
+ *
+ *  🔴 v1.19.0 — pengecualian untuk MATERI, atas keputusan guru.
+ *  Materi dalam satu materi pokok dipramuat seluruhnya, termasuk yang
+ *  masih terkunci, supaya murid tidak memuat bagian satu per satu.
+ *  Guru memutuskan ini setelah diberitahu bahwa murid bisa membaca
+ *  materi terkunci lewat DevTools: "gakpapa murid membuka di devtool,
+ *  tidak masalah."
+ *
+ *  Yang berubah adalah KERAHASIAAN konten materi, bukan penegakan
+ *  urutannya. Urutan tetap dijaga server di `tandaiBagianSelesai()`,
+ *  dan sejak v1.19.0 penjaga kunci `_statusBukaItem()` juga dipasang
+ *  di sana — sebelumnya hanya ada di jalur baca, yang tidak lagi
+ *  dilalui alur normal.
+ *
+ *  Lihat `pramuatMateriPokok()` untuk rincian dan untuk bedanya
+ *  dengan v1.16.0 yang dibatalkan.
  * ============================================================
  */
 
@@ -669,9 +686,81 @@ var Belajar = (function () {
   /* ==================================================== BUKA MATERI */
 
   /**
+   * Status kunci satu item untuk murid ini — unlock dua tingkat.
+   *
+   * v1.19.0: DIPISAH dari `bukaMateri()` supaya `tandaiBagianSelesai()`
+   * memakai pemeriksaan yang SAMA PERSIS.
+   *
+   * 🔴 CELAH YANG DITUTUP. Sebelum ini, penjaga kunci hanya ada di
+   * `bukaMateri()`. `tandaiBagianSelesai()` — tempat progres benar-benar
+   * DITULIS — hanya memeriksa enroll, status publish, durasi minimum,
+   * dan urutan bagian. Artinya murid yang memanggil
+   * `google.script.run.tandaiBagianSelesai(…)` langsung, tanpa membuka
+   * materinya lebih dulu, bisa menandai pertemuan yang masih terkunci
+   * sebagai selesai. Celah itu sudah ada sebelum v1.19.0, tetapi
+   * tersembunyi karena alur normal selalu lewat `bukaMateri()` dulu.
+   *
+   * Begitu materi dipramuat (v1.19.0), `bukaMateri()` tidak lagi
+   * dipanggil di alur normal — jadi celah yang tadinya laten akan
+   * menjadi tidak terjaga sama sekali. Karena itu penjaga ini WAJIB
+   * ikut dipasang di jalur tulis, bukan hanya di jalur baca.
+   *
+   * @returns {object} { terbuka, alasan, pertemuan, dipaksa }
+   */
+  function _statusBukaItem(item, pertemuan, petaProg) {
+    var semuaPtm = _bacaPtm();
+    var semuaItem = Db.bacaKolom('item',
+      ['item_id','pertemuan_id','kelas_id','tipe','urutan','wajib','status']);
+    var daftar = _ratakan(_statusMateriPokok(pertemuan.kelas_id, petaProg,
+                                             _bacaMp(), semuaPtm, semuaItem));
+
+    var ptmIni = null;
+    daftar.forEach(function (d) {
+      if (d.pertemuan_id === item.pertemuan_id) ptmIni = d;
+    });
+
+    /* Item yang DIBUKA PAKSA guru menembus kunci pertemuan.
+       Tanpa ini pembukaan jadi sia-sia: guru menekan tombol, murid
+       tetap ditolak, dan tidak ada yang tahu sebabnya. Kasus
+       tersering justru inilah — murid tertinggal SATU PERTEMUAN
+       penuh, jadi pertemuannya pasti masih terkunci (v1.8.0). */
+    var prIni = petaProg[item.item_id];
+    var dipaksa = !!(prIni && prIni.dibuka_paksa === true);
+
+    /* --- unlock tingkat 1: pertemuan --- */
+    if (!dipaksa && (!ptmIni || !ptmIni.terbuka)) {
+      return { terbuka: false, alasan: 'Pertemuan ini masih terkunci.',
+               pertemuan: ptmIni, dipaksa: dipaksa };
+    }
+
+    /* --- unlock tingkat 2: item di dalam pertemuan --- */
+    var itemPtm = semuaItem.filter(function (i) {
+      return i.pertemuan_id === item.pertemuan_id;
+    });
+    var statusItem = _statusItem(
+      { urut_ketat: pertemuan.urut_ketat === true,
+        terkunci: !(ptmIni && ptmIni.terbuka) }, itemPtm, petaProg);
+
+    var ini = null;
+    statusItem.forEach(function (s) { if (s.item_id === item.item_id) ini = s; });
+    if (!ini || !ini.terbuka) {
+      return { terbuka: false,
+               alasan: ini ? ini.alasan_kunci : 'Materi ini masih terkunci.',
+               pertemuan: ptmIni, dipaksa: dipaksa };
+    }
+
+    return { terbuka: true, alasan: '', pertemuan: ptmIni, dipaksa: dipaksa };
+  }
+
+  /**
    * Ambil satu bagian materi.
    * Konten hanya dikirim bila item benar-benar terbuka DAN bagian
    * yang diminta tidak melompati bagian yang belum dibaca.
+   *
+   * Sejak v1.19.0 ini bukan lagi satu-satunya jalan membaca materi —
+   * lihat `pramuatMateriPokok()`. Fungsi ini tetap ada sebagai jalan
+   * cadangan bila pramuat gagal, dan tetap menjaga kunci seperti
+   * sebelumnya.
    */
   function bukaMateri(sesi, itemId, bagianKe) {
     var item = Db.cariBarisCache('item', 'item_id', itemId);
@@ -688,42 +777,12 @@ var Belajar = (function () {
 
     var petaProg = _progresMurid(sesi.user_id);
 
-    /* --- unlock tingkat 1 --- */
-    var semuaPtm = _bacaPtm();
-    var semuaItem = Db.bacaKolom('item',
-      ['item_id','pertemuan_id','kelas_id','tipe','urutan','wajib','status']);
-    var daftar = _ratakan(_statusMateriPokok(p.kelas_id, petaProg, _bacaMp(),
-                                             semuaPtm, semuaItem));
-    var ptmIni = null;
-    daftar.forEach(function (d) {
-      if (d.pertemuan_id === item.pertemuan_id) ptmIni = d;
-    });
-    /* Item yang DIBUKA PAKSA guru menembus kunci pertemuan.
-       Tanpa ini pembukaan jadi sia-sia: guru menekan tombol, murid
-       tetap ditolak, dan tidak ada yang tahu sebabnya. Kasus
-       tersering justru inilah — murid tertinggal SATU PERTEMUAN
-       penuh, jadi pertemuannya pasti masih terkunci (v1.8.0). */
-    var prIni = petaProg[itemId];
-    var dipaksa = !!(prIni && prIni.dibuka_paksa === true);
-
-    if (!dipaksa && (!ptmIni || !ptmIni.terbuka)) {
-      throw _err('ITEM_TERKUNCI', 'Pertemuan ini masih terkunci.');
-    }
-
-    /* --- unlock tingkat 2 --- */
-    var itemPtm = semuaItem.filter(function (i) {
-      return i.pertemuan_id === item.pertemuan_id;
-    });
-    var statusItem = _statusItem(
-      { urut_ketat: p.urut_ketat === true,
-        terkunci: !(ptmIni && ptmIni.terbuka) }, itemPtm, petaProg);
-
-    var ini = null;
-    statusItem.forEach(function (s) { if (s.item_id === itemId) ini = s; });
-    if (!ini || !ini.terbuka) {
-      throw _err('ITEM_TERKUNCI',
-        ini ? ini.alasan_kunci : 'Materi ini masih terkunci.');
-    }
+    /* v1.19.0 — penjaga kunci dipindah ke `_statusBukaItem()` supaya
+       `tandaiBagianSelesai()` memakai pemeriksaan yang SAMA PERSIS.
+       Lihat catatan di fungsi itu untuk celah yang ditutup. */
+    var buka = _statusBukaItem(item, p, petaProg);
+    if (!buka.terbuka) throw _err('ITEM_TERKUNCI', buka.alasan);
+    var ptmIni = buka.pertemuan;
 
     /* --- validasi nomor bagian --- */
     var total = Math.max(1, Util.hitungBagian(item.konten));
@@ -806,6 +865,153 @@ var Belajar = (function () {
     };
   }
 
+  /**
+   * v1.19.0 — pramuat seluruh materi dalam SATU materi pokok.
+   *
+   * Permintaan guru: "untuk klik materi pokok saja, semua materi
+   * terdownload tapi tetap di lock sesuai urutan. jadi saat siswa
+   * membaca materi tidak perlu memuat materi satu persatu."
+   *
+   * ─────────────────────────────────────────────────────────────
+   * BEDANYA DENGAN v1.16.0 YANG DIBATALKAN
+   *
+   * v1.16.0 juga mengirim seluruh bagian sekaligus, dan GAGAL — bukan
+   * karena pramuatnya, tetapi karena kliennya berhenti memanggil
+   * `tandaiBagianSelesai()` untuk bagian tengah. Server menyimpan
+   * `bagian_terakhir` dan menolak lompatan, jadi panggilan bagian
+   * terakhir ditolak `ITEM_TERKUNCI` dan materi tidak pernah selesai.
+   *
+   * Yang berbeda di sini: **penandaan per bagian TETAP dikirim.**
+   * Yang dihemat hanya panggilan `bukaMateri()`, bukan pelaporannya.
+   * Itu syarat mutlak, bukan detail — lihat PERUBAHAN.md v1.16.1.
+   *
+   * ─────────────────────────────────────────────────────────────
+   * KUNCI: DIPUTUSKAN GURU, BUKAN KELALAIAN
+   *
+   * Materi yang masih terkunci IKUT dikirim. Guru memutuskan ini
+   * secara sadar setelah diberitahu bahwa murid bisa membacanya lewat
+   * DevTools: "gakpapa murid membuka di devtool, tidak masalah."
+   *
+   * Yang tetap dijaga adalah URUTAN PROGRES, dan itu dijaga di server
+   * pada `tandaiBagianSelesai()` — bukan oleh tidak-adanya konten.
+   * Karena itu `_statusBukaItem()` ikut dipasang di jalur tulis pada
+   * versi yang sama; tanpa itu, kunci tidak terjaga sama sekali.
+   *
+   * Konsekuensinya: kalimat "konten item terkunci TIDAK PERNAH dikirim
+   * ke klien" di header berkas ini tidak lagi berlaku untuk MATERI.
+   * Ia masih berlaku penuh untuk QUIZ (kunci jawaban & peta acak opsi).
+   *
+   * ─────────────────────────────────────────────────────────────
+   * PENYIMPANAN DI KLIEN: MEMORI SAJA
+   *
+   * Sengaja TIDAK memakai sessionStorage. Konten basi ditangani manual
+   * — guru menyuruh murid menyegarkan halaman, karena mengedit materi
+   * di tengah pelajaran jarang terjadi. Itu hanya bekerja bila
+   * penyegarannya benar-benar membuang datanya: sessionStorage SELAMAT
+   * dari refresh (lihat js_nav.html:50, ia dipakai justru untuk itu),
+   * jadi dengan sessionStorage perintah "refresh" tidak menyembuhkan
+   * apa pun dan guru harus menyuruh murid menutup tab.
+   *
+   * @param {Object} sesi  sesi murid (dari _bungkus)
+   * @param {string} mpId  id materi pokok
+   * @returns {Object} daftar materi lengkap dengan seluruh bagiannya
+   */
+  function pramuatMateriPokok(sesi, mpId) {
+    var mp = Db.cariBarisCache('materi_pokok', 'mp_id', mpId);
+    if (!mp || mp.status !== 'publish') {
+      throw _err('TIDAK_DITEMUKAN', 'Materi pokok tidak ditemukan.');
+    }
+    _cekEnroll(sesi.user_id, mp.kelas_id);
+
+    var petaProg = _progresMurid(sesi.user_id);
+
+    /* Pertemuan terbit milik materi pokok ini, untuk judul & urutannya. */
+    var petaPtm = {};
+    Db.saringBaris('pertemuan', 'mp_id', mpId,
+      ['pertemuan_id', 'judul', 'urutan', 'status'])
+      .forEach(function (p) {
+        if (p.status === 'publish') petaPtm[p.pertemuan_id] = p;
+      });
+
+    /* Status kunci dihitung SEKALI untuk seluruh materi pokok, bukan
+       per item — `_statusBukaItem()` membangun ulang seluruh struktur
+       tiap dipanggil, dan memanggilnya puluhan kali di sini akan
+       menghabiskan lebih banyak waktu daripada yang dihemat pramuat. */
+    var semuaPtm = _bacaPtm();
+    var semuaItem = Db.bacaKolom('item',
+      ['item_id','pertemuan_id','kelas_id','tipe','urutan','wajib','status']);
+    var petaBuka = {};
+    _ratakan(_statusMateriPokok(mp.kelas_id, petaProg, _bacaMp(),
+                                semuaPtm, semuaItem))
+      .forEach(function (ptm) {
+        (ptm.item || []).forEach(function (it) {
+          petaBuka[it.item_id] = it.terbuka === true;
+        });
+      });
+
+    /* `item` punya kolom mp_id sendiri, jadi tidak perlu menyaring
+       lewat daftar pertemuan. */
+    var daftar = Db.saringBaris('item', 'mp_id', mpId,
+      ['item_id', 'pertemuan_id', 'mp_id', 'tipe', 'urutan', 'judul',
+       'tujuan_pembelajaran', 'konten', 'wajib', 'min_durasi_detik',
+       'status'])
+      .filter(function (i) {
+        return i.tipe === 'materi' && i.status === 'publish' &&
+               petaPtm[i.pertemuan_id];
+      })
+      .sort(function (a, b) {
+        var pa = Number(petaPtm[a.pertemuan_id].urutan) || 0;
+        var pb = Number(petaPtm[b.pertemuan_id].urutan) || 0;
+        if (pa !== pb) return pa - pb;
+        return (Number(a.urutan) || 0) - (Number(b.urutan) || 0);
+      });
+
+    var materi = daftar.map(function (i) {
+      var pr = petaProg[i.item_id];
+      /* Bagian dipecah di SERVER memakai pemisah yang sama dengan
+         `Util.hitungBagian()`. Klien tidak perlu tahu penanda
+         `<!--bagian-->` — menyalin string itu ke js_belajar.html
+         berarti dua tempat yang harus diubah bila penandanya berubah. */
+      var bagian = Util.semuaBagian(i.konten);
+      return {
+        item_id: i.item_id,
+        pertemuan_id: i.pertemuan_id,
+        pertemuan_judul: petaPtm[i.pertemuan_id].judul,
+        pertemuan_urutan: Number(petaPtm[i.pertemuan_id].urutan) || 0,
+        kelas_id: mp.kelas_id,
+        judul: i.judul,
+        tujuan_pembelajaran: i.tujuan_pembelajaran,
+        wajib: i.wajib === true,
+        min_durasi_detik: Number(i.min_durasi_detik) || 0,
+        bagian: bagian,
+        jml_bagian: bagian.length,
+        bagian_terakhir: pr ? (Number(pr.bagian_terakhir) || 0) : 0,
+        sudah_selesai: !!(pr && pr.status === 'selesai'),
+
+        /* 🔴 KUNCI TETAP DIHORMATI DI LAYAR.
+
+           Kontennya memang ikut terkirim — itu keputusan guru. Tetapi
+           klien hanya merender dari cache bila `terbuka` benar; yang
+           terkunci jatuh ke `bukaMateri()` dan ditolak seperti biasa,
+           sehingga layar "Materi terkunci" tetap muncul.
+
+           Ini yang membuat "semua materi terdownload TAPI tetap di
+           lock sesuai urutan" benar-benar berlaku, bukan sekadar
+           kontennya ada. Dan logika kuncinya tidak disalin ke klien —
+           satu sumber, di server. */
+        terbuka: petaBuka[i.item_id] === true
+      };
+    });
+
+    return {
+      mp_id: mpId,
+      judul: mp.judul,
+      kelas_id: mp.kelas_id,
+      jml_materi: materi.length,
+      materi: materi
+    };
+  }
+
   /* ==================================================== TANDAI SELESAI */
 
   /**
@@ -823,6 +1029,24 @@ var Belajar = (function () {
 
     var p = Db.cariBarisCache('pertemuan', 'pertemuan_id', item.pertemuan_id);
     _cekEnroll(sesi.user_id, p.kelas_id);
+
+    /* 🔴 v1.19.0 — penjaga kunci kini juga ada di jalur TULIS.
+
+       Sebelumnya hanya `bukaMateri()` yang memeriksa kunci, padahal
+       progres ditulis di SINI. Murid yang memanggil fungsi ini
+       langsung — tanpa membuka materinya — bisa menandai pertemuan
+       terkunci sebagai selesai. Celah lama, dulu tersembunyi karena
+       alur normal selalu lewat `bukaMateri()` lebih dulu.
+
+       Menjadi wajib diperbaiki sekarang: sejak v1.19.0 materi
+       dipramuat, jadi `bukaMateri()` tidak lagi dipanggil di alur
+       normal dan celah itu tidak terjaga sama sekali.
+
+       Biayanya netral — perhitungan kunci ini sebelumnya dilakukan
+       `bukaMateri()` sekali per bagian juga. Ia hanya berpindah
+       tempat, bukan bertambah. */
+    var buka = _statusBukaItem(item, p, _progresMurid(sesi.user_id));
+    if (!buka.terbuka) throw _err('ITEM_TERKUNCI', buka.alasan);
 
     var total = Math.max(1, Util.hitungBagian(item.konten));
     var ke = _nomorBagian(bagianKe, total);
@@ -1297,6 +1521,7 @@ var Belajar = (function () {
     daftarPertemuan: daftarPertemuan,
     detailPertemuan: detailPertemuan,
     bukaMateri: bukaMateri,
+    pramuatMateriPokok: pramuatMateriPokok,
     tandaiBagianSelesai: tandaiBagianSelesai,
     unlockPaksa: unlockPaksa,
     kunciMurid: kunciMurid, kunciItem: kunciItem,

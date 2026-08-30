@@ -8,7 +8,7 @@
  */
 
 var APP_NAMA  = 'LessonLen';
-var APP_VERSI = '1.18.5';
+var APP_VERSI = '1.19.0';
 
 /**
  * Ikon aplikasi — SATU tempat untuk seluruh layar (v1.15.6).
@@ -471,6 +471,19 @@ function getDetailPertemuanMurid(token, pertemuanId) {
 function bukaMateri(token, itemId, bagianKe) {
   return _bungkus(token, 'murid', function (sesi) {
     return Belajar.bukaMateri(sesi, itemId, bagianKe);
+  });
+}
+
+/**
+ * v1.19.0 — pramuat seluruh materi dalam satu materi pokok.
+ *
+ * Sengaja TIDAK dimasukkan ke `API_UBAH_KELAS` (js_core.html): fungsi
+ * ini hanya MEMBACA, jadi tidak ada jumlah murid/pertemuan yang
+ * berubah dan cache kartu kelas tidak perlu dibuang.
+ */
+function pramuatMateriPokok(token, mpId) {
+  return _bungkus(token, 'murid', function (sesi) {
+    return Belajar.pramuatMateriPokok(sesi, mpId);
   });
 }
 
@@ -5431,6 +5444,16 @@ function cekBerkasUI() {
     /* ---- kartu kelas diperbarui otomatis, v1.18.5 ----
        Penandanya nama variabel sungguhan, bukan komentar — jadi tidak
        rapuh seperti v1.18.1/v1.18.4. */
+    /* ---- pramuat materi, v1.19.0 ----
+       Keduanya nama fungsi sungguhan di berkas yang dikirim, jadi
+       penandanya tidak rapuh seperti yang berbasis komentar. */
+    ['js_belajar', 'pramuatMateriPokok', '1.19.0',
+     'materi tetap dimuat bagian demi bagian — murid menunggu satu ' +
+     'round-trip tiap pindah bagian, persis keluhan yang memicu v1.19.0'],
+    ['js_core', 'materiReset', '1.19.0',
+     'materi pramuat tidak dibuang saat keluar — murid berikutnya di ' +
+     'perangkat yang sama bisa melihat materi milik murid sebelumnya'],
+
     ['js_core', 'API_UBAH_KELAS', '1.18.5',
      'jumlah murid & pertemuan pada kartu kelas TIDAK BERUBAH setelah ' +
      'menambah murid atau pertemuan, sampai halaman dimuat ulang'],

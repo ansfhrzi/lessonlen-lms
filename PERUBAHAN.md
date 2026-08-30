@@ -11536,7 +11536,119 @@ dihapus, dan klien melompati kunci bagian.
 
 ---
 
+## v1.19.0 — Pramuat materi satu materi pokok
+
+**Permintaan guru:** *"untuk klik materi pokok saja, semua materi
+terdownload tapi tetap di lock sesuai urutan. jadi saat siswa membaca
+materi tidak perlu memuat materi satu persatu, tinggal tandai selesai
+aja yang aktif."*
+
+### Bedanya dengan v1.16.0 yang dibatalkan
+
+v1.16.0 juga mengirim seluruh bagian sekaligus, dan **gagal** — bukan
+karena pramuatnya, tetapi karena kliennya berhenti memanggil
+`tandaiBagianSelesai()` untuk bagian tengah. Server menyimpan
+`bagian_terakhir` dan menolak lompatan, jadi panggilan bagian terakhir
+ditolak `ITEM_TERKUNCI` dan materi tidak pernah bisa selesai.
+
+Yang dihemat di sini **hanya panggilan `bukaMateri()`**. Pelaporan per
+bagian tetap dikirim, dan itu dijaga oleh uji (`uji/materi.js` bagian
+E: melompat ke bagian 3 tetap ditolak, berurutan 1→2→3 tetap berhasil).
+
+### 🔴 Celah lama yang wajib ditutup lebih dulu
+
+Sebelum mengerjakan pramuat, saya menemukan bahwa penjaga kunci hanya
+ada di `bukaMateri()` — jalur **baca**. `tandaiBagianSelesai()` — tempat
+progres benar-benar **ditulis** — hanya memeriksa enroll, status
+publish, durasi minimum, dan urutan bagian. **Tidak** memeriksa kunci
+pertemuan atau item.
+
+Artinya murid yang memanggil `google.script.run.tandaiBagianSelesai(…)`
+langsung, tanpa membuka materinya, bisa menandai pertemuan terkunci
+sebagai selesai. Celah ini **sudah ada sebelum v1.19.0**, tersembunyi
+karena alur normal selalu lewat `bukaMateri()` lebih dulu.
+
+Begitu materi dipramuat, `bukaMateri()` tidak lagi dipanggil di alur
+normal — jadi celah yang laten akan menjadi tidak terjaga sama sekali.
+Karena itu penjaga kunci dipisah jadi `_statusBukaItem()` dan dipasang
+di **kedua** jalur. Biayanya netral: perhitungan kunci ini sebelumnya
+dilakukan `bukaMateri()` sekali per bagian juga, ia hanya berpindah.
+
+Uji membuktikan: materi di pertemuan terkunci **ditolak** saat
+menandai, dan tidak ada baris progres yang tertulis.
+
+### Kunci tetap terasa di layar
+
+Konten materi terkunci **ikut terkirim** — itu keputusan guru, dibuat
+sadar setelah diberitahu bahwa murid bisa membacanya lewat DevTools:
+*"gakpapa murid membuka di devtool, tidak masalah."*
+
+Tetapi klien **tidak merendernya**. `materiAmbil()` mengembalikan null
+untuk item yang `terbuka: false`, sehingga pemanggil jatuh ke
+`bukaMateri()` dan ditolak seperti biasa — layar "Materi terkunci"
+tetap muncul. Jadi "semua terdownload **tapi** tetap di lock" benar
+berlaku, bukan sekadar kontennya ada. Dan logika kuncinya tidak
+disalin ke klien: satu sumber, di server.
+
+`Belajar.gs` baris 11 diubah: *"konten item terkunci TIDAK PERNAH
+dikirim ke klien"* kini berlaku untuk **quiz**, dengan pengecualian
+materi yang dijelaskan di tempat.
+
+### Penyimpanan: memori saja
+
+Bukan sessionStorage, dan itu bukan kebetulan. Konten basi ditangani
+manual — guru menyuruh murid menyegarkan halaman. Itu hanya bekerja
+bila penyegarannya membuang datanya, dan sessionStorage **selamat dari
+refresh** (`js_nav.html:50` memakainya justru untuk itu). Dengan
+sessionStorage, perintah "refresh" tidak menyembuhkan apa pun dan guru
+harus menyuruh murid menutup tab.
+
+Konsekuensinya: tanpa TTL, tanpa kuota, tanpa yang perlu dibersihkan —
+kecuali saat keluar, lewat `materiReset()` di kedua jalur keluar.
+
+### Gagal = kembali ke jalur lama
+
+Pramuat berjalan di latar dan tidak ditunggu. Bila gagal, `mpId`
+dikosongkan dan murid membaca lewat `bukaMateri()` seperti sebelumnya.
+Tidak ada keadaan di mana murid kehilangan akses karena pramuat.
+
+### Berkas
+
+`Belajar.gs` (`_statusBukaItem`, `pramuatMateriPokok`, penjaga di jalur
+tulis) · `Code.gs` (API + versi + 2 penanda) · `js_belajar.html`
+(cache memori) · `js_core.html` (`materiReset` di jalur keluar) ·
+`uji/materi.js` (baru). **Tanpa migrasi.**
+
+### Uji
+
+34 pemeriksaan, `Belajar.gs` asli di atas mock Db:
+
+- pramuat: hanya tipe materi & publish; konten dipecah di server;
+  konten mentah tidak ikut; materi kosong tetap 1 bagian
+- penolakan: murid tak terdaftar, mp draf, mp tak dikenal
+- status kunci: pertemuan pertama terbuka, kedua terkunci, kontennya
+  tetap ada
+- **`detailPertemuan` benar-benar mengirim `mp_id`** — tanpa ini pramuat
+  tidak pernah terpicu dan fitur ini mati tanpa suara
+- **penjaga jalur tulis: materi terkunci ditolak, nol progres tertulis**
+- regresi v1.16.1: lompat bagian ditolak, 1→2→3 berhasil, durasi minimum
+- klien: item terkunci tidak dilayani, bentuk setara `bukaMateri()`,
+  progres ikut maju, `materiReset()` mengosongkan
+
+Dibuktikan merah tiga kali: penjaga jalur tulis dibuang (2 gagal),
+klien melayani item terkunci (1), pramuat tidak menyaring quiz (2).
+
+### Yang belum terverifikasi
+
+Tidak ada deployment Apps Script di lingkungan ini, jadi **perilaku di
+peramban sungguhan belum diuji** — termasuk apakah pramuat benar-benar
+terasa lebih cepat. Yang teruji adalah logika server dan fungsi klien
+yang dipotong dari berkas yang dikirim.
+
+---
+
 ## v1.18.5 — Jumlah murid & pertemuan di kartu kelas tidak diperbarui
+
 
 **Laporan guru:** *"waktu menambahkan murid dan tambah pertemuan,
 informasi jumlah murid dan jumlah pertemuan pada card kelas pada kelola
@@ -12334,6 +12446,7 @@ menggigit dengan membuang tombolnya.
 | 0.1.0 | 1 | `Setup.gs` — 14 sheet + seed PKPJ |
 | 0.2.0 | 2 | `Db` `Util` `Auth` `Code` + login, sesi, reset kata sandi |
 | 0.3.0 | 3 | `Notif` `Beranda` `js_beranda` + dashboard, unlock logic, MathJax |
+| 1.19.0 | ⚡ **pramuat materi satu bab** | `Belajar` `Code` `js_belajar` `js_core` `uji/` — seluruh materi materi pokok dimuat sekali, murid tidak menunggu tiap bagian; kunci tetap terasa di layar walau konten terkunci ikut terkirim (keputusan guru); **menutup celah lama**: penjaga kunci kini juga di jalur TULIS; pelaporan per bagian TETAP ada (yang membunuh v1.16.0) |
 | 1.18.5 | 🔢 **jumlah murid/pertemuan di kartu basi** | `js_core` `Code` `uji/` — 7 aksi pengubah isi kelas tidak pernah membuang `Menu.kelas`; dipasang terpusat di `callApi()` lewat `API_UBAH_KELAS`, bukan ditambal per-handler; klaim urutan saya dikoreksi sabotase; uji pindah ke `uji/` karena `/tmp` hilang |
 | 1.18.4 | 🔄 **kelas baru tak muncul sampai refresh** | `js_kelola` `Code` — bukan cache lupa dibuang: `tutupPanel(true)` menggambar layar SEBELUM `bataliMenuKelas()`; dua baris ditukar di `formKelas` & `panelDuplikat`; `hapusKelas` sudah benar sejak awal; diuji statis + eksekusi kode asli |
 | 1.18.3 | 🔴 **penjaga editor mengunci guru** | `Util` `Code` — regresi f2959b1: 25 fungsi admin tak bisa dijalankan dari editor karena `getActiveUser()` bisa kosong; ditambah saklar `IZIN_EDITOR` yang dipasang guru tanpa menjalankan kode; pesan error kini menjelaskan jalan keluar; aplikasi murid tidak terpengaruh (diverifikasi) |

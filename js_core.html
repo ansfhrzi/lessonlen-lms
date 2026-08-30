@@ -168,6 +168,9 @@ function callApi(fn, args, opsi) {
           /* jalur keluar KEDUA (sesi kedaluwarsa) — sama seperti
              keluarAkun(), keadaan sidebar wajib ikut dibuang */
           if (typeof navReset === 'function') navReset();
+          /* v1.19.0 — materi pramuat juga di memori; murid berikutnya
+             di perangkat yang sama tidak boleh melihatnya */
+          if (typeof materiReset === 'function') materiReset();
           /* Daftar kelas di sidebar menu ikut dibuang — kalau tidak,
              guru berikutnya di perangkat yang sama melihat kelas
              milik yang lama (v1.13.0). */
@@ -749,6 +752,8 @@ function keluarAkun() {
           /* keadaan sidebar hidup di memori — buang juga, agar
              pengguna berikutnya tidak melihat indeks milik yang lama */
           if (typeof navReset === 'function') navReset();
+          /* v1.19.0 — begitu juga materi yang dipramuat */
+          if (typeof materiReset === 'function') materiReset();
           /* Daftar kelas di sidebar menu ikut dibuang — kalau tidak,
              guru berikutnya di perangkat yang sama melihat kelas
              milik yang lama (v1.13.0). */
