@@ -11536,7 +11536,117 @@ dihapus, dan klien melompati kunci bagian.
 
 ---
 
+## v1.18.5 — Jumlah murid & pertemuan di kartu kelas tidak diperbarui
+
+**Laporan guru:** *"waktu menambahkan murid dan tambah pertemuan,
+informasi jumlah murid dan jumlah pertemuan pada card kelas pada kelola
+kelas tidak meng-update. 👥 2 murid 📅 10 pertemuan. di tekan refresh
+dulu baru berubah."*
+
+### Akarnya sama dengan v1.18.4, tetapi lebih dalam
+
+Angka di kartu kelas berasal dari `getDaftarKelas`, yang disimpan di
+`Menu.kelas` selama `UMUR_MENU_KELAS` (5 menit, `js_menu.html:47`).
+**Tujuh aksi yang mengubah isi kelas tidak pernah membuangnya:**
+
+| Berkas | Aksi | Yang dilakukan handler |
+|---|---|---|
+| `js_kelola.html:1129` | `simpanMurid` | `tutupPanel(false)` + `router()` |
+| `js_kelola.html:656` | `imporMurid` | `tutupPanel(true)` |
+| `js_kelola.html:555` | `enrollMurid` | `tandaiPanelKotor()` |
+| `js_kelola.html:442` | `keluarkanMurid` | `tandaiPanelKotor()` |
+| `js_editor.html:507` | `simpanPertemuan` | `layarPertemuan(…, true)` |
+| `js_editor.html:524` | `hapusPertemuan` | `layarPertemuan(…, true)` |
+| `js_editor.html:581` | `salinPertemuan` | `layarPertemuan(…, true)` |
+
+`enrollMurid` bahkan sudah punya komentar *"jumlah murid di kartu kelas
+berubah"* dan memanggil `tandaiPanelKotor()`. Tidak menolong:
+`tutupPanel(true)` hanya **menggambar ulang**; yang dibaca tetap
+`daftarKelasBersama()`, yang mengembalikan cache. **Menandai halaman
+perlu disegarkan tidak ada gunanya bila penyegaran itu membaca data
+yang sama.**
+
+### Kenapa tidak ditambal di tujuh tempat itu
+
+Karena itulah yang sudah terjadi tiga kali — v1.18.4 menambal dua
+tempat, sekarang ketemu tujuh. Aksi ke-delapan akan melupakannya lagi.
+
+Dipasang terpusat di `callApi()`:
+
+```js
+var API_UBAH_KELAS = {
+  simpanKelas:1, duplikatKelas:1, hapusKelas:1,
+  simpanMurid:1, imporMurid:1, enrollMurid:1, keluarkanMurid:1,
+  simpanPertemuan:1, hapusPertemuan:1, salinPertemuan:1
+};
+```
+
+Bila menambah API baru yang mengubah murid/pertemuan/kelas, tambahkan
+namanya di satu daftar itu. Tidak ada tempat lain yang perlu disentuh.
+
+### Klaim saya sendiri yang dikoreksi oleh sabotase
+
+Saya menulis bahwa jaminan urutannya berasal dari pembatalan dipasang
+**sebelum** `resolve()`. **Salah.** Sabotase membuktikan: memindahkannya
+ke sesudah `resolve()` tidak mengubah hasil sama sekali.
+
+| Sabotase | Hasil | Kenapa |
+|---|---|---|
+| dipindah sesudah `resolve()` | tidak berubah | keduanya sinkron |
+| ditunda `Promise.resolve().then(…)` | tidak berubah | mikro-task FIFO |
+| ditunda `setTimeout(…, 0)` | **merah, 11 gagal** | makro-task belakangan |
+
+Alasan yang benar: `resolve()` hanya **menjadwalkan** mikro-task, tidak
+menjalankannya; seluruh isi `withSuccessHandler` selesai lebih dulu
+secara sinkron. Yang benar-benar dilarang hanya menundanya ke
+makro-task. Komentar di kode sudah diluruskan.
+
+### Biaya, terbuka
+
+`getDaftarKelas` ≈ 3,0 detik dan `getStrukturKelas` ≈ 3,6 detik (log
+lapangan 24 Agu 2026, `js_menu.html:6-12`). Setiap aksi di daftar itu
+membuat sidebar memanggil keduanya lagi. Itu harga angka yang benar —
+dan persis biaya yang sudah dibayar guru saat menekan refresh manual.
+
+`pindahPertemuan` **sengaja tidak ikut**: server membatasinya pada satu
+kelas (`Pertemuan.gs:286-289`), jadi jumlah di kartu tidak berubah dan
+3 detik itu akan terbuang percuma.
+
+### 🔴 Uji pindah ke dalam repo
+
+Seluruh suite uji selama ini hidup di `/tmp/uji/`, dan **`/tmp` tidak
+dipertahankan antar sesi** — semuanya hilang. Mulai versi ini uji
+disimpan di `uji/` supaya tidak perlu ditulis ulang, dan supaya bisa
+dijalankan siapa pun dengan `node uji/<nama>.js` tanpa dependensi.
+
+Suite server (`run.js`, `run2.js`, `reset.js`, `penjaga.js`, `editor.js`)
+**belum dibangun ulang** — harness-nya ikut hilang. Kode server tidak
+berubah di versi ini kecuali nomor versi dan satu penanda.
+
+### Uji
+
+18 pemeriksaan (`uji/kartu.js`), menjalankan `callApi()` **asli** dari
+`js_core.html` di atas `bataliMenuKelas()` **asli** dari `js_menu.html`:
+
+- 10 aksi pengubah isi kelas → cache dibuang
+- 6 aksi lain (`pindahPertemuan`, `getDaftarKelas`, …) → cache utuh
+- `res.ok = false` → cache tidak dibuang
+- **saat handler berjalan, cache sudah null** — jaminan urutannya
+
+Dibuktikan merah: `simpanMurid` dikeluarkan dari daftar (2 gagal),
+pembatalan ditunda `setTimeout` (11 gagal). Sabotase penundaan sempat
+**tidak tertangkap** karena mock tidak menyediakan `setTimeout` sehingga
+kode crash — celah harness, bukan uji lolos; diperbaiki dulu.
+
+### Berkas
+
+`js_core.html` · `Code.gs` (versi + 1 penanda) · `uji/kartu.js` (baru).
+**Tanpa perubahan `.gs` berperilaku, tanpa migrasi.**
+
+---
+
 ## v1.18.4 — Kelas baru tidak muncul sampai halaman dimuat ulang
+
 
 **Laporan guru:** *"saat saya membuat kelas baru, di UI belum muncul
 kelas baru, saat saya refresh baru muncul kelas baru."*
@@ -12224,6 +12334,7 @@ menggigit dengan membuang tombolnya.
 | 0.1.0 | 1 | `Setup.gs` — 14 sheet + seed PKPJ |
 | 0.2.0 | 2 | `Db` `Util` `Auth` `Code` + login, sesi, reset kata sandi |
 | 0.3.0 | 3 | `Notif` `Beranda` `js_beranda` + dashboard, unlock logic, MathJax |
+| 1.18.5 | 🔢 **jumlah murid/pertemuan di kartu basi** | `js_core` `Code` `uji/` — 7 aksi pengubah isi kelas tidak pernah membuang `Menu.kelas`; dipasang terpusat di `callApi()` lewat `API_UBAH_KELAS`, bukan ditambal per-handler; klaim urutan saya dikoreksi sabotase; uji pindah ke `uji/` karena `/tmp` hilang |
 | 1.18.4 | 🔄 **kelas baru tak muncul sampai refresh** | `js_kelola` `Code` — bukan cache lupa dibuang: `tutupPanel(true)` menggambar layar SEBELUM `bataliMenuKelas()`; dua baris ditukar di `formKelas` & `panelDuplikat`; `hapusKelas` sudah benar sejak awal; diuji statis + eksekusi kode asli |
 | 1.18.3 | 🔴 **penjaga editor mengunci guru** | `Util` `Code` — regresi f2959b1: 25 fungsi admin tak bisa dijalankan dari editor karena `getActiveUser()` bisa kosong; ditambah saklar `IZIN_EDITOR` yang dipasang guru tanpa menjalankan kode; pesan error kini menjelaskan jalan keluar; aplikasi murid tidak terpengaruh (diverifikasi) |
 | 1.18.2 | ⛔ **v1.18.0 dibatalkan** | `Auth` `js_auth` `Code` — atas keputusan guru; `ajukanReset()` dikembalikan byte-per-byte ke v1.17.1; jalan buntu senyap & baris yatim diterima kembali demi menghindari oracle username; v1.18.1 tetap berlaku |

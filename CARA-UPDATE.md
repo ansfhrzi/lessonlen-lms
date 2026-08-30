@@ -4,7 +4,7 @@ Panduan singkat setiap kali ada berkas yang berubah.
 
 ---
 
-## Pembaruan Terkini — v1.18.4
+## Pembaruan Terkini — v1.18.5
 
 ### 🔴 MENDASAK: fungsi editor terkunci?
 
@@ -28,7 +28,7 @@ Saklar ini sengaja dirancang agar bisa dipasang **tanpa menjalankan
 kode**, karena justru kode itulah yang sedang diblokir.
 
 
-### Langkah 1 — Salin 8 berkas
+### Langkah 1 — Salin 9 berkas
 
 | Berkas | Jenis di editor |
 |---|---|
@@ -39,6 +39,7 @@ kode**, karena justru kode itulah yang sedang diblokir.
 | `js_auth.html` | HTML |
 | `js_kelola.html` | HTML |
 | `Util.gs` | Script |
+| `js_core.html` | HTML |
 | `v_login.html` | HTML |
 
 Buka tiap berkas → `Ctrl+A` → tempel isi baru → `Ctrl+S`.

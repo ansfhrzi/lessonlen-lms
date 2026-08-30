@@ -8,7 +8,7 @@
  */
 
 var APP_NAMA  = 'LessonLen';
-var APP_VERSI = '1.18.4';
+var APP_VERSI = '1.18.5';
 
 /**
  * Ikon aplikasi — SATU tempat untuk seluruh layar (v1.15.6).
@@ -5428,6 +5428,13 @@ function cekBerkasUI() {
        baru — penandanya komentar, dengan kerapuhan yang sama seperti
        v1.18.1. Yang menjaga substansinya adalah /tmp/uji/urut.js,
        yang memeriksa urutan pada sumber yang benar-benar dikirim. */
+    /* ---- kartu kelas diperbarui otomatis, v1.18.5 ----
+       Penandanya nama variabel sungguhan, bukan komentar — jadi tidak
+       rapuh seperti v1.18.1/v1.18.4. */
+    ['js_core', 'API_UBAH_KELAS', '1.18.5',
+     'jumlah murid & pertemuan pada kartu kelas TIDAK BERUBAH setelah ' +
+     'menambah murid atau pertemuan, sampai halaman dimuat ulang'],
+
     ['js_kelola', 'v1.18.4 — URUTAN DIPERBAIKI', '1.18.4',
      'kelas yang baru dibuat atau diduplikat TIDAK MUNCUL sampai ' +
      'halaman dimuat ulang — layar tergambar dari cache daftar kelas ' +

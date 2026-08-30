@@ -32,6 +32,95 @@ function simpanToken(t) {
  * @param {Object} opsi  { diam, tombol, tanpaToken }
  * @returns {Promise}
  */
+/* ============================================================
+   v1.18.5 — daftar API yang mengubah isi kartu kelas
+   ============================================================
+
+   🔴 DILAPORKAN GURU: "waktu menambahkan murid dan tambah pertemuan,
+   informasi jumlah murid dan jumlah pertemuan pada card kelas di
+   kelola kelas tidak meng-update. 👥 2 murid 📅 10 pertemuan.
+   Di-refresh dulu baru berubah."
+
+   Akarnya sama dengan v1.18.4 tetapi lebih dalam. Angka di kartu
+   kelas berasal dari `getDaftarKelas`, yang disimpan di `Menu.kelas`
+   selama `UMUR_MENU_KELAS` (5 menit, js_menu.html:47). Delapan aksi
+   yang mengubah isi kelas TIDAK PERNAH membuangnya:
+
+       js_kelola.html  simpanMurid      → tutupPanel(false) + router()
+       js_kelola.html  imporMurid       → tutupPanel(true)
+       js_kelola.html  enrollMurid      → tandaiPanelKotor()
+       js_kelola.html  keluarkanMurid   → tandaiPanelKotor()
+       js_editor.html  simpanPertemuan  → layarPertemuan(…, true)
+       js_editor.html  hapusPertemuan   → layarPertemuan(…, true)
+       js_editor.html  salinPertemuan   → layarPertemuan(…, true)
+
+   `enrollMurid` bahkan sudah punya komentar "jumlah murid di kartu
+   kelas berubah" dan memanggil `tandaiPanelKotor()` — tetapi
+   `tutupPanel(true)` hanya MENGGAMBAR ULANG; yang dibaca tetap
+   `daftarKelasBersama()`, yang mengembalikan cache. Menandai halaman
+   perlu disegarkan tidak ada gunanya bila penyegaran itu membaca
+   data yang sama.
+
+   ─────────────────────────────────────────────────────────────
+   KENAPA DIPASANG DI SINI, BUKAN DI DELAPAN TEMPAT ITU
+
+   Menambal delapan pemanggil akan meninggalkan celah yang persis
+   sama untuk aksi ke-9 — itulah yang sudah terjadi tiga kali
+   (v1.18.4 dua tempat, sekarang tujuh).
+
+   Dipasang di dalam `withSuccessHandler` di `callApi()`, dan itu yang
+   menentukan — BUKAN posisinya relatif terhadap `resolve()`.
+
+   Alasan yang sebenarnya: `resolve()` hanya MENJADWALKAN callback
+   `.then()` sebagai mikro-task; ia tidak menjalankannya. Seluruh isi
+   `withSuccessHandler` selesai lebih dulu secara sinkron. Jadi selama
+   pembatalan ini tetap sinkron di dalam handler, ia PASTI mendahului
+   handler mana pun yang menggambar ulang — diletakkan sebelum atau
+   sesudah `resolve()` sama saja.
+
+   Diuji dengan sabotase, bukan diasumsikan:
+     • dipindah ke SESUDAH `resolve()`      → hasil tidak berubah
+       (keduanya sinkron, jadi keduanya mendahului mikro-task)
+     • ditunda `Promise.resolve().then(…)`  → hasil tidak berubah
+       (mikro-task FIFO: dijadwalkan lebih dulu, tetap menang)
+     • ditunda `setTimeout(…, 0)`           → UJI MERAH, 11 gagal
+       (makro-task dijalankan SESUDAH seluruh mikro-task)
+
+   Jadi yang benar-benar dilarang hanyalah menundanya ke makro-task.
+   Kelas bug urutan seperti v1.18.4 tidak mungkin terulang di sini:
+   tidak ada urutan antar-handler yang bisa salah.
+
+   ─────────────────────────────────────────────────────────────
+   BIAYANYA, TERBUKA
+
+   `getDaftarKelas` ≈ 3,0 detik dan `getStrukturKelas` ≈ 3,6 detik
+   (log lapangan 24 Agu 2026, js_menu.html:6-12). Setiap aksi di
+   daftar ini membuat sidebar memanggil keduanya lagi. Itu harga
+   angka yang benar — dan persis biaya yang sudah dibayar guru saat
+   menekan refresh secara manual.
+
+   `pindahPertemuan` SENGAJA tidak ikut: server membatasinya pada
+   satu kelas (Pertemuan.gs:286-289), jadi jumlah di kartu tidak
+   berubah dan 3 detik itu akan terbuang percuma.
+
+   Bila menambah API baru yang mengubah murid/pertemuan/kelas,
+   TAMBAHKAN NAMANYA DI SINI. Tidak ada tempat lain yang perlu
+   disentuh. */
+var API_UBAH_KELAS = {
+  /* daftar kelas itu sendiri */
+  simpanKelas: 1, duplikatKelas: 1, hapusKelas: 1,
+  /* jumlah murid pada kartu */
+  simpanMurid: 1, imporMurid: 1, enrollMurid: 1, keluarkanMurid: 1,
+  /* jumlah pertemuan pada kartu */
+  simpanPertemuan: 1, hapusPertemuan: 1, salinPertemuan: 1
+};
+
+function _bataliKelasBilaPerlu(fn) {
+  if (!API_UBAH_KELAS[fn]) return;
+  /* Penjaga typeof: js_core dimuat sebelum js_menu (§6.2 no. 82). */
+  if (typeof bataliMenuKelas === 'function') bataliMenuKelas();
+}
+
 function callApi(fn, args, opsi) {
   args = args || [];
   opsi = opsi || {};
@@ -61,7 +150,14 @@ function callApi(fn, args, opsi) {
     google.script.run
       .withSuccessHandler(function (res) {
         bereskan();
-        if (res && res.ok) return resolve(res.data);
+        if (res && res.ok) {
+          /* v1.18.5 — wajib SINKRON di dalam handler ini. Lihat
+             catatan di atas `API_UBAH_KELAS`: yang menjamin ia
+             mendahului handler yang menggambar ulang adalah sifat
+             sinkronnya, bukan posisinya terhadap `resolve()`. */
+          _bataliKelasBilaPerlu(fn);
+          return resolve(res.data);
+        }
 
         if (res && res.error === 'SESI_INVALID') {
           simpanToken('');
