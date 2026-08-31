@@ -276,6 +276,7 @@ var URUTAN_SHEET = ['users','kelas','enrollment','materi_pokok',
 
 /** Buat database + isi seed. Jalankan ini untuk memulai. */
 function setupLengkap() {
+  _hanyaEditor();
   var id = setupDatabase();
   isiSeedData();
   Logger.log('');
@@ -295,6 +296,7 @@ function setupLengkap() {
 
 /** Buat spreadsheet + 15 sheet berikut header, validasi, format. */
 function setupDatabase() {
+  _hanyaEditor();
   var P = PropertiesService.getScriptProperties();
   var idLama = P.getProperty('DB_ID');
 
@@ -431,6 +433,7 @@ function _buatSheet(ss, nama, def) {
 
 /** Siapkan counter ID agar tidak bertabrakan. */
 function _pasangCounter() {
+  _hanyaEditor();
   var P = PropertiesService.getScriptProperties();
 
   /* template umpan balik bawaan (§6.4.4) */
@@ -452,15 +455,33 @@ function _pasangCounter() {
 
 /* ============================================================
  *  UTILITAS INTERNAL
+ *
+ *  SELURUHNYA berpenjaga `_hanyaEditor()` (v1.17.1), kecuali
+ *  `_pad()` yang murni merapikan teks untuk Logger.
+ *
+ *  Alasannya: `google.script.run` dapat memanggil SETIAP fungsi
+ *  global, termasuk yang berawalan garis bawah — awalan itu konvensi
+ *  manusia, bukan pembatas akses. Yang menentukan sebuah fungsi bisa
+ *  dipanggil dari peramban adalah ARGUMENNYA: bila semua argumen
+ *  bisa diserialkan (string, angka, larik, objek biasa), fungsi itu
+ *  terjangkau.
+ *
+ *  Karena itu enam fungsi di bawah dijaga, sedangkan `_buatSheet()`,
+ *  `_hapusBarisJika()`, `_enumBerubah()`, `_pasangFormatTeks()`,
+ *  `_pasangValidasi()`, dan `_formatUlang()` TIDAK — semuanya
+ *  menuntut objek Spreadsheet/Sheet sebagai argumen pertama, yang
+ *  tidak bisa dikirim dari peramban.
  * ============================================================ */
 
 function _db() {
+  _hanyaEditor();
   var id = PropertiesService.getScriptProperties().getProperty('DB_ID');
   if (!id) throw new Error('DB_ID belum ada. Jalankan setupDatabase() dulu.');
   return SpreadsheetApp.openById(id);
 }
 
 function _buatId(prefix) {
+  _hanyaEditor();
   var P = PropertiesService.getScriptProperties();
   var k = 'CTR_' + prefix;
   var n = Number(P.getProperty(k) || 0) + 1;
@@ -469,6 +490,7 @@ function _buatId(prefix) {
 }
 
 function _salt() {
+  _hanyaEditor();
   var c = 'abcdefghijkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789';
   var s = '';
   for (var i = 0; i < 16; i++) s += c.charAt(Math.floor(Math.random() * c.length));
@@ -476,6 +498,11 @@ function _salt() {
 }
 
 function _hash(password, salt) {
+  /* Dijaga karena ini ORACLE HASH: dari peramban orang bisa meminta
+     hash untuk sandi dan salt apa pun. Tidak berguna sendirian,
+     tetapi menjadi langkah tengah rantai pembuatan akun guru palsu
+     bersama `_salt()` dan `_tambah()`. */
+  _hanyaEditor();
   return Utilities.computeDigest(
       Utilities.DigestAlgorithm.SHA_256, salt + password, Utilities.Charset.UTF_8)
     .map(function (b) { return ('0' + (b & 0xFF).toString(16)).slice(-2); })
@@ -484,6 +511,24 @@ function _hash(password, salt) {
 
 /** Tambah banyak baris sekaligus (satu setValues). */
 function _tambah(nama, objArr) {
+  /* 🔴 WAJIB. Ini celah paling parah di seluruh proyek, dan baru
+     ketahuan saat audit v1.17.1.
+
+     `_tambah()` menerima DUA argumen yang bisa diserialkan peramban:
+     nama sheet (string) dan larik baris (objek biasa). Artinya
+     `google.script.run._tambah('users', [{…}])` benar-benar bisa
+     dipanggil murid dari browser — dan menulis baris apa pun ke
+     sheet APA PUN.
+
+     Yang membuatnya berbahaya bukan korupsi data, tapi eskalasi
+     hak: cukup satu panggilan untuk menyisipkan baris `users`
+     ber-`role: 'guru'`, lalu masuk sebagai guru. Seluruh penjaga
+     peran di `_bungkus()` dilewati karena akunnya memang guru.
+
+     Rantainya lengkap dari browser: `_salt()` memberi salt,
+     `_hash(sandi, salt)` memberi hash yang sah, `_tambah()`
+     menanam barisnya. Ketiganya kini dijaga. */
+  _hanyaEditor();
   if (!objArr || !objArr.length) return;
   var sh = _db().getSheetByName(nama);
   var head = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0];
@@ -499,6 +544,7 @@ function _tambah(nama, objArr) {
  * ============================================================ */
 
 function isiSeedData() {
+  _hanyaEditor();
   var ss = _db();
   if (ss.getSheetByName('users').getLastRow() > 1) {
     Logger.log('Data sudah ada — seed dilewati. Pakai resetTotal() bila ingin mengosongkan.');
@@ -759,6 +805,7 @@ function isiSeedData() {
 
 /** Hapus seluruh baris bertanda [CONTOH] beserta turunannya. */
 function hapusSeedData() {
+  _hanyaEditor();
   var ss = _db();
 
   var kelasSh = ss.getSheetByName('kelas');
@@ -823,6 +870,7 @@ function _hapusBarisJika(ss, nama, namaKol, daftarNilai) {
 
 /** Kosongkan SEMUA data, struktur tetap. Hati-hati. */
 function resetTotal() {
+  _hanyaEditor();
   var ss = _db();
   URUTAN_SHEET.forEach(function (nama) {
     var sh = ss.getSheetByName(nama);
@@ -849,6 +897,7 @@ function resetTotal() {
  * kolomnya masing-masing.
  */
 function migrasiStruktur() {
+  _hanyaEditor();
   var ss = _db();
   var total = 0;
   var laporan = [];
@@ -1094,6 +1143,7 @@ function _formatUlang(sh, def) {
 
 /** Ringkasan isi database + peringatan kapasitas. */
 function infoDatabase() {
+  _hanyaEditor();
   var ss = _db();
   Logger.log('=== ' + NAMA_DB + ' ===');
   Logger.log('ID  : ' + ss.getId());
@@ -1191,6 +1241,7 @@ function _pad(s, n) {
  * sudah punya mp_id dilewati.
  */
 function migrasiHierarki() {
+  _hanyaEditor();
   Logger.log('=== MIGRASI HIERARKI (Materi Pokok) ===');
 
   var ptm = Db.baca('pertemuan');

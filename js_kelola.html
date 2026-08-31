@@ -257,9 +257,32 @@ function formKelas(kelasId) {
       callApi('simpanKelas', [p], { tombol: $('#btn-simpan-kelas') })
         .then(function (r) {
           _panelKotor = false;
-          tutupPanel(true);
-          /* Daftar kelas di sidebar berubah (v1.13.0). */
+          /* 🔴 v1.18.4 — URUTAN DIPERBAIKI.
+
+             Dilaporkan guru: "saat saya membuat kelas baru, di UI belum
+             muncul kelas baru, saat saya refresh baru muncul."
+
+             Penyebabnya bukan cache yang lupa dibuang — `bataliMenuKelas()`
+             memang dipanggil. Penyebabnya URUTAN:
+
+                 tutupPanel(true);          ← router() → gambar layar
+                 bataliMenuKelas();         ← TERLAMBAT
+
+             `tutupPanel(true)` menjalankan `router()`, yang langsung
+             memanggil `daftarKelasBersama()` TANPA `paksa`. Saat itu
+             `Menu.kelas` masih berisi daftar lama dan umurnya belum
+             lewat `UMUR_MENU_KELAS` (5 menit), jadi layar digambar dari
+             cache basi. Baru sesudahnya cache dibuang — sudah tidak ada
+             yang membacanya lagi.
+
+             Refresh menyembuhkannya karena halaman dimuat dari nol,
+             `Menu.kelas` mulai dari `null`.
+
+             Aturannya: BUANG DULU, GAMBAR KEMUDIAN. `hapusKelas()` di
+             bawah sudah benar sejak awal; itu sebabnya menghapus kelas
+             langsung terlihat tetapi membuat tidak. */
           if (typeof bataliMenuKelas === 'function') bataliMenuKelas();
+          tutupPanel(true);
           toast(r.baru ? 'Kelas dibuat.' : 'Perubahan disimpan.', 'sukses');
         });
     };
@@ -318,8 +341,12 @@ function panelDuplikat(kelasId, nama) {
             { tombol: this })
       .then(function (r) {
         _panelKotor = false;
-        tutupPanel(true);
+        /* v1.18.4 — urutan diperbaiki, lihat catatan di `simpanKelas`.
+           Bug yang sama persis: kelas hasil duplikat tidak muncul
+           sampai halaman dimuat ulang. Belum sempat dilaporkan karena
+           menduplikat jauh lebih jarang daripada membuat kelas. */
         if (typeof bataliMenuKelas === 'function') bataliMenuKelas();
+        tutupPanel(true);
         dialog({
           judul: r.jumlah + ' Kelas Dibuat',
           pesan: r.nama.map(function (n) { return '• ' + esc(n); }).join('<br>') +
@@ -1008,7 +1035,12 @@ function gambarFormMurid(userId, data, kelas, kelasTerpilih) {
       '<input class="isian" id="m-nama" value="' + esc(data ? data.nama : '') + '"></div>' +
     (userId ? '' :
       '<div class="grup"><label>Nama Pengguna *</label>' +
-      '<input class="isian" id="m-username" placeholder="mis. siswa01" ' +
+      /* v1.18.1 — placeholder akun seed dibuang. Layar ini memang
+         khusus guru, jadi bocornya jauh lebih kecil daripada di layar
+         masuk — tetapi namanya tetap akun seed nyata, dan contoh yang
+         sama di dua tempat berarti dua tempat yang harus diingat saat
+         membersihkannya (§6.2 no. 120). */
+      '<input class="isian" id="m-username" ' +
       'autocapitalize="off"><span class="bantuan">Huruf kecil tanpa spasi. ' +
       'Dipakai untuk masuk.</span></div>') +
     '<div class="grup"><label>Rombel (opsional)</label>' +

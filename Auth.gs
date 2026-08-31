@@ -13,10 +13,31 @@
 
 var Auth = (function () {
 
-  var TTL_SESI_JAM   = 12;
+  /* 720 jam = 30 hari, naik dari 12 (v1.17.0).
+
+     LAPORAN LAPANGAN: "banyak siswa yang lupa user dan password."
+     Akarnya bukan sandinya sulit — murid dipaksa mengetik ulang
+     kredensialnya SETIAP HARI SEKOLAH, karena sesi mati tiap 12 jam.
+     Lupa dalam kondisi itu kepastian statistik, bukan kecelakaan.
+
+     Efek samping yang menguntungkan: sheet `session` justru tumbuh
+     lebih LAMBAT. Setiap login menambah satu baris, dan token lama
+     yang tertimpa di localStorage tidak pernah dibaca lagi sehingga
+     tidak pernah dibersihkan. Dengan 12 jam, satu murid menyumbang
+     ±20 baris/bulan; dengan 30 hari, ±1 baris/bulan.
+
+     30 hari dipilih agar murid tidak kehilangan sesi di tengah
+     minggu ujian, tetapi akun di perangkat yang berpindah tangan
+     tetap berakhir sendiri dalam sebulan. */
+  var TTL_SESI_JAM   = 720;
   var MAKS_GAGAL     = 5;
   var MENIT_KUNCI    = 15;
   var MAKS_RESET_HARI = 3;
+
+  /* Percobaan pemulihan username per email dalam satu jendela kunci.
+     Lihat `pulihkanAkun()` — tanpa batas ini pasangan email+WA bisa
+     ditebak berulang kali tanpa konsekuensi. */
+  var MAKS_PULIH     = 5;
 
   /* -------------------------------------------------- sesi */
 
@@ -51,6 +72,22 @@ var Auth = (function () {
   }
 
   function _buatSesi(user) {
+    /* Bersihkan sesi kedaluwarsa milik murid ini lebih dulu (v1.17.0).
+
+       `validasiToken()` hanya menghapus token saat token itu DIBACA.
+       Token lama yang tertimpa di localStorage tidak pernah dibaca
+       lagi, jadi tidak pernah terhapus — sheet `session` menumpuk
+       selamanya. Dengan TTL 30 hari setiap baris tinggal lebih lama,
+       sehingga pembersihan dipindahkan ke satu-satunya tempat yang
+       pasti dijalankan: saat sesi baru dibuat.
+
+       Murah karena login kini ±20x lebih jarang (lihat TTL_SESI_JAM). */
+    var basi = Db.saring('session', { user_id: user.user_id })
+      .filter(function (s) { return Util.lewat(s.expired_at); });
+    if (basi.length) {
+      Db.hapusBanyak('session', basi.map(function (s) { return s._baris; }));
+    }
+
     var token = Util.buatToken();
     var now = Util.sekarang();
     Db.tambah('session', {
@@ -314,6 +351,119 @@ var Auth = (function () {
              no_wa: Util.normalisasiWa(user.no_wa) };
   }
 
+  /* -------------------------------------------------- pulihkan akun */
+
+  function _kunciPulih(email) { return 'pulih_' + email; }
+
+  /**
+   * Cari username dari email + nomor WhatsApp (v1.17.0).
+   *
+   * INI PEMULIHAN, BUKAN LOGIN. Tidak ada sesi yang dibuat dan tidak
+   * ada akun yang dimasuki. Yang dikembalikan hanya USERNAME — kata
+   * sandi tetap harus direset guru lewat jalur `#/reset` yang sudah
+   * ada. Karena itu membocorkan username bukan membocorkan akun, dan
+   * syaratnya cukup dua data yang sudah dikumpulkan murid sendiri.
+   *
+   * KEAMANAN
+   *   1. SATU bentuk kegagalan untuk SEMUA sebab. Pasangan salah,
+   *      biodata belum lengkap, dan akun tidak ada dibalas identik.
+   *      Membedakannya membuat fungsi ini jadi alat uji: orang bisa
+   *      memastikan apakah sebuah email dan sebuah nomor HP milik
+   *      satu orang yang sama dan orang itu murid di sini — bocoran
+   *      privasi walau tanpa username.
+   *      Konsekuensinya disengaja: murid yang datanya belum lengkap
+   *      MEMANG harus bertemu guru, jadi pesannya sama saja.
+   *   2. Batas MAKS_PULIH percobaan per email per 15 menit. Tanpa ini
+   *      poin 1 bisa dibongkar dengan menebak berulang kali.
+   *      Catatan: `google.script.run` tidak memberi alamat IP
+   *      pengunjung, jadi batasnya hanya bisa per nilai input.
+   *   3. Keduanya harus cocok pada BARIS YANG SAMA — bukan email di
+   *      baris A dan nomor di baris B.
+   *
+   * KENAPA BISA LEBIH DARI SATU AKUN
+   *   `imporMurid()` membuat `user_id` baru per baris dan hanya
+   *   menghindari tabrakan username (andi, andis2, …). Murid yang
+   *   ikut dua kelas punya DUA baris `users`, dan `simpanBiodata()`
+   *   menulis email + WA per baris. Jadi pasangan yang sama bisa
+   *   cocok dua kali. Semuanya dikembalikan beserta label kelasnya —
+   *   menampilkan yang pertama saja akan membuat murid memulihkan
+   *   akun yang salah dan kehilangan kelasnya yang lain.
+   *
+   * @returns {Object} { ketemu, akun?, tautan_wa_guru?, tunggu_menit? }
+   */
+  function pulihkanAkun(inputEmail, inputWa) {
+    var email = String(inputEmail || '').trim().toLowerCase();
+    var wa    = Util.normalisasiWa(inputWa);
+
+    var tidak = { ketemu: false };
+
+    /* Input tak sah dibalas sama seperti tak cocok — jangan beri
+       penyerang umpan balik tentang bentuk data yang disimpan. */
+    if (!Util.emailSah(email) || !wa) return tidak;
+
+    var cache = CacheService.getScriptCache();
+    var n = (Number(cache.get(_kunciPulih(email)) || '0') + 1);
+    cache.put(_kunciPulih(email), String(n), MENIT_KUNCI * 60);
+    if (n > MAKS_PULIH) {
+      return { ketemu: false, tunggu_menit: MENIT_KUNCI };
+    }
+
+    /* Email disimpan sudah di-lowercase (Kelas.simpanBiodata) dan
+       nomor WA sudah dinormalkan ke 62xxx (Util.normalisasiWa).
+       Input diperlakukan sama persis, kalau tidak `Andi@Gmail.com`
+       dan `0812…` gagal melawan data yang benar. */
+    var cocok = Db.saring('users', { role: 'murid', status: 'aktif' })
+      .filter(function (u) {
+        return String(u.email || '').trim().toLowerCase() === email &&
+               Util.normalisasiWa(u.no_wa) === wa;
+      });
+
+    if (!cocok.length) {
+      Util.catatLog('', 'pulih_tidak_cocok',
+                    'email=' + email + ' percobaan=' + n, 'gagal');
+      return tidak;
+    }
+
+    try { cache.remove(_kunciPulih(email)); } catch (e) {}
+
+    /* Label kelas disusun seperti Kelas.daftarMurid(): mapel WAJIB
+       ikut, karena satu rombel bisa punya beberapa kelas bernama
+       sama (pelajaran v1.6.4). */
+    var petaKelas = {};
+    Db.bacaKolom('kelas', ['kelas_id', 'nama_kelas', 'mapel'])
+      .forEach(function (k) { petaKelas[k.kelas_id] = k; });
+
+    var kelasPerMurid = {};
+    Db.saring('enrollment', { status: 'aktif' }).forEach(function (e) {
+      (kelasPerMurid[e.user_id] = kelasPerMurid[e.user_id] || [])
+        .push(e.kelas_id);
+    });
+
+    var akun = cocok.map(function (u) {
+      var label = (kelasPerMurid[u.user_id] || []).map(function (id) {
+        var k = petaKelas[id];
+        if (!k) return '';
+        return k.nama_kelas + (k.mapel ? ' · ' + k.mapel : '');
+      }).filter(function (s) { return !!s; }).join(', ');
+
+      return { user_id: u.user_id, username: u.username,
+               nama: u.nama, label_kelas: label };
+    });
+
+    var daftarUser = akun.map(function (a) { return a.username; });
+    Util.catatLog(cocok[0].user_id, 'pulih_username',
+                  'email=' + email + ' akun=' + daftarUser.join('/'));
+
+    return {
+      ketemu: true,
+      akun: akun,
+      /* Tautan WA disusun di Kelas — Auth sengaja tidak menyusun teks
+         tampilan (lihat catatan yang sama di resetPasswordMurid). */
+      tautan_wa_guru: Kelas.tautanPulihWa(cocok[0].nama,
+                                          daftarUser.join(' / '))
+    };
+  }
+
   /* -------------------------------------------------- bantu */
 
   function _err(kode, pesan) {
@@ -339,6 +489,7 @@ var Auth = (function () {
     login: login,
     gantiPassword: gantiPassword,
     ajukanReset: ajukanReset,
+    pulihkanAkun: pulihkanAkun,
     getPermintaanReset: getPermintaanReset,
     resetPasswordMurid: resetPasswordMurid,
     _hapusSesi: _hapusSesi,
@@ -356,6 +507,7 @@ var Auth = (function () {
  *  Dipakai bila akun guru terkunci atau lupa kata sandi.
  * ============================================================ */
 function resetGuruDarurat() {
+  _hanyaEditor();
   var guru = Db.saring('users', { role: 'guru' });
   if (!guru.length) { Logger.log('Tidak ada akun guru.'); return; }
 

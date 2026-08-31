@@ -340,6 +340,13 @@ daftarRute('belajar', function (arg) {
     .then(function (d) {
       var p = d.pertemuan;
 
+      /* v1.19.0 — pramuat seluruh materi materi pokok ini di LATAR.
+         Tidak ditunggu: layar pertemuan tetap tampil segera, dan bila
+         pramuat gagal murid membaca lewat jalur lama seperti sebelumnya.
+         Satu pramuat mencakup seluruh pertemuan dalam bab, jadi
+         pertemuan berikutnya dalam bab yang sama tidak memanggil lagi. */
+      if (p.mp_id) materiPramuat(p.mp_id);
+
       /* kerangka dua kolom: sidebar + isi */
       var isi = navRangka(luar);
       State.kelasAktif = d.kelas;
@@ -474,6 +481,121 @@ function kartuItemMurid(i) {
  */
 var Baca = { itemId: null, bagian: 1, total: 1, mulai: 0, timer: null };
 
+/* ============================================================
+   v1.19.0 — pramuat materi satu materi pokok
+
+   Permintaan guru: "untuk klik materi pokok saja, semua materi
+   terdownload tapi tetap di lock sesuai urutan. jadi saat siswa
+   membaca materi tidak perlu memuat materi satu persatu, tinggal
+   tandai selesai aja yang aktif."
+
+   DISIMPAN DI MEMORI SAJA — dan itu bukan kebetulan.
+
+   Konten basi ditangani manual: guru menyuruh murid menyegarkan
+   halaman, karena mengedit materi di tengah pelajaran jarang. Itu
+   hanya bekerja bila penyegarannya benar-benar membuang datanya.
+   sessionStorage SELAMAT dari refresh — js_nav.html:50 memakainya
+   justru untuk itu — jadi dengan sessionStorage perintah "refresh"
+   tidak menyembuhkan apa pun dan guru harus menyuruh murid menutup
+   tab. Memori membuat "refresh" berarti segar, tanpa TTL, tanpa
+   kuota, tanpa yang perlu dibersihkan saat keluar.
+
+   🔴 YANG TIDAK BERUBAH: `tandaiBagianSelesai` TETAP dipanggil untuk
+   SETIAP bagian. v1.16.0 melakukan hal yang sama dengan pramuat ini
+   dan GAGAL justru karena pelaporan itu dihapus — server menolak
+   lompatan, materi tidak pernah selesai. Yang dihemat di sini hanya
+   panggilan `bukaMateri()`. Lihat PERUBAHAN.md v1.16.1.
+
+   Kunci urutan juga tidak berubah: tetap dijaga server, dan sejak
+   v1.19.0 dijaga di jalur TULIS (`_statusBukaItem()` di
+   `tandaiBagianSelesai`), bukan hanya di jalur baca yang kini
+   jarang dilalui.
+   ============================================================ */
+var Materi = {
+  mpId: null,      /* materi pokok yang isinya sedang dipegang */
+  peta: {},        /* item_id → materi lengkap dengan seluruh bagian */
+  diisi: 0,
+  janji: null
+};
+
+/**
+ * Muat seluruh materi satu materi pokok di latar.
+ *
+ * Sengaja TIDAK memblokir layar: bila gagal atau lambat, murid tetap
+ * membaca lewat jalur lama `bukaMateri()`. Pramuat ini penghematan,
+ * bukan satu-satunya jalan — itu yang membuatnya aman dimatikan.
+ */
+function materiPramuat(mpId) {
+  if (!mpId || Materi.mpId === mpId) return;
+  Materi.mpId = mpId;
+  Materi.peta = {};
+  Materi.diisi = 0;
+
+  Materi.janji = callApi('pramuatMateriPokok', [mpId], { diam: true })
+    .then(function (d) {
+      /* Murid mungkin sudah pindah ke materi pokok lain sementara
+         permintaan berjalan — hasilnya sudah tidak relevan. */
+      if (Materi.mpId !== mpId) return;
+      var peta = {};
+      (d.materi || []).forEach(function (m) { peta[m.item_id] = m; });
+      Materi.peta = peta;
+      Materi.diisi = Date.now();
+    })
+    .catch(function () {
+      /* GAGAL = kembali ke jalur lama, bukan layar kosong.
+         mpId dikosongkan supaya percobaan berikutnya mencoba lagi. */
+      if (Materi.mpId === mpId) { Materi.mpId = null; Materi.peta = {}; }
+    });
+}
+
+/**
+ * Bentuk payload setara `bukaMateri()` dari cache.
+ * Mengembalikan null bila tidak ada — pemanggil jatuh ke jalur lama.
+ */
+function materiAmbil(itemId, ke) {
+  var m = Materi.peta[itemId];
+  if (!m || !m.bagian) return null;
+  /* Item terkunci SENGAJA tidak dilayani dari cache, walau kontennya
+     ada di memori. Mengembalikan null membuat pemanggil jatuh ke
+     `bukaMateri()`, yang menolaknya — jadi layar "Materi terkunci"
+     tetap muncul dan kuncinya tetap terasa di layar. */
+  if (!m.terbuka) return null;
+  var bagian = m.bagian[ke - 1];
+  if (bagian === undefined) return null;
+  return {
+    item_id: m.item_id,
+    judul: m.judul,
+    tujuan_pembelajaran: m.tujuan_pembelajaran,
+    pertemuan_id: m.pertemuan_id,
+    pertemuan_judul: m.pertemuan_judul,
+    pertemuan_urutan: m.pertemuan_urutan,
+    kelas_id: m.kelas_id,
+    bagian_ke: ke,
+    jml_bagian: m.jml_bagian,
+    konten: bagian,
+    min_durasi_detik: m.min_durasi_detik,
+    /* dibaca dari cache yang DIPERBARUI `setelahSelesai()`, bukan dari
+       salinan saat pramuat — kalau tidak, bagian yang baru ditandai
+       tetap terbaca "belum" dan tombolnya salah. */
+    bagian_terakhir: m.bagian_terakhir,
+    sudah_selesai: m.sudah_selesai,
+    wajib: m.wajib
+  };
+}
+
+/** Progres maju — selaraskan cache supaya layar berikutnya benar. */
+function materiPerbaruiProgres(itemId, r) {
+  var m = Materi.peta[itemId];
+  if (!m || !r) return;
+  if (r.bagian_terakhir !== undefined) m.bagian_terakhir = Number(r.bagian_terakhir) || 0;
+  if (r.item_selesai !== undefined) m.sudah_selesai = r.item_selesai === true;
+}
+
+/** Buang pramuat — dipanggil saat keluar agar murid berikutnya bersih. */
+function materiReset() {
+  Materi.mpId = null; Materi.peta = {}; Materi.diisi = 0; Materi.janji = null;
+}
+
 daftarRute('baca', function (arg) {
   if (!State.user || State.user.role !== 'murid') { pergiKe('#/beranda'); return; }
   var id = arg && arg[0];
@@ -494,6 +616,14 @@ function muatBagian(itemId, ke) {
   var laciAwal = $('#baca-laci', app);
   if (laciAwal) laciAwal.innerHTML = navTombolLaci();
   if (Nav.data) navGambar();
+
+  /* v1.19.0 — cache pramuat lebih dulu; `bukaMateri()` jadi cadangan.
+
+     Bila pramuat belum selesai, gagal, atau itemnya terkunci, jalur
+     lama yang dipakai. Jadi pramuat ini murni penghematan: tidak ada
+     keadaan di mana murid kehilangan akses karena pramuat. */
+  var dariCache = materiAmbil(itemId, ke);
+  if (dariCache) { gambarBagian(dariCache, itemId); return; }
 
   callApi('bukaMateri', [itemId, ke], { diam: true })
     .then(function (d) {
@@ -630,6 +760,11 @@ function pasangHitungMundur(app, tombol, detik) {
 }
 
 function setelahSelesai(r, d, itemId) {
+  /* v1.19.0 — progres maju, jadi salinan pramuat ikut diselaraskan.
+     Tanpa ini bagian yang baru ditandai tetap terbaca "belum" dari
+     cache dan tombol Lanjut/Selesai pada bagian berikutnya salah. */
+  materiPerbaruiProgres(itemId, r);
+
   /* progres berubah → indeks kelas ikut berubah (item berikutnya
      mungkin baru terbuka). Tanpa ini sidebar menampilkan keadaan lama. */
   navSegarkan();

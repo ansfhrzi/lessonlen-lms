@@ -11536,6 +11536,909 @@ dihapus, dan klien melompati kunci bagian.
 
 ---
 
+## v1.19.0 — Pramuat materi satu materi pokok
+
+**Permintaan guru:** *"untuk klik materi pokok saja, semua materi
+terdownload tapi tetap di lock sesuai urutan. jadi saat siswa membaca
+materi tidak perlu memuat materi satu persatu, tinggal tandai selesai
+aja yang aktif."*
+
+### Bedanya dengan v1.16.0 yang dibatalkan
+
+v1.16.0 juga mengirim seluruh bagian sekaligus, dan **gagal** — bukan
+karena pramuatnya, tetapi karena kliennya berhenti memanggil
+`tandaiBagianSelesai()` untuk bagian tengah. Server menyimpan
+`bagian_terakhir` dan menolak lompatan, jadi panggilan bagian terakhir
+ditolak `ITEM_TERKUNCI` dan materi tidak pernah bisa selesai.
+
+Yang dihemat di sini **hanya panggilan `bukaMateri()`**. Pelaporan per
+bagian tetap dikirim, dan itu dijaga oleh uji (`uji/materi.js` bagian
+E: melompat ke bagian 3 tetap ditolak, berurutan 1→2→3 tetap berhasil).
+
+### 🔴 Celah lama yang wajib ditutup lebih dulu
+
+Sebelum mengerjakan pramuat, saya menemukan bahwa penjaga kunci hanya
+ada di `bukaMateri()` — jalur **baca**. `tandaiBagianSelesai()` — tempat
+progres benar-benar **ditulis** — hanya memeriksa enroll, status
+publish, durasi minimum, dan urutan bagian. **Tidak** memeriksa kunci
+pertemuan atau item.
+
+Artinya murid yang memanggil `google.script.run.tandaiBagianSelesai(…)`
+langsung, tanpa membuka materinya, bisa menandai pertemuan terkunci
+sebagai selesai. Celah ini **sudah ada sebelum v1.19.0**, tersembunyi
+karena alur normal selalu lewat `bukaMateri()` lebih dulu.
+
+Begitu materi dipramuat, `bukaMateri()` tidak lagi dipanggil di alur
+normal — jadi celah yang laten akan menjadi tidak terjaga sama sekali.
+Karena itu penjaga kunci dipisah jadi `_statusBukaItem()` dan dipasang
+di **kedua** jalur. Biayanya netral: perhitungan kunci ini sebelumnya
+dilakukan `bukaMateri()` sekali per bagian juga, ia hanya berpindah.
+
+Uji membuktikan: materi di pertemuan terkunci **ditolak** saat
+menandai, dan tidak ada baris progres yang tertulis.
+
+### Kunci tetap terasa di layar
+
+Konten materi terkunci **ikut terkirim** — itu keputusan guru, dibuat
+sadar setelah diberitahu bahwa murid bisa membacanya lewat DevTools:
+*"gakpapa murid membuka di devtool, tidak masalah."*
+
+Tetapi klien **tidak merendernya**. `materiAmbil()` mengembalikan null
+untuk item yang `terbuka: false`, sehingga pemanggil jatuh ke
+`bukaMateri()` dan ditolak seperti biasa — layar "Materi terkunci"
+tetap muncul. Jadi "semua terdownload **tapi** tetap di lock" benar
+berlaku, bukan sekadar kontennya ada. Dan logika kuncinya tidak
+disalin ke klien: satu sumber, di server.
+
+`Belajar.gs` baris 11 diubah: *"konten item terkunci TIDAK PERNAH
+dikirim ke klien"* kini berlaku untuk **quiz**, dengan pengecualian
+materi yang dijelaskan di tempat.
+
+### Penyimpanan: memori saja
+
+Bukan sessionStorage, dan itu bukan kebetulan. Konten basi ditangani
+manual — guru menyuruh murid menyegarkan halaman. Itu hanya bekerja
+bila penyegarannya membuang datanya, dan sessionStorage **selamat dari
+refresh** (`js_nav.html:50` memakainya justru untuk itu). Dengan
+sessionStorage, perintah "refresh" tidak menyembuhkan apa pun dan guru
+harus menyuruh murid menutup tab.
+
+Konsekuensinya: tanpa TTL, tanpa kuota, tanpa yang perlu dibersihkan —
+kecuali saat keluar, lewat `materiReset()` di kedua jalur keluar.
+
+### Gagal = kembali ke jalur lama
+
+Pramuat berjalan di latar dan tidak ditunggu. Bila gagal, `mpId`
+dikosongkan dan murid membaca lewat `bukaMateri()` seperti sebelumnya.
+Tidak ada keadaan di mana murid kehilangan akses karena pramuat.
+
+### Berkas
+
+`Belajar.gs` (`_statusBukaItem`, `pramuatMateriPokok`, penjaga di jalur
+tulis) · `Code.gs` (API + versi + 2 penanda) · `js_belajar.html`
+(cache memori) · `js_core.html` (`materiReset` di jalur keluar) ·
+`uji/materi.js` (baru). **Tanpa migrasi.**
+
+### Uji
+
+34 pemeriksaan, `Belajar.gs` asli di atas mock Db:
+
+- pramuat: hanya tipe materi & publish; konten dipecah di server;
+  konten mentah tidak ikut; materi kosong tetap 1 bagian
+- penolakan: murid tak terdaftar, mp draf, mp tak dikenal
+- status kunci: pertemuan pertama terbuka, kedua terkunci, kontennya
+  tetap ada
+- **`detailPertemuan` benar-benar mengirim `mp_id`** — tanpa ini pramuat
+  tidak pernah terpicu dan fitur ini mati tanpa suara
+- **penjaga jalur tulis: materi terkunci ditolak, nol progres tertulis**
+- regresi v1.16.1: lompat bagian ditolak, 1→2→3 berhasil, durasi minimum
+- klien: item terkunci tidak dilayani, bentuk setara `bukaMateri()`,
+  progres ikut maju, `materiReset()` mengosongkan
+
+Dibuktikan merah tiga kali: penjaga jalur tulis dibuang (2 gagal),
+klien melayani item terkunci (1), pramuat tidak menyaring quiz (2).
+
+### Yang belum terverifikasi
+
+Tidak ada deployment Apps Script di lingkungan ini, jadi **perilaku di
+peramban sungguhan belum diuji** — termasuk apakah pramuat benar-benar
+terasa lebih cepat. Yang teruji adalah logika server dan fungsi klien
+yang dipotong dari berkas yang dikirim.
+
+---
+
+## v1.18.5 — Jumlah murid & pertemuan di kartu kelas tidak diperbarui
+
+
+**Laporan guru:** *"waktu menambahkan murid dan tambah pertemuan,
+informasi jumlah murid dan jumlah pertemuan pada card kelas pada kelola
+kelas tidak meng-update. 👥 2 murid 📅 10 pertemuan. di tekan refresh
+dulu baru berubah."*
+
+### Akarnya sama dengan v1.18.4, tetapi lebih dalam
+
+Angka di kartu kelas berasal dari `getDaftarKelas`, yang disimpan di
+`Menu.kelas` selama `UMUR_MENU_KELAS` (5 menit, `js_menu.html:47`).
+**Tujuh aksi yang mengubah isi kelas tidak pernah membuangnya:**
+
+| Berkas | Aksi | Yang dilakukan handler |
+|---|---|---|
+| `js_kelola.html:1129` | `simpanMurid` | `tutupPanel(false)` + `router()` |
+| `js_kelola.html:656` | `imporMurid` | `tutupPanel(true)` |
+| `js_kelola.html:555` | `enrollMurid` | `tandaiPanelKotor()` |
+| `js_kelola.html:442` | `keluarkanMurid` | `tandaiPanelKotor()` |
+| `js_editor.html:507` | `simpanPertemuan` | `layarPertemuan(…, true)` |
+| `js_editor.html:524` | `hapusPertemuan` | `layarPertemuan(…, true)` |
+| `js_editor.html:581` | `salinPertemuan` | `layarPertemuan(…, true)` |
+
+`enrollMurid` bahkan sudah punya komentar *"jumlah murid di kartu kelas
+berubah"* dan memanggil `tandaiPanelKotor()`. Tidak menolong:
+`tutupPanel(true)` hanya **menggambar ulang**; yang dibaca tetap
+`daftarKelasBersama()`, yang mengembalikan cache. **Menandai halaman
+perlu disegarkan tidak ada gunanya bila penyegaran itu membaca data
+yang sama.**
+
+### Kenapa tidak ditambal di tujuh tempat itu
+
+Karena itulah yang sudah terjadi tiga kali — v1.18.4 menambal dua
+tempat, sekarang ketemu tujuh. Aksi ke-delapan akan melupakannya lagi.
+
+Dipasang terpusat di `callApi()`:
+
+```js
+var API_UBAH_KELAS = {
+  simpanKelas:1, duplikatKelas:1, hapusKelas:1,
+  simpanMurid:1, imporMurid:1, enrollMurid:1, keluarkanMurid:1,
+  simpanPertemuan:1, hapusPertemuan:1, salinPertemuan:1
+};
+```
+
+Bila menambah API baru yang mengubah murid/pertemuan/kelas, tambahkan
+namanya di satu daftar itu. Tidak ada tempat lain yang perlu disentuh.
+
+### Klaim saya sendiri yang dikoreksi oleh sabotase
+
+Saya menulis bahwa jaminan urutannya berasal dari pembatalan dipasang
+**sebelum** `resolve()`. **Salah.** Sabotase membuktikan: memindahkannya
+ke sesudah `resolve()` tidak mengubah hasil sama sekali.
+
+| Sabotase | Hasil | Kenapa |
+|---|---|---|
+| dipindah sesudah `resolve()` | tidak berubah | keduanya sinkron |
+| ditunda `Promise.resolve().then(…)` | tidak berubah | mikro-task FIFO |
+| ditunda `setTimeout(…, 0)` | **merah, 11 gagal** | makro-task belakangan |
+
+Alasan yang benar: `resolve()` hanya **menjadwalkan** mikro-task, tidak
+menjalankannya; seluruh isi `withSuccessHandler` selesai lebih dulu
+secara sinkron. Yang benar-benar dilarang hanya menundanya ke
+makro-task. Komentar di kode sudah diluruskan.
+
+### Biaya, terbuka
+
+`getDaftarKelas` ≈ 3,0 detik dan `getStrukturKelas` ≈ 3,6 detik (log
+lapangan 24 Agu 2026, `js_menu.html:6-12`). Setiap aksi di daftar itu
+membuat sidebar memanggil keduanya lagi. Itu harga angka yang benar —
+dan persis biaya yang sudah dibayar guru saat menekan refresh manual.
+
+`pindahPertemuan` **sengaja tidak ikut**: server membatasinya pada satu
+kelas (`Pertemuan.gs:286-289`), jadi jumlah di kartu tidak berubah dan
+3 detik itu akan terbuang percuma.
+
+### 🔴 Uji pindah ke dalam repo
+
+Seluruh suite uji selama ini hidup di `/tmp/uji/`, dan **`/tmp` tidak
+dipertahankan antar sesi** — semuanya hilang. Mulai versi ini uji
+disimpan di `uji/` supaya tidak perlu ditulis ulang, dan supaya bisa
+dijalankan siapa pun dengan `node uji/<nama>.js` tanpa dependensi.
+
+Suite server (`run.js`, `run2.js`, `reset.js`, `penjaga.js`, `editor.js`)
+**belum dibangun ulang** — harness-nya ikut hilang. Kode server tidak
+berubah di versi ini kecuali nomor versi dan satu penanda.
+
+### Uji
+
+18 pemeriksaan (`uji/kartu.js`), menjalankan `callApi()` **asli** dari
+`js_core.html` di atas `bataliMenuKelas()` **asli** dari `js_menu.html`:
+
+- 10 aksi pengubah isi kelas → cache dibuang
+- 6 aksi lain (`pindahPertemuan`, `getDaftarKelas`, …) → cache utuh
+- `res.ok = false` → cache tidak dibuang
+- **saat handler berjalan, cache sudah null** — jaminan urutannya
+
+Dibuktikan merah: `simpanMurid` dikeluarkan dari daftar (2 gagal),
+pembatalan ditunda `setTimeout` (11 gagal). Sabotase penundaan sempat
+**tidak tertangkap** karena mock tidak menyediakan `setTimeout` sehingga
+kode crash — celah harness, bukan uji lolos; diperbaiki dulu.
+
+### Berkas
+
+`js_core.html` · `Code.gs` (versi + 1 penanda) · `uji/kartu.js` (baru).
+**Tanpa perubahan `.gs` berperilaku, tanpa migrasi.**
+
+---
+
+## v1.18.4 — Kelas baru tidak muncul sampai halaman dimuat ulang
+
+
+**Laporan guru:** *"saat saya membuat kelas baru, di UI belum muncul
+kelas baru, saat saya refresh baru muncul kelas baru."*
+
+### Bukan cache yang lupa dibuang
+
+Dugaan pertama saya salah dan perlu dicatat: `Db.tambah()` **sudah**
+memanggil `invalidasi(nama)` (`Db.gs:796`), dan klien **sudah**
+memanggil `bataliMenuKelas()` setelah menyimpan. Keduanya ada. Yang
+salah adalah **urutannya**.
+
+```js
+callApi('simpanKelas', [p], …)
+  .then(function (r) {
+    _panelKotor = false;
+    tutupPanel(true);                       /* ← router() → gambar layar */
+    if (typeof bataliMenuKelas === 'function') bataliMenuKelas();  /* ← TERLAMBAT */
+    toast(…);
+  });
+```
+
+`tutupPanel(true)` menjalankan `router()`, yang langsung memanggil
+`daftarKelasBersama()` **tanpa** `paksa`. Saat itu `Menu.kelas` masih
+berisi daftar lama dan umurnya belum lewat `UMUR_MENU_KELAS` (5 menit,
+`js_menu.html:47`), jadi layar digambar dari cache basi. Baru
+sesudahnya cache dibuang — sudah tidak ada yang membacanya lagi.
+
+Refresh menyembuhkannya karena halaman dimuat dari nol dan `Menu.kelas`
+mulai dari `null`.
+
+### Kenapa hanya "membuat" yang terasa rusak
+
+| Aksi | Urutan | |
+|---|---|---|
+| buat / ubah kelas (`formKelas`) | render → batali | ❌ |
+| duplikat kelas (`panelDuplikat`) | render → batali | ❌ |
+| hapus kelas (`hapusKelasKonfirmasi`) | batali → render | ✅ |
+
+`hapusKelas()` sudah benar sejak awal. Itu sebabnya menghapus kelas
+langsung terlihat, tetapi membuat tidak — dan kenapa bug duplikat
+belum pernah dilaporkan: menduplikat jauh lebih jarang daripada
+membuat kelas.
+
+Dua pemanggil lain di `js_core.html:78` dan `:659` juga sudah benar —
+keduanya jalur keluar, invalisasi sebelum `router()`.
+
+### Perbaikan
+
+Dua baris ditukar di `formKelas()` dan `panelDuplikat()`. Aturannya
+ditulis di komentar: **buang dulu, gambar kemudian.**
+
+### Uji
+
+7 pemeriksaan (`/tmp/uji/urut.js`), dua lapis:
+
+**Statis** — pada `js_kelola.html` yang benar-benar dikirim, komentar
+dibuang lebih dulu (teks penjelasan menyebut nama kedua fungsi dan
+akan ikut terhitung), lalu tiap fungsi sasaran dipotong dan dipastikan
+`bataliMenuKelas` muncul sebelum `tutupPanel(true)`/`router()`.
+Ketiganya terperiksa.
+
+**Eksekusi** — `daftarKelasBersama()` dan `bataliMenuKelas()` **asli**
+dari `js_menu.html` dijalankan di atas mock. Ini yang membuktikan
+urutan memang menentukan hasil, bukan sekadar gaya:
+
+- urutan salah → **1 kelas** (cache basi)
+- urutan benar → **2 kelas**, dan kelas barunya ada di hasilnya
+
+Dibuktikan merah dua kali. Sabotase kedua **sempat tidak menggigit** —
+saya membuang `Menu.kelas = null` tetapi `Menu.diisi = 0` saja sudah
+cukup memaksa muat ulang, jadi perilaku tidak berubah dan uji lolos
+dengan sah. Diulang dengan melumpuhkan keduanya (2 gagal). Sabotase
+pertama: urutan dikembalikan (1 gagal).
+
+### Berkas
+
+`js_kelola.html` · `Code.gs` (versi + 1 penanda). **Tanpa perubahan
+`.gs` berperilaku, tanpa migrasi.**
+
+---
+
+## v1.18.3 — 🔴 Penjaga editor memblokir guru dari editornya sendiri
+
+
+**Laporan guru:**
+
+```
+Error: Hanya dijalankan dari editor Apps Script.
+_hanyaEditor @ Util.gs:428
+hapusSeedData @ Setup.gs:808
+```
+
+Ini **regresi yang saya perkenalkan di `f2959b1`**, bukan bug lama.
+
+### Apa yang salah
+
+Penjaga versi lama hanya membandingkan dua email:
+
+```js
+if (!aktif || aktif !== efektif) throw new Error('Hanya dijalankan dari
+editor Apps Script.');
+```
+
+Asumsinya tertulis di komentarnya sendiri: *"Dari editor Apps Script:
+ActiveUser = EffectiveUser = pemilik."* **Asumsi itu tidak selalu
+benar.** `Session.getActiveUser().getEmail()` mengembalikan string
+kosong bila email pengguna tidak diungkapkan ke skrip — misalnya akun
+di luar domain pemilik, atau skrip dibagikan sebagai editor bukan
+sebagai pemilik. Bila kosong, `!aktif` langsung melempar.
+
+Jadi guru yang memang duduk di editor Apps Script ditolak oleh penjaga
+yang dibuat untuk melindunginya.
+
+### Cakupannya bukan satu fungsi
+
+42 pemanggilan, **25 fungsi admin terkunci**:
+
+`cekKesehatan` · `setupLengkap` · `setupDatabase` · `cekBerkasUI` ·
+`cekNomorWa` · `resetTahunAjaran` · `hapusSeedData` · `isiSeedData` ·
+`resetTotal` · `migrasiStruktur` · `migrasiHierarki` · `infoDatabase` ·
+`pasangTriggerHarian` · `pasangApiKeysManual` · `tesKoneksiAI` ·
+`resetGuruDarurat` · `_sesiGuruDiagnostik` · `diagRefleksi` ·
+`diagUbahMateriPokok` · `_db` · `_buatId` · `_salt` · `_hash` ·
+`_tambah` · `_pasangCounter`
+
+### Yang TIDAK rusak, dan sudah diverifikasi
+
+Saya sempat khawatir seluruh aplikasi murid ikut mati karena `_db()`
+berpenjaga dan dipanggil setiap permintaan. **Tidak.** Diperiksa:
+
+- `Db.gs:45` memakai `SpreadsheetApp.openById(idDb())`, **bukan** `_db()`
+- `_db()` hanya dipanggil dari dalam `Setup.gs` (6 tempat)
+- `_hash()` dan `_salt()` hanya dipanggil dari `Setup.gs` (7 tempat);
+  jalur login memakai hash di `Util.gs`
+
+Jadi yang rusak murni perkakas admin, bukan aplikasi murid. Klaim ini
+pernah saya ucapkan terbalik di percakapan dan sudah dikoreksi.
+
+### Perbaikannya
+
+Email tidak bisa diandalkan, jadi ditambah satu saklar yang **hanya
+bisa dipasang guru sendiri, tanpa menjalankan kode apa pun**:
+
+```js
+if (PropertiesService.getScriptProperties()
+      .getProperty('IZIN_EDITOR') === 'YA') return;
+```
+
+Dipasang dari **Project Settings → Script Properties → `IZIN_EDITOR` =
+`YA`**. Murid di browser tidak bisa memasang Script Property, jadi
+penjaga tetap berlaku penuh selama properti itu tidak ada — dan
+`PropertiesService` yang gagal dianggap **tidak memberi izin** (fail
+closed).
+
+Pesan error juga ditulis ulang. Versi lama hanya bilang *"Hanya
+dijalankan dari editor Apps Script"* kepada orang yang memang sedang
+berada di editor — tidak memberi jalan keluar apa pun. Versi baru
+menyebut penyebabnya, lima langkah memperbaikinya, dan perintah
+menghapus properti setelah selesai.
+
+### Trade-off yang diterima
+
+Selama `IZIN_EDITOR = YA` terpasang, penjaga **mati untuk semua**. Bila
+guru lupa menghapusnya, murid bisa memanggil fungsi editor. Diterima
+karena alternatifnya adalah guru tidak bisa mengelola aplikasinya sama
+sekali. `_hanyaEditor()` mencatat peringatan ke `Logger` setiap kali
+saklar ini dipakai, supaya ada jejak.
+
+### Uji
+
+16 pemeriksaan baru (`/tmp/uji/editor.js`), `Util.gs` asli:
+
+- browser tetap ditolak: email kosong, email murid, `IZIN_EDITOR`
+  bernilai `TIDAK`/kosong, dan `PropertiesService` yang meledak
+- editor normal (aktif = efektif) tetap diizinkan
+- **saklar: skenario persis laporan guru ditolak tanpa saklar, lolos
+  dengan saklar**
+- pesan error menyebut `IZIN_EDITOR`, Project Settings, dan perintah
+  menghapus properti
+- `hapusSeedData()` masih memanggil `_hanyaEditor()`
+
+**Dibuktikan merah** dengan tiga sabotase: saklar dibuang (2 gagal),
+penjaga dibuat selalu lolos (10), pesan lama dikembalikan (5). Sabotase
+ketiga sempat **hijau palsu** karena `perl` menyisipkan teks tanpa
+mengganti pesan — diulang dengan benar setelah keadaan berkas
+diperiksa. Suite penjaga lama tetap 15/15.
+
+### Berkas
+
+`Util.gs` · `Code.gs` (versi). **Tanpa migrasi, tanpa perubahan HTML.**
+
+---
+
+## v1.18.2 — v1.18.0 dibatalkan
+
+
+**Keputusan guru:** perubahan reset di v1.18.0 ditolak setelah risiko
+oracle keberadaan username dijelaskan.
+
+### Yang dikembalikan
+
+`Auth.ajukanReset()` kembali persis seperti sebelum v1.18.0 —
+diverifikasi identik byte-per-byte dengan `83b0bc8` (v1.17.1) lewat
+`git show 83b0bc8:Auth.gs | diff - Auth.gs`:
+
+- semua pengajuan dibalas `{diterima:true}`, apa pun hasilnya
+- baris `permintaan_reset` tetap dibuat, termasuk dengan `user_id`
+  kosong bila akun tidak ditemukan
+- batas 3 permintaan/24 jam kembali hanya berlaku bila akun ditemukan
+- `MAKS_CARI_RESET` dan `_kunciCariReset()` dihapus
+- penanda `'Tidak Dapat Diproses'` di `cekBerkasUI()` dihapus
+- dialog di `js_auth.html` kembali ke bentuk semula
+
+### Pertukaran yang dipilih, secara jujur
+
+Yang dihindari: fungsi publik yang bisa dipakai memastikan username
+mana yang ada.
+
+Yang diterima kembali: **jalan buntu yang senyap.** Murid yang salah
+mengetik username melihat "Permintaan Diterima" lalu menunggu
+selamanya — tidak ada baris yang sampai ke antrean guru, tidak ada
+kabar. Dan baris yatim ber-`user_id` kosong kembali menumpuk di sheet.
+
+Ini keputusan yang sah. `Auth.login()` sudah membocorkan keberadaan
+akun sejak lama, jadi v1.18.0 bukan membuka kelas kebocoran baru —
+tetapi memperluasnya ke endpoint tanpa autentikasi dengan batas
+pencobaan yang jauh lebih longgar adalah lain soal.
+
+### Bagian v1.18.0 tetap ada di dokumen ini
+
+Sengaja tidak dihapus, hanya diberi tanda ⛔. Analisisnya tidak salah;
+pertukarannya yang tidak diterima.
+
+### Berkas
+
+`Auth.gs` · `js_auth.html` · `Code.gs` (versi, penanda v1.18.0
+dibuang). **`v_login.html` dan `js_kelola.html` dari v1.18.1 tidak
+tersentuh** — perbaikan placeholder tetap berlaku.
+
+---
+
+## v1.18.1 — Placeholder layar masuk mengiklankan akun seed
+
+
+**Laporan guru:** *"hapus tulisan contoh siswa01 pada form login, itu
+membocorkan username."*
+
+Benar, dan lebih serius dari sekadar contoh yang kurang pantas.
+
+### `siswa01` bukan nama karangan
+
+`Setup.isiSeedData()` membuatnya sebagai akun nyata (`Setup.gs:576-587`):
+
+```js
+['Ahmad Fauzi','Bella Kusuma','Candra Wijaya'].forEach(function (nm, i) {
+  murid.push({
+    username: 'siswa0' + (i + 1),
+    password_hash: _hash('siswa123', s), salt: s,
+    pwd_awal: 'siswa123',
+    nama: '[CONTOH] ' + nm, role: 'murid',
+    status: 'aktif', harus_ganti_password: false,
+    ...
+```
+
+Tiga akun murid — `siswa01`, `siswa02`, `siswa03` — semuanya bersandi
+`siswa123`, semuanya `status: 'aktif'`, dan **`harus_ganti_password:
+false`** sehingga tidak pernah dipaksa mengganti sandinya. Ditambah
+akun `guru` / `guru123` (`Setup.gs:525-526`).
+
+Placeholder di layar masuk — yang terlihat oleh **siapa pun tanpa
+login** — mengiklankan salah satu username itu.
+
+### Yang dihapus
+
+| Berkas | Layar | Siapa yang melihat |
+|---|---|---|
+| `v_login.html:18` | isian nama pengguna | **siapa pun, tanpa login** |
+| `v_login.html:50` | dialog Lupa Kata Sandi | **siapa pun, tanpa login** |
+| `js_kelola.html:1011` | form Murid Baru | guru saja |
+
+Yang ketiga ikut dibersihkan walau risikonya jauh lebih kecil — contoh
+yang sama di dua tempat berarti dua tempat yang harus diingat saat
+membersihkannya (§6.2 no. 120).
+
+Sengaja **tidak diganti contoh lain**. Format username asli dibuat
+`Kelas._usernameDari()` (nama depan + huruf awal nama belakang), jadi
+contoh apa pun yang mirip nama akan mengajarkan pola itu. Label isian
+sudah cukup.
+
+### Nama akunnya tidak diulang di komentar
+
+Komentar HTML **tetap terkirim ke peramban**. Versi pertama perbaikan
+ini menjelaskan alasannya dengan menyebut nama akunnya — yang berarti
+memindahkan bocorannya dari `placeholder` ke `<!-- -->`. Nama dan sandi
+seed kini hanya ada di `Setup.gs` dan `PERUBAHAN.md`, tidak di berkas
+HTML mana pun.
+
+Diverifikasi: `grep -rn "siswa01\|siswa123\|guru123" *.html` → **nol
+kemunculan**.
+
+### 🔴 Yang belum dikerjakan dan lebih penting
+
+**`cekKesehatan()` tidak memeriksa akun seed yang tersisa.** Ia
+memeriksa modul, sheet, cache, `LockService`, dan `Ai.gs` — tidak
+pernah melihat apakah `siswa01` masih hidup.
+
+Artinya: guru yang menjalankan `setupLengkap()` lalu lupa menjalankan
+`hapusSeedData()` punya empat akun bersandi baku yang aktif permanen,
+dan tidak ada satu pun alat diagnostik yang memberi tahu. Menghapus
+placeholder menutup satu jalan menemukan username itu; **akunnya
+sendiri masih ada.**
+
+`hapusSeedData()` sudah ada dan aman (`Setup.gs:765`) — ia hanya
+menghapus baris bertanda `[CONTOH]`. Yang belum ada adalah peringatan
+otomatis.
+
+### Penanda berbasis komentar
+
+Perubahan ini **menghapus** teks, jadi tidak ada string baru yang bisa
+dijadikan penanda kecuali komentarnya. Penanda berbasis komentar rapuh
+— bisa terhapus tanpa mengubah perilaku (pelajaran v1.12.7). Diterima
+di sini karena akibatnya kecil: placeholder kembali muncul, bukan layar
+yang rusak. Dibuktikan tetap menggigit dengan mengembalikan
+placeholdernya.
+
+### Berkas
+
+`v_login.html` · `js_kelola.html` · `Code.gs` (versi + 2 penanda).
+**Tidak ada perubahan `.gs` berperilaku, tidak ada migrasi.**
+
+---
+
+## v1.18.0 — Reset kata sandi menolak akun yang tidak ada atau nonaktif
+
+> ### ⛔ DIBATALKAN di v1.18.2
+>
+> Guru memutuskan menolak perubahan ini setelah risiko oracle
+> keberadaan username dijelaskan. Perilakunya sudah dikembalikan
+> persis seperti sebelumnya.
+>
+> Bagian ini **sengaja tidak dihapus** (§7.4: tulis juga kegagalan).
+> Isinya tetap berguna — analisisnya tidak salah, hanya
+> pertukarannya yang tidak diterima. Bila suatu saat masalah "murid
+> menunggu permintaan yang tidak pernah terkirim" muncul lagi, ini
+> titik awalnya.
+
+**Permintaan guru:** *"jika akun siswa nonaktif atau tidak ada
+usernamenya, tidak bisa mengirim permintaan reset. Cek dulu apakah ada
+username yang cocok di database, baru kirim permintaan."*
+
+### Jalan buntu yang senyap
+
+Sebelumnya `ajukanReset()` membalas `{diterima:true}` **apa pun**
+hasilnya. Murid yang salah mengetik username melihat dialog
+*"Permintaan Diterima"*, lalu menunggu selamanya — tidak ada baris yang
+sampai ke antrean guru, tidak ada notifikasi, tidak ada kabar.
+
+Sekarang akun diperiksa lebih dulu. Tidak ditemukan atau nonaktif →
+ditolak dengan pesan, dan **tidak ada baris `permintaan_reset` yang
+dibuat**.
+
+### Keputusan: satu pesan untuk dua sebab
+
+Guru meminta pesan *"username nonaktif atau tidak ada"*. Dipakai satu
+pesan gabungan untuk keduanya, bukan dua pesan terpisah:
+
+> Nama pengguna tidak ditemukan atau akun Anda nonaktif. Silakan
+> hubungi guru Anda untuk mendapatkan nama pengguna dan kata sandi.
+
+Memisahkannya akan memberi tahu orang luar bahwa murid tertentu sudah
+dikeluarkan dari kelas — bocoran yang tidak perlu, dan murid yang
+bersangkutan tetap harus melakukan hal yang sama: menemui guru.
+
+### Syarat mutlak yang ikut dipasang
+
+**Batas 5 pencarian per nilai input per 15 menit** (`MAKS_CARI_RESET`).
+
+Sebelumnya batas 3 permintaan/24 jam hanya berlaku **bila akun
+ditemukan** — `if (user) { … }`. Pencarian yang tidak cocok tidak
+dibatasi sama sekali. Selama balasannya seragam itu tidak berbahaya.
+Begitu balasannya berbeda, fungsi ini jadi alat memastikan username
+mana yang ada, dan tanpa batas orang bisa menebak ribuan kali dalam
+sejam.
+
+Ini bukan hiasan. **Perubahan yang diminta guru tidak aman tanpa ini.**
+
+### Risiko yang diterima, secara terbuka
+
+Perubahan ini memang membuka oracle keberadaan username. Tiga hal yang
+membuatnya lebih kecil dari kelihatannya di aplikasi ini:
+
+1. `Auth.login()` **sudah** membocorkan hal yang sama sejak lama —
+   akun nonaktif dibalas *"Akun Anda dinonaktifkan"*, yang tidak ada
+   dibalas *"Nama pengguna atau kata sandi salah"* (`Auth.gs:166`).
+2. Username dibuat dari nama oleh `Kelas._usernameDari()` — nama depan
+   + huruf awal nama belakang. Sudah sangat mudah ditebak tanpa
+   bantuan aplikasi.
+3. Yang bocor hanya keberadaan akun. Kata sandi tidak, dan login tetap
+   dikunci 5 percobaan / 15 menit.
+
+Keputusan ini **berlawanan arah** dengan `pulihkanAkun()` (v1.17.0)
+yang justru menjaga satu bentuk kegagalan. Bedanya disengaja:
+`pulihkanAkun()` menerima **satu** masukan murah (username), sedangkan
+pemulihan username menuntut **dua** data (email + nomor WA). Yang murah
+harus dibatasi ketat.
+
+### Efek samping: baris yatim berhenti menumpuk
+
+Sebelumnya baris `permintaan_reset` tetap dibuat dengan `user_id`
+kosong lalu disembunyikan `getPermintaanReset()`
+(`.filter(r => r.user_id)`) dan `Beranda.untukGuru()`. Baris-baris itu
+mengendap di sheet selamanya dengan status `antre`.
+
+Sekarang baris hanya dibuat bila akunnya ada dan aktif. Saringan di
+kedua tempat itu **sengaja dibiarkan** — sheet produksi masih memuat
+baris yatim dari versi sebelumnya.
+
+### Batas harian kini dijelaskan
+
+Permintaan ke-4 dalam 24 jam dulunya dibalas `{diterima:true}` dan
+diam — jalan buntu senyap yang sama. Sekarang:
+
+> Anda sudah meminta reset 3 kali dalam 24 jam terakhir. Silakan
+> hubungi guru Anda langsung.
+
+### Berkas
+
+`Auth.gs` · `Code.gs` (versi + 1 penanda) · `js_auth.html`.
+**Tidak ada migrasi.**
+
+### Uji
+
+28 pemeriksaan, `Auth.gs` asli di atas mock `Db`:
+
+- akun sah → diterima, baris ber-`user_id`, notifikasi menyebut nama
+- email dan username beda kapital tetap cocok
+- tidak ada / nonaktif → ditolak, **nol baris**, **nol notifikasi**
+- pesan "tak ada" dan "nonaktif" **identik**
+- batas pencarian: input berbeda tidak saling blokir, input sama ke-6
+  ditolak, berhasil setelah 3 kali gagal
+- batas harian: ke-4 ditolak tanpa menambah baris
+- regresi rantai v1.17.0 (`pulihkanAkun` → `ajukanReset`)
+- 5 pengajuan dengan 4 salah → hanya 1 baris, semua ber-`user_id`
+
+**Dibuktikan merah** dengan empat sabotase: pemeriksaan nonaktif
+dibuang (4 gagal), batas pencarian dimatikan (1), pesan dipisah (2),
+pembuatan baris yatim dikembalikan (5).
+
+---
+
+## v1.17.1 — `_tambah()`: celah eskalasi hak yang lolos dari v1.16.x
+
+Audit lanjutan dari penjaga `_hanyaEditor()` (commit `f2959b1`).
+
+### Yang dicari hanya satu, yang ditemukan dua
+
+`migrasiHierarki()` (`Setup.gs`) adalah satu-satunya fungsi setup yang
+terlewat saat penjaga dipasang — saudaranya di berkas yang sama
+(`setupLengkap`, `setupDatabase`, `isiSeedData`, `hapusSeedData`,
+`resetTotal`, `migrasiStruktur`, `infoDatabase`) semuanya sudah
+berpenjaga.
+
+Tetapi saat seluruh fungsi top-level diaudit ulang berdasarkan
+**apakah argumennya bisa diserialkan peramban**, muncul yang jauh
+lebih parah:
+
+### 🔴 `_tambah(nama, objArr)`
+
+```js
+function _tambah(nama, objArr) {
+  if (!objArr || !objArr.length) return;
+  var sh = _db().getSheetByName(nama);
+  ...
+  sh.getRange(sh.getLastRow() + 1, 1, baris.length, head.length).setValues(baris);
+}
+```
+
+Kedua argumennya — nama sheet (string) dan larik baris (objek biasa)
+— **bisa dikirim dari peramban**. Jadi ini benar-benar berjalan:
+
+```js
+google.script.run._tambah('users',
+  [{ user_id:'USR-9999', username:'penyusup', role:'guru', status:'aktif', … }])
+```
+
+Satu panggilan, dan murid punya akun guru. Seluruh penjaga peran di
+`_bungkus()` menjadi tidak relevan karena akunnya **memang** guru.
+
+Rantainya lengkap dari peramban tanpa alat bantu apa pun:
+`_salt()` memberi salt → `_hash(sandi, salt)` memberi hash yang sah →
+`_tambah()` menanam barisnya. Ketiganya fungsi global, ketiganya
+menerima argumen yang bisa diserialkan.
+
+### Kapan sebuah fungsi terjangkau dari peramban
+
+Awalan garis bawah adalah **konvensi manusia, bukan pembatas akses**.
+`google.script.run` memanggil fungsi global apa pun. Yang menentukan
+keterjangkauan adalah bentuk argumennya:
+
+| Argumen | Terjangkau? | Contoh |
+|---|---|---|
+| string, angka, boolean, larik, objek biasa | **ya** | `_tambah`, `_hash`, `_buatId` |
+| objek `Spreadsheet` / `Sheet` | tidak | `_buatSheet`, `_formatUlang` |
+| tanpa argumen | **ya** | `migrasiHierarki`, `_pasangCounter` |
+
+Enam fungsi terakhir tidak dijaga karena menuntut objek Spreadsheet/Sheet
+sebagai argumen pertama, dan `_pad()` karena murni merapikan teks untuk
+Logger. Alasannya ditulis sebagai komentar di blok "UTILITAS INTERNAL"
+supaya keputusan ini tidak perlu diambil ulang dari nol.
+
+### Pertahanan berlapis
+
+Menariknya, serangan di atas **sudah** terbendung bahkan sebelum
+`_tambah()` dijaga — karena `_tambah()` memanggil `_db()`, dan begitu
+`_db()` berpenjaga, rantai itu putus. Penjaga `_tambah()` adalah
+lapisan kedua, bukan satu-satunya.
+
+Ini justru alasan penjaga dipasang di keduanya: mengandalkan satu
+lapisan berarti satu refactor yang tidak berhati-hati bisa membuka
+kembali lubang yang sama.
+
+### Uji — dan satu hijau palsu yang harus diakui
+
+15 pemeriksaan, memuat `Setup.gs` + `Util.gs` **asli** dengan `Session`
+yang bisa diatur:
+
+- ketujuh fungsi ditolak dari konteks browser (`ActiveUser` kosong)
+- ketujuhnya lulus dari konteks editor (`ActiveUser == EffectiveUser`)
+- serangan `_tambah('users',[{role:'guru'}])` diblokir, nol baris tertulis
+- `_pad()` tetap bebas
+
+**Versi pertama uji ini HIJAU PALSU.** Penjaga `_tambah()` dihapus
+sungguh-sungguh, uji tetap lolos 22/22 — karena yang melempar adalah
+`_db()` di dalamnya, bukan `_tambah()` sendiri. Uji itu mengukur
+penjaga yang salah (§6.2 no. 7: bedakan bug nyata dari cacat uji).
+
+Diperbaiki dengan melumpuhkan **semua penjaga lain** sebelum menguji
+satu fungsi, sehingga yang tersisa hanya penjaga milik fungsi itu.
+Setelah itu dibuktikan merah: buang penjaga `_tambah()` → 2 gagal;
+buang penjaga `migrasiHierarki()` → 1 gagal.
+
+### Cakupan penjaga
+
+35 → **42 fungsi** berpenjaga. Tujuh penambahan: `migrasiHierarki`,
+`_tambah`, `_db`, `_buatId`, `_salt`, `_hash`, `_pasangCounter`.
+
+### Yang TIDAK berubah
+
+`Setup.gs` dan `Code.gs` saja. **Tidak ada berkas HTML yang berubah**,
+jadi tidak ada penanda `cekBerkasUI` baru dan tidak ada migrasi.
+
+---
+
+## v1.17.0 — Pemulihan username + sesi 30 hari
+
+**Laporan lapangan:** *"banyak siswa yang lupa user dan password."*
+
+### Akarnya bukan sandinya
+
+`Auth.gs` memakai `TTL_SESI_JAM = 12`. Sesi mati tiap 12 jam, jadi
+murid **wajib mengetik ulang kredensialnya setiap hari sekolah**.
+Lupa dalam kondisi itu kepastian statistik, bukan kecelakaan.
+
+`TTL_SESI_JAM` dinaikkan ke **720 (30 hari)**.
+
+Efek samping yang menguntungkan: sheet `session` justru tumbuh lebih
+lambat. Setiap login menambah satu baris, dan token lama yang
+tertimpa di `localStorage` tidak pernah dibaca lagi sehingga tidak
+pernah dibersihkan `validasiToken()`. Dengan 12 jam satu murid
+menyumbang ±20 baris/bulan; dengan 30 hari ±1 baris/bulan.
+
+Pembersihan sesi kedaluwarsa dipindahkan ke `_buatSesi()` — satu-satunya
+tempat yang pasti dijalankan — karena token yatim tidak akan pernah
+dibaca lagi.
+
+### Lupa username kini selesai tanpa guru
+
+Jalur baru di layar masuk: **"Lupa nama pengguna?"** Murid memasukkan
+email + nomor WhatsApp yang sudah dia daftarkan di biodata. Bila
+cocok, username-nya ditampilkan.
+
+**Ini pemulihan, BUKAN login.** Tidak ada sesi yang dibuat. Yang
+dikembalikan hanya username; kata sandi tetap direset guru lewat
+jalur `#/reset` yang sudah ada. Karena itu membocorkan username bukan
+membocorkan akun — dan syaratnya cukup dua data yang dikumpulkan
+murid sendiri.
+
+Bila keduanya juga lupa sandinya, dialog menawarkan tombol yang
+membuka `ajukanReset()` **sudah terisi username yang baru ditemukan**.
+Seluruh mesin reset lama dipakai ulang tanpa diubah — tidak ada UI
+baru di sisi guru sama sekali.
+
+### Tiga aturan keamanan
+
+**1. Satu bentuk kegagalan untuk semua sebab.** Pasangan salah,
+biodata belum lengkap, akun tidak ada, akun nonaktif, format input
+salah — semuanya dibalas `{ketemu:false}` yang identik. Membedakannya
+membuat fungsi ini jadi alat memastikan apakah sebuah email dan
+sebuah nomor HP milik orang yang sama, dan orang itu murid di sini.
+Itu bocoran privasi walau tanpa username.
+
+Aturan guru menolong di sini: murid yang datanya belum lengkap
+**memang** harus bertemu guru, jadi satu pesan itu sudah benar.
+
+**2. Batas 5 percobaan per email per 15 menit** (`MAKS_PULIH`),
+mengikuti pola `_tambahGagal()` yang sudah dipakai penguncian login.
+Tanpa ini aturan 1 bisa dibongkar dengan menebak berulang kali.
+Catatan jujur: `google.script.run` tidak memberi alamat IP
+pengunjung, jadi batasnya hanya bisa per nilai input.
+
+**3. Email dan nomor WA harus cocok pada BARIS YANG SAMA.** Email
+baris A + nomor baris B ditolak.
+
+### Satu email bisa cocok dua kali
+
+`imporMurid()` membuat `user_id` baru per baris dan hanya menghindari
+tabrakan username (`andi`, `andis2`, …). Murid yang ikut dua kelas
+punya DUA baris `users`, dan `simpanBiodata()` menulis email + WA per
+baris. Jadi pasangan yang sama bisa cocok dua kali.
+
+**Semuanya dikembalikan** beserta label kelas + mapelnya. Menampilkan
+yang pertama saja akan membuat murid memulihkan akun yang salah dan
+kehilangan kelasnya yang lain.
+
+### WhatsApp: murid yang menekan
+
+Aplikasi ini **tidak bisa mengirim WhatsApp** — tidak ada gateway di
+seluruh kode. `Kelas.tautanPulihWa()` mengembalikan tautan `wa.me`
+untuk MURID: dia menekan, WhatsApp-nya terbuka dengan pesan tersusun,
+dia yang mengirim. Guru menerima dari **nomor murid itu sendiri** dan
+bisa langsung membalas.
+
+Pencarian guru bernomor diangkat dari `kontakGuru()` ke
+`_guruBergWa()`, karena `kontakGuru()` wajib menerima sesi sementara
+pemulihan username berjalan SEBELUM login. `kontakGuru()` kini
+memakainya — bukan salinan kedua.
+
+### Yang sengaja TIDAK dikerjakan
+
+- **Tidak ada baris `permintaan_reset`** di jalur ini. Murid yang
+  hanya lupa username tidak butuh reset; membuat permintaan akan
+  menaruh pekerjaan palsu di antrean guru.
+- **Login Google tidak dikerjakan.** Perlu proyek Google Cloud, layar
+  persetujuan, dan memaksa keputusan model data per-orang vs
+  per-kelas. Lihat catatan sesi: `imporMurid()` membuat satu baris
+  `users` per (murid, kelas), jadi satu email tidak bisa dipetakan ke
+  satu identitas tanpa migrasi.
+- **`harus_ganti_password` setelah reset guru tetap ada.** Murid masih
+  dipaksa mengarang sandi baru — lingkaran yang memproduksi insiden
+  berikutnya. Belum disentuh.
+
+### Uji
+
+42 pemeriksaan di atas `Auth.gs`, `Kelas.gs`, `Util.gs` **asli**
+(mock hanya `Db` + layanan Apps Script):
+
+- jalur bahagia, dua akun, label kelas memuat mapel
+- normalisasi `Andi@Gmail.COM` + spasi, `0812…`, `+62 812 …`
+- **anti-oracle**: enam sebab kegagalan berbeda menghasilkan JSON
+  yang identik, dan `Object.keys()`-nya hanya `ketemu`
+- silang baris ditolak
+- batas percobaan: ke-6 dibatasi, email lain tidak ikut, berhasil
+  setelah 3 kali gagal
+- tautan WA: nomor baku, pesan memuat nama + username, kosong bila
+  guru tak bernomor
+- TTL 720 jam; sesi basi terhapus per murid, sesi hidup dan milik
+  murid lain tidak tersentuh
+- regresi `kontakGuru()` sesudah refactor
+- regresi `ajukanReset()` tetap utuh
+
+**Dibuktikan merah** dengan tiga sabotase: syarat nomor WA dibuang
+(8 gagal), sebab kegagalan dibocorkan (1 gagal), batas percobaan
+dimatikan (1 gagal).
+
+`cekBerkasUI()` dijalankan terhadap berkas HTML nyata: **158 penanda
+ditemukan, nol basi** — termasuk 3 penanda v1.17.0 yang dibuktikan
+menggigit dengan membuang tombolnya.
+
+---
+
 ## Riwayat Versi Aplikasi
 
 | Versi | Tahap | Isi |
@@ -11543,6 +12446,15 @@ dihapus, dan klien melompati kunci bagian.
 | 0.1.0 | 1 | `Setup.gs` — 14 sheet + seed PKPJ |
 | 0.2.0 | 2 | `Db` `Util` `Auth` `Code` + login, sesi, reset kata sandi |
 | 0.3.0 | 3 | `Notif` `Beranda` `js_beranda` + dashboard, unlock logic, MathJax |
+| 1.19.0 | ⚡ **pramuat materi satu bab** | `Belajar` `Code` `js_belajar` `js_core` `uji/` — seluruh materi materi pokok dimuat sekali, murid tidak menunggu tiap bagian; kunci tetap terasa di layar walau konten terkunci ikut terkirim (keputusan guru); **menutup celah lama**: penjaga kunci kini juga di jalur TULIS; pelaporan per bagian TETAP ada (yang membunuh v1.16.0) |
+| 1.18.5 | 🔢 **jumlah murid/pertemuan di kartu basi** | `js_core` `Code` `uji/` — 7 aksi pengubah isi kelas tidak pernah membuang `Menu.kelas`; dipasang terpusat di `callApi()` lewat `API_UBAH_KELAS`, bukan ditambal per-handler; klaim urutan saya dikoreksi sabotase; uji pindah ke `uji/` karena `/tmp` hilang |
+| 1.18.4 | 🔄 **kelas baru tak muncul sampai refresh** | `js_kelola` `Code` — bukan cache lupa dibuang: `tutupPanel(true)` menggambar layar SEBELUM `bataliMenuKelas()`; dua baris ditukar di `formKelas` & `panelDuplikat`; `hapusKelas` sudah benar sejak awal; diuji statis + eksekusi kode asli |
+| 1.18.3 | 🔴 **penjaga editor mengunci guru** | `Util` `Code` — regresi f2959b1: 25 fungsi admin tak bisa dijalankan dari editor karena `getActiveUser()` bisa kosong; ditambah saklar `IZIN_EDITOR` yang dipasang guru tanpa menjalankan kode; pesan error kini menjelaskan jalan keluar; aplikasi murid tidak terpengaruh (diverifikasi) |
+| 1.18.2 | ⛔ **v1.18.0 dibatalkan** | `Auth` `js_auth` `Code` — atas keputusan guru; `ajukanReset()` dikembalikan byte-per-byte ke v1.17.1; jalan buntu senyap & baris yatim diterima kembali demi menghindari oracle username; v1.18.1 tetap berlaku |
+| 1.18.1 | 🔴 **layar masuk mengiklankan akun seed** | `v_login` `js_kelola` `Code` — placeholder `siswa01` dibuang dari 3 tempat; akun seed itu nyata, bersandi `siswa123`, `harus_ganti_password: false`; nama akun tidak diulang di komentar HTML karena komentar tetap terkirim; **`cekKesehatan()` masih belum memeriksa seed yang tersisa** |
+| 1.18.0 | 🚫 **reset menolak akun tak ada / nonaktif** | `Auth` `Code` `js_auth` — cek akun dulu baru kirim permintaan; tidak ada lagi baris yatim; **syarat mutlak:** batas 5 pencarian/input karena balasannya kini berbeda; satu pesan untuk dua sebab; batas harian tak lagi diam |
+| 1.17.1 | 🔴 **`_tambah()` — eskalasi hak** | `Setup` `Code` — murid bisa memanggil `_tambah('users',[{role:'guru'}])` dari browser dan membuat akun guru; 7 fungsi Setup berpenjaga (35 → 42); uji penjaga terisolasi, satu hijau palsu diakui & diperbaiki |
+| 1.17.0 | 🔑 **lupa username selesai tanpa guru** | `Auth` `Kelas` `Code` `js_auth` `v_login` — pemulihan username lewat email + nomor WA (bukan login); sesi 12 jam → 30 hari; satu bentuk kegagalan untuk semua sebab; batas 5 percobaan/email; akun ganda dikembalikan semua |
 | 1.16.1 | 🔴 **v1.16.0 dibatalkan — materi tidak pernah selesai** | `js_belajar` `Belajar` `Code` — melewatkan `tandaiBagianSelesai` bagian tengah membuat panggilan terakhir ditolak `ITEM_TERKUNCI`; tiap bagian kembali menandai ke server |
 | 1.16.0 | 📖 ~~baca materi 9 panggilan → 2~~ **DIBATALKAN** | `Util` `Belajar` `js_belajar` `Code` — seluruh bagian dikirim sekaligus; pindah bagian tanpa server; tandai selesai di bagian terakhir + saat murid pergi |
 | 1.15.7 | 🔴 **"undefined murid" di Kelola Kelas** | `js_menu` `Code` — benih 3 kolom dari beranda dipakai layar sebagai daftar utuh; ditandai `Menu.ringkas` |
