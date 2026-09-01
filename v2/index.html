@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=5">
+  <title><?= appNama ?></title>
+  <link rel="icon"
+        href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22><?= appIkon ?></text></svg>">
+  <?!= include('css'); ?>
+</head>
+<body>
+  <div id="app" class="app"></div>
+
+  <?!= include('v_login'); ?>
+  <?!= include('v_dashboard'); ?>
+
+  <?!= include('js_core'); ?>
+  <?!= include('js_auth'); ?>
+</body>
+</html>

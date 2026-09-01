@@ -1,10 +1,17 @@
 # 📚 Dokumentasi Rancangan LMS dengan Google Apps Script
 
-**Versi:** 2  
-**Tanggal:** 31 Agustus 2026  
-**Status:** Draft integrasi — basis finalisasi teknis dan PoC sebelum implementasi MVP  
+**Versi:** 2.1 — revisi keputusan final  
+**Tanggal:** 2 September 2026  
+**Status:** Blueprint final siap implementasi — Gate 0 = PoC Login & Sesi  
 **Proyek:** LMS sederhana — fase MVP  
 **Target MVP:** 1–10 guru, sekitar 500 siswa, satu sekolah/organisasi
+
+> **KEPUTUSAN FINAL V2.1 (menggantikan bagian rancangan OAuth lama):**
+>
+> 1. **Login sama seperti LessonLen v1** — nama pengguna + kata sandi (hash SHA-256 + salt, sesi token, kunci otomatis, reset oleh guru). Google OAuth/OpenID Connect **dihapus** dari rancangan.
+> 2. **Role tetap dua: `guru` (sekaligus admin) dan `murid`.** Tidak ada role admin terpisah.
+> 3. **Proses enrollment sama seperti v1** — sheet `Enrollment` (enroll_id, kelas_id, user_id, tanggal_daftar, status aktif/keluar), guru mendaftarkan murid, notifikasi `enroll_kelas`.
+> 4. **Sistem AI generate sama seperti v1** — Gemini dengan rotasi API key, hasil selalu **draf** yang wajib ditinjau guru. AI adalah bagian MVP inti, bukan Phase 2.
 
 ---
 
@@ -12,11 +19,12 @@
 
 Sistem ini adalah LMS sederhana berbasis Google Apps Script dengan fitur:
 
-- Pengguna dengan role admin, guru, dan siswa.
-- Login menggunakan akun Google.
+- Pengguna dengan role guru (sekaligus admin) dan murid.
+- Login menggunakan nama pengguna dan kata sandi — sama seperti LessonLen v1.
 - Manajemen kelas, keanggotaan siswa, dan penugasan guru-mapel-kelas.
 - Topic dan item pembelajaran: materi, tugas individu, tugas kelompok, quiz, dan refleksi.
 - Kontrol buka/tutup topic dan item.
+- Generator AI (Gemini) untuk menyusun **draf** materi, LKPD/kegiatan, refleksi, soal, dan kerangka — wajib ditinjau guru sebelum dipublikasikan (sama seperti v1).
 - Tracking progres siswa.
 - Quiz dengan pilihan ganda, benar-salah, jawaban singkat, dan uraian.
 - Pengumpulan tugas melalui Google Drive.
@@ -37,17 +45,18 @@ Semua dimiliki dan dijalankan oleh akun Admin
 
 Data guru, kelas, dan aktivitas dipisahkan secara **logis melalui relasi dan authorization server-side**, bukan dengan spreadsheet fisik terpisah per guru.
 
-### Keputusan utama versi 2
+### Keputusan utama versi 2.1
 
 1. Arsitektur single project dan single spreadsheet dipertahankan.
-2. `Session.getActiveUser().getEmail()` tidak dipakai sebagai mekanisme login utama.
-3. Login Gmail lintas-domain menggunakan OAuth 2.0/OpenID Connect custom dengan validasi token yang benar.
-4. Session token tidak disimpan permanen dalam URL.
-5. Keanggotaan kelas, penugasan mapel, dan anggota kelompok tidak lagi disimpan sebagai JSON Array dalam satu sel.
-6. Hak akses tidak hanya mengandalkan `teacher_id`, tetapi menggunakan pemeriksaan kepemilikan resource dan keanggotaan kelas.
-7. Monitoring kuota diubah menjadi monitoring kesehatan sistem dan metrik pemakaian internal; bukan klaim kuota Apps Script per guru.
-8. WhatsApp dan otomatisasi copy file siswa bukan bagian dari MVP inti.
-9. Database final terdiri atas **21 sheet**, yaitu 17 sheet utama versi sebelumnya ditambah `Class_Members`, `Teaching_Assignments`, `Group_Members`, dan `Audit_Logs`.
+2. Login menggunakan nama pengguna + kata sandi, **sama seperti LessonLen v1**: hash SHA-256 + salt per user, sesi token TTL 12 jam, kunci otomatis 5× gagal dalam 15 menit, ganti kata sandi mandiri, lupa kata sandi → permintaan reset → guru mereset.
+3. Role hanya dua: `guru` (sekaligus admin) dan `murid`. Seluruh fungsi admin (kelola murid, reset kata sandi, backup, monitoring) dipegang guru.
+4. Keanggotaan kelas, penugasan mapel, dan anggota kelompok tidak lagi disimpan sebagai JSON Array dalam satu sel.
+5. Proses enrollment sama seperti v1: guru mendaftarkan murid ke kelas melalui sheet `Enrollment` dengan status `aktif`/`keluar`, disertai notifikasi `enroll_kelas`.
+6. Sistem AI generate sama seperti v1 (`Ai.gs`): Gemini via UrlFetch, rotasi ≤10 API key di Script Properties, fallback model + cooldown, hasil draf wajib ditinjau (`ai_ditinjau`).
+7. Hak akses tidak hanya mengandalkan `teacher_id`, tetapi menggunakan pemeriksaan kepemilikan resource dan keanggotaan kelas.
+8. Monitoring kuota diubah menjadi monitoring kesehatan sistem dan metrik pemakaian internal; bukan klaim kuota Apps Script per guru.
+9. WhatsApp dan otomatisasi copy file siswa bukan bagian dari MVP inti.
+10. Database final terdiri atas **23 sheet**: 21 sheet rancangan awal dengan `Class_Members` → `Enrollment` dan `Sessions` → `Session`, ditambah `Materi_AI` (riwayat generate) dan `Permintaan_Reset` (alur lupa kata sandi).
 
 ---
 
@@ -66,21 +75,21 @@ Data guru, kelas, dan aktivitas dipisahkan secara **logis melalui relasi dan aut
 
 | Role | Tanggung jawab utama |
 |---|---|
-| Admin | Mengelola guru, monitoring sistem, backup, dan konfigurasi |
-| Guru | Mengelola kelas, siswa, mapel, materi, tugas, quiz, kelompok, nilai, dan progres |
-| Siswa | Melihat materi, mengerjakan quiz/tugas, mengisi refleksi, dan melihat progres/nilai |
+| Guru (admin) | Mengelola murid, kelas, enrollment, mapel, materi, tugas, quiz, kelompok, nilai, dan progres; sekaligus memegang fungsi admin: reset kata sandi, backup, konfigurasi, monitoring |
+| Murid | Melihat materi, mengerjakan quiz/tugas, mengisi refleksi, dan melihat progres/nilai |
 
 ### 2.3 Yang termasuk MVP
 
 - Satu sekolah/organisasi.
 - 1–10 guru.
 - Sekitar 500 siswa.
-- Akun Google untuk seluruh pengguna.
+- Nama pengguna + kata sandi untuk seluruh pengguna — tanpa akun Google (sama seperti v1).
 - Akses melalui Web App, bukan aplikasi Android/iOS.
 - Data utama di satu Spreadsheet.
 - File pembelajaran di Google Drive.
 - Email sebagai notifikasi tambahan dengan batas kuota.
 - Quiz dan tugas dengan alur submit yang sederhana.
+- Generator AI Gemini untuk draf materi/soal/LKPD/refleksi/kerangka (sama seperti v1).
 
 ### 2.4 Yang tidak termasuk MVP
 
@@ -90,10 +99,10 @@ Data guru, kelas, dan aktivitas dipisahkan secara **logis melalui relasi dan aut
 - Payment gateway.
 - Mobile app native.
 - Self-registration guru.
-- AI/ML.
 - Otomatisasi penuh WhatsApp.
 - Sistem ujian dengan anti-cheating tingkat tinggi.
 - Otomatisasi copy file siswa yang kompleks.
+- AI penilai (AI grading) sebagai dependensi utama — AI pada MVP hanya menghasilkan draf konten, bukan menilai.
 - Multi-sekolah dalam satu database.
 
 ---
@@ -113,6 +122,7 @@ Data guru, kelas, dan aktivitas dipisahkan secara **logis melalui relasi dan aut
 | Tugas Google Docs/Slides/Sheets | ⚠️ | Perlu aturan ownership dan permission yang jelas |
 | Import CSV | ✅ | Dapat diproses dari form HTML |
 | Import Excel | ⚠️ | Perlu konversi melalui Drive/API atau proses eksternal |
+| Generator AI (Gemini) | ✅ | UrlFetch + rotasi API key + fallback model; hasil draf wajib ditinjau guru (sama seperti v1) |
 | Email | ⚠️ | Kuota tergabung pada akun pemilik script |
 | WhatsApp | ⚠️ | Hanya melalui API eksternal dan bukan fitur native |
 | Monitoring kuota per guru | ❌ | Tidak tersedia sebagai data kuota resmi per guru |
@@ -149,7 +159,7 @@ Google Apps Script Web App dapat dijalankan sebagai pemilik script atau sebagai 
                        ▼                       ▼
 ┌──────────────────────────────┐   ┌───────────────────────────┐
 │ Google Sheets Database       │   │ Google Drive                │
-│ 21 sheet                    │   │ LMS_Utama/                  │
+│ 23 sheet                    │   │ LMS_Utama/                  │
 │ data terstruktur             │   │ folder guru/kelas/item      │
 └──────────────────────────────┘   └───────────────────────────┘
 ```
@@ -159,8 +169,8 @@ Google Apps Script Web App dapat dijalankan sebagai pemilik script atau sebagai 
 | Pengaturan | Nilai |
 |---|---|
 | Deployment | Web App |
-| Execute as | Me — akun Admin/pemilik script |
-| Access | Anyone with Google account, sesuai kebutuhan rollout |
+| Execute as | Me — akun guru/pemilik script |
+| Access | **Anyone (anonim)** — autentikasi ditangani aplikasi sendiri lewat login nama pengguna + kata sandi, sehingga murid tidak perlu akun Google |
 | Database | Satu Spreadsheet milik Admin |
 | Drive | Folder induk milik Admin atau Shared Drive jika tersedia |
 | URL | Satu URL `/exec` untuk semua pengguna |
@@ -170,256 +180,167 @@ Spreadsheet database **tidak boleh dibagikan langsung** kepada guru maupun siswa
 
 ### 4.3 Struktur file project
 
+Rancangan v2 dikembangkan dalam folder `v2/` pada repositori, sebagai project Apps Script baru yang terpisah dari LessonLen v1:
+
 ```text
-LMS_Utama/
-├── Code.gs
-├── Config.gs
-├── Auth.gs
-├── Authorization.gs
-├── SessionService.gs
-├── ErrorHandler.gs
-├── Helpers.gs
-├── LockHelper.gs
-├── Database/
-│   ├── SheetRepository.gs
-│   ├── Users.gs
-│   ├── Classes.gs
-│   ├── Subjects.gs
-│   ├── TeachingAssignments.gs
-│   ├── ClassMembers.gs
-│   ├── Topics.gs
-│   ├── Items.gs
-│   ├── Progress.gs
-│   ├── Quizzes.gs
-│   ├── QuizQuestions.gs
-│   ├── QuizSubmissions.gs
-│   ├── Assignments.gs
-│   ├── Groups.gs
-│   ├── GroupMembers.gs
-│   ├── Submissions.gs
-│   ├── Grades.gs
-│   ├── Reflections.gs
-│   ├── Notifications.gs
-│   ├── Sessions.gs
-│   ├── Counters.gs
-│   └── AuditLogs.gs
-├── Controllers/
-│   ├── AdminController.gs
-│   ├── TeacherController.gs
-│   ├── StudentController.gs
-│   ├── ClassController.gs
-│   ├── SubjectController.gs
-│   ├── TopicController.gs
-│   ├── ItemController.gs
-│   ├── QuizController.gs
-│   ├── AssignmentController.gs
-│   ├── GroupController.gs
-│   ├── ProgressController.gs
-│   ├── GradeController.gs
-│   └── ReflectionController.gs
-├── Services/
-│   ├── DriveService.gs
-│   ├── EmailService.gs
-│   ├── ImportService.gs
-│   └── NotificationService.gs
-└── Views/
-    ├── Login.html
-    ├── Admin.html
-    ├── Teacher.html
-    ├── Student.html
-    ├── Components.html
-    └── Assets.html
+v2/
+├── Code.gs          doGet, include(), pembungkus API (_bungkus)
+├── Setup.gs         skema 23 sheet, setup, seed, migrasi, info DB
+├── Db.gs            lapisan akses Sheets: baca/tulis batch, cache, LockService
+├── Util.gs          generator ID (Counters), hash kata sandi, tanggal, sanitasi, audit log
+├── Auth.gs          login, sesi, ganti/lupa/reset kata sandi (port v1)
+├── Kelas.gs         (tahap berikut) kelas, murid, enrollment
+├── MateriPokok.gs   (tahap berikut) topic, item
+├── Quiz.gs          (tahap berikut) soal, attempt, penilaian
+├── Ai.gs            (tahap berikut) generator Gemini — dipindahkan dari v1
+├── index.html       cangkang UI
+├── css.html         gaya visual
+├── v_login.html     layar masuk (nama pengguna + kata sandi)
+├── v_dashboard.html dasbor guru/murid
+├── js_core.html     pembungkus google.script.run, token sesi, router
+└── js_auth.html     logika layar masuk & kata sandi
 ```
 
-Nama folder di atas adalah struktur logis pengembangan. Jika editor Apps Script tidak mendukung folder project seperti IDE lokal, gunakan penamaan file yang konsisten atau kelola source dengan `clasp` dan repository Git.
+Kelola source dengan `clasp` dan repositori Git bila editor Apps Script tidak mendukung folder project.
 
 ---
 
-## 4A. Persiapan Google Cloud, Apps Script, dan API
+## 4A. Persiapan Apps Script
 
-### 4A.1 Cloud Project
+### 4A.1 Project
 
-Gunakan satu **standard Google Cloud Project** yang terhubung dengan Apps
-Script production. Buat project development/staging terpisah agar pengujian
-OAuth dan perubahan schema tidak mengganggu pengguna production.
+Buat **satu project Apps Script baru** untuk LMS v2 (dipisahkan dari project
+LessonLen v1). Siapkan project development/staging terpisah bila pengujian
+perubahan schema tidak boleh mengganggu data sungguhan.
 
-### 4A.2 OAuth Client
+### 4A.2 Script Properties
 
-- Buat OAuth Client tipe Web Application.
-- Daftarkan redirect URI Web App production secara persis, termasuk scheme dan
-  trailing slash jika ada.
-- Simpan `client_id` dan `client_secret` pada Script Properties.
-- Jangan menaruh secret di HTML, JavaScript client, atau Spreadsheet.
-- OAuth untuk login hanya meminta scope identitas minimal:
-  `openid email profile`.
+Konfigurasi disimpan di `PropertiesService.getScriptProperties()`:
+
+```text
+DB_ID        ID spreadsheet database (diisi otomatis setupDatabase())
+GEMINI_KEYS  JSON array ≤10 API key Gemini (sama seperti v1 — Ai.gs)
+GEMINI_MODEL pilihan model guru (opsional)
+TEMPLATE_FEEDBACK  template umpan balik penilaian
+CTR_*        tidak dipakai lagi — generator ID v2 memakai sheet Counters
+```
+
+Secret tidak boleh ditaruh di HTML, JavaScript client, atau Spreadsheet.
 
 ### 4A.3 Google services
 
-`SpreadsheetApp`, `DriveApp`, dan `MailApp` adalah layanan Apps Script yang
-dapat dipakai langsung sesuai scope script. Advanced Drive/Sheets API hanya
-diaktifkan jika fitur memang membutuhkan kemampuan tambahan. Jika memakai
-Advanced Service atau REST API dari standard Cloud Project, API terkait harus
-diaktifkan pada Cloud Project.
-
-`People API` tidak diperlukan jika identitas dan profil minimal sudah diperoleh
-dari ID token OpenID Connect.
-
-### 4A.4 Scope harus dipisahkan
-
-Bedakan dua jenis scope:
-
-1. **Scope OAuth login** untuk mengenali pengguna.
-2. **Scope Apps Script** yang digunakan oleh akun Admin untuk mengakses Sheets,
-   Drive, dan Mail.
-
-Pengguna akhir tidak boleh diminta mengotorisasi akses Admin ke seluruh database
-karena Web App dijalankan sebagai Admin.
+`SpreadsheetApp`, `DriveApp`, `MailApp`, dan `UrlFetchApp` (untuk Gemini)
+dipakai sesuai scope script. Advanced Service tidak diperlukan pada MVP.
+Karena login ditangani aplikasi sendiri, **tidak ada OAuth Client**, Cloud
+Console consent screen, maupun test user yang perlu dikonfigurasi.
 
 ## 5. Strategi Autentikasi
 
 ### 5.1 Keputusan
 
-Karena pengguna dapat menggunakan akun Gmail pribadi atau domain yang berbeda, sistem tidak menggunakan email dari `Session.getActiveUser()` sebagai mekanisme login.
+Login **sama seperti LessonLen v1**: nama pengguna + kata sandi milik aplikasi sendiri. Tidak ada Google OAuth, tidak ada `Session.getActiveUser()`, dan murid tidak memerlukan akun Google.
 
-Pada deployment `Execute as: Me`, email pengguna aktif dapat kosong karena script berjalan di bawah otorisasi developer/pemilik. [Dokumentasi Session](https://developers.google.com/apps-script/reference/base/session)
-
-Sistem menggunakan:
+Mekanisme yang dipakai (port `Auth.gs` v1):
 
 ```text
-Google OAuth 2.0 Authorization Code Flow
-+ OpenID Connect ID Token
-+ session aplikasi sendiri
+username + password
+→ hash SHA-256 dengan salt per user
+→ sesi token acak 32 karakter (TTL 12 jam)
+→ token disimpan di sessionStorage browser, dikirim pada tiap google.script.run
+→ server memvalidasi token → user → status aktif pada setiap request
 ```
 
-OAuth ini hanya digunakan untuk mengenali identitas Google pengguna. Akses Apps Script ke Spreadsheet dan Drive tetap menggunakan otorisasi akun Admin sebagai effective user.
-
-### 5.2 Alur login yang disetujui
+### 5.2 Alur login
 
 ```text
 1. Pengguna membuka Web App.
-2. Jika belum memiliki session, sistem menampilkan halaman Login.
-3. Pengguna menekan tombol Login dengan Google.
-4. Browser diarahkan ke Google melalui navigasi top-level.
-5. Google mengembalikan authorization code ke URL callback Web App.
-6. doGet(e) memvalidasi state satu kali.
-7. Server menukarkan code dengan token.
-8. Server memvalidasi ID token:
-   - signature
-   - iss
-   - aud
-   - exp
-   - iat
-   - nonce
-   - email_verified
-   - sub
-9. Sistem mencari pengguna berdasarkan google_sub atau email terverifikasi.
-10. Sistem membuat one-time login ticket.
-11. Ticket ditukarkan menjadi session aplikasi.
-12. Parameter ticket dihapus dari URL.
-13. Setiap google.script.run mengirim session token.
-14. Server memvalidasi session dan authorization pada setiap request.
+2. Bila belum ada sesi, sistem menampilkan halaman Login.
+3. Pengguna memasukkan nama pengguna dan kata sandi.
+4. Server menormalkan username (lowercase, tanpa spasi).
+5. Server memeriksa kunci otomatis: 5× gagal dalam 15 menit → akun terkunci 15 menit.
+6. Server mencari user, membandingkan password_hash.
+7. Pesan galat SELALU sama untuk "user tak ada" maupun "sandi salah"
+   agar tidak bisa dipakai menebak username valid.
+8. User nonaktif ditolak.
+9. Server membuat sesi token (TTL 12 jam) + cache 1 jam.
+10. last_login dicatat; login dicatat di Audit_Logs.
+11. Murid dengan biodata belum lengkap (email + no WA) diminta melengkapinya.
+12. User dengan harus_ganti_password = true dipaksa mengganti kata sandi.
 ```
 
-### 5.3 Persyaratan keamanan OAuth
+### 5.3 Keamanan kata sandi
 
-Implementasi wajib memiliki:
+- Kata sandi TIDAK PERNAH disimpan plaintext maupun dikirim ke klien.
+- `password_hash` = SHA-256(`salt` + `password`); `salt` acak 16 karakter per user.
+- Kata sandi baru minimal 6 karakter, memuat huruf dan angka.
+- Kata sandi sementara 8 karakter tanpa karakter ambigu (0 O 1 I L), ditampilkan SEKALI di layar guru saat reset.
+- Batas percobaan gagal 5×/15 menit memakai CacheService.
 
-- `state` acak dan sekali pakai untuk perlindungan CSRF.
-- `nonce` acak untuk perlindungan replay/substitusi ID token.
-- PKCE jika flow dijalankan dengan komponen browser.
-- `client_secret` di `PropertiesService.getScriptProperties()`.
-- Validasi signature ID token, bukan hanya Base64 decode.
-- Validasi issuer Google.
-- Validasi audience sama dengan OAuth Client ID aplikasi.
-- Validasi waktu kedaluwarsa.
-- Validasi `email_verified = true`.
-- Penyimpanan `sub` sebagai identitas Google utama.
-- Penolakan authorization code yang sudah pernah digunakan.
+### 5.4 Sesi aplikasi
 
-Dokumentasi OpenID Connect Google mensyaratkan validasi signature, issuer, dan audience ID token. [Dokumentasi OpenID Connect](https://developers.google.com/identity/protocols/oauth2/openid-connect)
+Sesi menggunakan token acak 32 karakter yang tidak bermakna (`Util.buatToken()`).
 
-### 5.4 Session aplikasi
-
-Session aplikasi menggunakan token acak yang tidak bermakna. Raw token tidak disimpan di URL secara permanen.
-
-Pola yang digunakan:
+Pola yang digunakan (sama seperti v1):
 
 ```text
-OAuth callback
-→ one-time login_ticket dengan TTL singkat
-→ tukar ticket
-→ session token disimpan di sessionStorage
-→ URL dibersihkan dengan history.replaceState()
+login berhasil
+→ token dibuat, disimpan pada sheet Session (token, user_id, dibuat_at, expired_at)
+→ token dikembalikan ke browser, disimpan di sessionStorage
+→ CacheService 'sesi_<token>' berisi snapshot user (TTL 1 jam)
+→ setiap google.script.run mengirim token sebagai parameter pertama
 ```
 
-Sheet `Sessions` menyimpan hash token, bukan raw token, dengan field:
-
-- `session_id_hash`
-- `user_id`
-- `created_at`
-- `expires_at`
-- `last_active`
-- `revoked_at`
-- `user_agent_hash` opsional
-
-`CacheService` hanya digunakan sebagai cache cepat. Jika cache hilang, server dapat mencari sesi pada Sheet `Sessions` selama sesi belum kedaluwarsa dan belum dicabut.
-
-Role dan status pengguna harus dibaca kembali dari `Users` secara berkala atau pada setiap request sensitif. Role yang tersimpan ketika login tidak boleh membuat akses tetap aktif setelah pengguna dinonaktifkan.
+Bila cache hilang, server jatuh ke sheet `Session` selama belum kedaluwarsa. Role dan status user selalu dibaca ulang dari `Users`; sesi otomatis dihapus bila user menjadi nonaktif, dan seluruh sesi milik satu user dicabut saat kata sandinya direset.
 
 ### 5.5 Data Users untuk identitas
 
-Field yang digunakan:
+Field yang digunakan (sama seperti v1):
 
-- `google_sub` — identitas Google utama.
-- `email` — email terverifikasi untuk informasi dan pencarian awal.
-- `status` — `active` atau `inactive`.
+- `username` — identitas login, normalized lowercase, unik.
+- `password_hash` + `salt` — verifikasi kata sandi.
+- `pwd_awal` — kata sandi sementara terakhir (untuk ditampilkan guru sampai diganti).
+- `harus_ganti_password` — paksa ganti kata sandi pada login berikutnya.
+- `status` — `aktif` atau `nonaktif`.
+- `nama`, `rombel`, `email`, `nisn`, `no_wa` — biodata (murid diminta melengkapi email + no WA).
 
-Jika guru/siswa sudah dimasukkan oleh Admin berdasarkan email tetapi belum pernah login, `google_sub` dapat diisi saat login pertama setelah email terverifikasi cocok.
-
-Field `password_hash` dihapus karena sistem tidak menyediakan login password.
-
-### 5.6 OAuth consent dan test user
-
-Jika OAuth Client benar-benar hanya meminta scope identitas:
+### 5.6 Alur lupa kata sandi
 
 ```text
-openid
-email
-profile
+Murid mengajukan reset dari layar login (username atau email)
+→ respons SELALU sama apa pun hasilnya (anti user-enumeration)
+→ rate limit 3 permintaan / 24 jam per user
+→ baris baru di sheet Permintaan_Reset (status: antre)
+→ notifikasi ke seluruh guru
+→ guru membuka daftar permintaan → mereset
+→ kata sandi sementara tampil SEKALI di layar guru
+→ seluruh sesi murid dicabut; murid wajib ganti kata sandi saat login
 ```
 
-maka aturan test user Google memiliki pengecualian untuk scope identitas dasar. Penggunaan lebih dari 100 pengguna tidak otomatis berarti seluruh siswa harus dimasukkan satu per satu sebagai test user. Tetap lakukan konfigurasi production, branding, privacy policy, dan pemeriksaan kebijakan Google sebelum rollout.
-
-Jika ditambahkan scope lain seperti Drive, Gmail, atau data pengguna tambahan melalui OAuth Client, evaluasi ulang persyaratan verifikasi dan batas pengguna.
+Tersedia pula `resetGuruDarurat()` yang hanya bisa dijalankan dari editor Apps Script bila akun guru sendiri terkunci.
 
 ---
 
-### 5.7 OAuth Proof of Concept sebagai Gate
+### 5.7 PoC Login & Sesi sebagai Gate 0
 
-Sebelum modul LMS dibuat, implementasikan PoC pada deployment Web App aktual.
-PoC harus lulus seluruh pemeriksaan berikut:
+Sebelum modul LMS dibuat, fondasi auth harus lulus seluruh pemeriksaan berikut pada deployment Web App aktual:
 
 ```text
-[ ] Login dari akun Gmail pribadi berhasil
-[ ] Callback kembali ke URL /exec
-[ ] Authorization code hanya dapat dipakai sekali
-[ ] state salah/kedaluwarsa ditolak
-[ ] nonce diverifikasi
-[ ] ID token invalid/expired ditolak
-[ ] Signature, iss, aud, dan email_verified diverifikasi
-[ ] sub dipetakan ke Users
-[ ] Pengguna tidak terdaftar ditolak
-[ ] One-time ticket dibuat dan kedaluwarsa
-[ ] Session dapat dibuat dan divalidasi
-[ ] Logout/revoke berhasil
-[ ] User inactive tidak dapat mengakses aplikasi
+[ ] Login guru berhasil (username + kata sandi)
+[ ] Login murid berhasil
+[ ] Kata sandi salah → pesan seragam, tidak membocorkan keberadaan username
+[ ] 5× gagal dalam 15 menit → akun terkunci 15 menit
+[ ] User nonaktif tidak dapat masuk
+[ ] harus_ganti_password memaksa penggantian sebelum lanjut
+[ ] Sesi token valid dipakai pada google.script.run
+[ ] Sesi kedaluwarsa (TTL 12 jam) ditolak
+[ ] Logout menghapus sesi + cache
+[ ] Reset kata sandi murid oleh guru berjalan (sandi sementara tampil sekali)
+[ ] Reset mencabut seluruh sesi murid
 [ ] Role tidak dapat diubah melalui browser
-[ ] Navigasi OAuth bekerja pada iframe HTML Service
+[ ] Murid tidak dapat memanggil API khusus guru
 ```
 
-**Gate:** Jika PoC belum lulus, implementasi controller LMS tidak dilanjutkan.
-Alternatif seperti Firebase Authentication atau backend autentikasi terpisah
-hanya dipertimbangkan jika custom OAuth GAS terlalu rapuh untuk production.
+**Gate:** Jika PoC belum lulus, implementasi modul LMS tidak dilanjutkan.
 
 ---
 
@@ -427,25 +348,30 @@ hanya dipertimbangkan jika custom OAuth GAS terlalu rapuh untuk production.
 
 ### 6.0 Authorization Matrix
 
-| Aksi | Admin | Guru | Siswa |
-|---|:---:|:---:|:---:|
-| Kelola guru | ✅ | ❌ | ❌ |
-| Lihat monitoring seluruh sistem | ✅ | ❌ | ❌ |
-| Kelola mapel dalam scope | sesuai kebijakan | ✅ | ❌ |
-| Buat/kelola kelas | sesuai kebijakan | ✅ | ❌ |
-| Kelola anggota kelas | sesuai kebijakan | ✅ | ❌ |
-| Buat/edit topic dan item | ❌ | ✅ | ❌ |
-| Lihat materi yang diizinkan | ✅ | ✅ | ✅ |
-| Tandai item selesai | ❌ | ❌ | ✅ |
-| Buat dan nilai quiz | ❌ | ✅ | ❌ |
-| Kerjakan quiz | ❌ | ❌ | ✅ |
-| Buat tugas/kelompok | ❌ | ✅ | ❌ |
-| Submit tugas | ❌ | ❌ | ✅ |
-| Submit tugas kelompok | ❌ | ❌ | Ketua |
-| Lihat nilai siswa | ✅ | Scope kelas/mapel | ❌ |
-| Lihat nilai sendiri | sesuai kebijakan | ❌ | ✅ |
+Hanya ada dua role: **guru** (sekaligus admin) dan **murid**.
 
-Role hanya lapisan pertama. Semua aksi guru dan siswa tetap harus memeriksa
+| Aksi | Guru (admin) | Murid |
+|---|:---:|:---:|
+| Kelola murid (tambah/import/nonaktifkan) | ✅ | ❌ |
+| Reset kata sandi murid | ✅ | ❌ |
+| Monitoring sistem & backup | ✅ | ❌ |
+| Kelola mapel dalam scope | ✅ | ❌ |
+| Buat/kelola kelas | ✅ | ❌ |
+| Kelola enrollment kelas | ✅ | ❌ |
+| Buat/edit topic dan item | ✅ | ❌ |
+| Lihat materi yang diizinkan | ✅ | ✅ |
+| Tandai item selesai | ❌ | ✅ |
+| Buat dan nilai quiz | ✅ | ❌ |
+| Kerjakan quiz | ❌ | ✅ |
+| Buat tugas/kelompok | ✅ | ❌ |
+| Submit tugas | ❌ | ✅ |
+| Submit tugas kelompok | ❌ | Ketua |
+| Generate draf AI (materi/soal/LKPD/refleksi) | ✅ | ❌ |
+| Tinjau & publikasikan draf AI | ✅ | ❌ |
+| Lihat nilai murid | Scope kelas/mapel | ❌ |
+| Lihat nilai sendiri | ❌ | ✅ |
+
+Role hanya lapisan pertama. Semua aksi guru dan murid tetap harus memeriksa
 kepemilikan resource, membership kelas, status item, dan deadline.
 
 ### 6.1 Prinsip utama
@@ -507,55 +433,64 @@ Pengujian harus memastikan Guru A tidak dapat:
 
 ---
 
-## 7. Struktur Database Final — 21 Sheet
+## 7. Struktur Database Final — 23 Sheet
 
-Semua sheet berada dalam satu Spreadsheet `LMS_DB_Utama`. Header harus didefinisikan dalam konfigurasi agar repository tidak bergantung pada nomor kolom tetap.
+Semua sheet berada dalam satu Spreadsheet `DB_LMS_V2`. Header harus didefinisikan dalam konfigurasi agar repository tidak bergantung pada nomor kolom tetap.
 
 ### 7.1 Daftar sheet
 
 | No | Sheet | Fungsi | Primary key |
 |---:|---|---|---|
-| 1 | `Users` | Admin, guru, siswa | `user_id` |
+| 1 | `Users` | Guru (admin) dan murid | `user_id` |
 | 2 | `Classes` | Data kelas | `class_id` |
 | 3 | `Subjects` | Daftar mapel milik guru/organisasi | `subject_id` |
-| 4 | `Class_Members` | Relasi siswa-kelas | `membership_id` |
-| 5 | `Teaching_Assignments` | Relasi guru-kelas-mapel | `teaching_assignment_id` |
+| 4 | `Teaching_Assignments` | Relasi guru-kelas-mapel | `teaching_assignment_id` |
+| 5 | `Enrollment` | Relasi murid-kelas (proses sama seperti v1) | `enroll_id` |
 | 6 | `Topics` | Bab/topic pembelajaran | `topic_id` |
 | 7 | `Items` | Materi, tugas, quiz, refleksi | `item_id` |
-| 8 | `Progress` | Status progres siswa | `progress_id` |
+| 8 | `Progress` | Status progres murid | `progress_id` |
 | 9 | `Quizzes` | Detail quiz | `quiz_id` |
 | 10 | `Quiz_Questions` | Soal quiz | `question_id` |
-| 11 | `Quiz_Submissions` | Jawaban quiz siswa | `submission_id` |
+| 11 | `Quiz_Submissions` | Jawaban quiz murid | `submission_id` |
 | 12 | `Assignments` | Detail tugas | `assignment_id` |
 | 13 | `Groups` | Kelompok tugas | `group_id` |
-| 14 | `Group_Members` | Relasi siswa-kelompok | `group_membership_id` |
+| 14 | `Group_Members` | Relasi murid-kelompok | `group_member_id` |
 | 15 | `Submissions` | Pengumpulan tugas | `submission_id` |
 | 16 | `Grades` | Nilai | `grade_id` |
-| 17 | `Reflections` | Refleksi siswa | `reflection_id` |
-| 18 | `Notifications` | Notifikasi dalam aplikasi/email | `notification_id` |
-| 19 | `Sessions` | Session login | `session_id_hash` |
-| 20 | `Counters` | Generator ID | `entity_name` |
-| 21 | `Audit_Logs` | Audit perubahan dan aktivitas penting | `log_id` |
+| 17 | `Reflections` | Refleksi murid | `reflection_id` |
+| 18 | `Notifications` | Notifikasi dalam aplikasi/email | `notif_id` |
+| 19 | `Materi_AI` | Riwayat generate AI (sama seperti v1) | `ai_id` |
+| 20 | `Permintaan_Reset` | Antrean lupa kata sandi (sama seperti v1) | `request_id` |
+| 21 | `Session` | Sesi login (sama seperti v1) | `token` |
+| 22 | `Counters` | Generator ID | `entity` |
+| 23 | `Audit_Logs` | Audit perubahan dan aktivitas penting | `log_id` |
 
-**Catatan:** `Class_Members`, `Teaching_Assignments`, dan `Group_Members` adalah sumber kebenaran relasi. Jangan mempertahankan kolom JSON Array lama sebagai sumber utama. `Audit_Logs` adalah sheet operasional; jika sekolah memilih log eksternal, sheet ini boleh diganti dengan layanan log yang setara setelah keputusan disetujui.
+**Catatan:** `Enrollment`, `Teaching_Assignments`, dan `Group_Members` adalah sumber kebenaran relasi. Jangan mempertahankan kolom JSON Array lama sebagai sumber utama. `Audit_Logs` adalah sheet operasional; jika sekolah memilih log eksternal, sheet ini boleh diganti dengan layanan log yang setara setelah keputusan disetujui.
 
 ### 7.2 `Users`
 
+Struktur sama seperti v1 (nama field mengikuti `Setup.gs` LessonLen).
+
 | Field | Required | Keterangan |
 |---|---:|---|
-| `user_id` | ✅ | ID internal, misalnya `U0001` |
-| `google_sub` | ❌ | ID stabil dari Google, unique jika sudah terikat |
-| `email` | ✅ | Email terverifikasi, normalized lowercase |
-| `name` | ✅ | Nama pengguna |
-| `role` | ✅ | `admin`, `guru`, `siswa` |
-| `phone` | ❌ | Nomor WhatsApp, jika diperlukan |
-| `nisn` | ❌ | NISN siswa |
-| `status` | ✅ | `active`, `inactive` |
+| `user_id` | ✅ | ID internal, misalnya `USR-0001` |
+| `username` | ✅ | Identitas login, unik, normalized lowercase |
+| `password_hash` | ✅ | SHA-256(salt + password) |
+| `salt` | ✅ | Salt acak 16 karakter per user |
+| `pwd_awal` | ❌ | Kata sandi sementara terakhir (tampil bagi guru sampai diganti) |
+| `nama` | ✅ | Nama pengguna |
+| `role` | ✅ | `guru`, `murid` |
+| `rombel` | ❌ | Label rombongan belajar murid |
+| `email` | ❌ | Email (murid diminta mengisi; dipakai pengajuan reset) |
+| `nisn` | ❌ | NISN murid (boleh kosong, disimpan sebagai teks) |
+| `no_wa` | ❌ | Nomor WA ternormalisasi `62xxxxxxxxxx` |
+| `status` | ✅ | `aktif`, `nonaktif` |
+| `harus_ganti_password` | ✅ | Paksa ganti kata sandi pada login berikutnya |
 | `last_login` | ❌ | Login terakhir |
 | `created_at` | ✅ | Waktu dibuat |
 | `updated_at` | ✅ | Waktu diubah |
 
-`email` unique berdasarkan kebijakan sekolah. Jika menggunakan alias email, Admin harus menentukan aturan pemetaan.
+Tidak ada `google_sub` — identitas login adalah `username` + `password_hash`.
 
 ### 7.3 `Classes`
 
@@ -584,18 +519,19 @@ Semua sheet berada dalam satu Spreadsheet `LMS_DB_Utama`. Header harus didefinis
 
 Jika beberapa guru boleh menggunakan satu mapel global, ubah model menjadi mapel organisasi dan gunakan `Teaching_Assignments` sebagai sumber akses.
 
-### 7.5 `Class_Members`
+### 7.5 `Enrollment`
+
+Proses enrollment **sama seperti v1**: guru mendaftarkan murid ke kelas; mendaftarkan ulang murid yang pernah keluar berarti mengaktifkan kembali baris lama, bukan membuat baris baru; `keluarkan()` mengubah status menjadi `keluar`; setelah enroll berhasil sistem mengirim notifikasi `enroll_kelas`.
 
 | Field | Required | Keterangan |
 |---|---:|---|
-| `membership_id` | ✅ | ID membership |
+| `enroll_id` | ✅ | ID enrollment, misalnya `ENR-0001` |
 | `class_id` | ✅ | Foreign key ke `Classes` |
-| `user_id` | ✅ | Foreign key ke `Users` |
-| `status` | ✅ | `active`, `inactive` |
-| `joined_at` | ✅ | Waktu masuk kelas |
-| `left_at` | ❌ | Waktu keluar kelas |
+| `user_id` | ✅ | Foreign key ke `Users` (murid) |
+| `tanggal_daftar` | ✅ | Waktu didaftarkan |
+| `status` | ✅ | `aktif`, `keluar` |
 
-**Composite key:** `class_id + user_id` untuk membership aktif.
+**Composite key:** `class_id + user_id` untuk enrollment aktif.
 
 ### 7.6 `Teaching_Assignments`
 
@@ -654,7 +590,7 @@ Struktur ini mendukung:
 | Field | Required | Keterangan |
 |---|---:|---|
 | `progress_id` | ✅ | ID progres |
-| `user_id` | ✅ | Siswa |
+| `user_id` | ✅ | Murid |
 | `item_id` | ✅ | Item |
 | `status` | ✅ | `completed`, `not_completed` |
 | `completed_at` | ❌ | Waktu selesai |
@@ -699,7 +635,7 @@ Absence of row dapat dianggap `not_completed`, tetapi menyimpan row eksplisit di
 |---|---:|---|
 | `submission_id` | ✅ | ID submission |
 | `quiz_id` | ✅ | Quiz |
-| `user_id` | ✅ | Siswa |
+| `user_id` | ✅ | Murid |
 | `answers_json` | ✅ | Jawaban siswa |
 | `submitted_at` | ✅ | Waktu submit server |
 | `status` | ✅ | `submitted`, `graded` |
@@ -741,7 +677,7 @@ Absence of row dapat dianggap `not_completed`, tetapi menyimpan row eksplisit di
 |---|---:|---|
 | `group_membership_id` | ✅ | ID relasi |
 | `group_id` | ✅ | Kelompok |
-| `user_id` | ✅ | Siswa |
+| `user_id` | ✅ | Murid |
 | `status` | ✅ | `active`, `inactive` |
 | `joined_at` | ✅ | Waktu bergabung |
 
@@ -794,7 +730,7 @@ Group:     assignment_id + group_id + attempt_no
 |---|---:|---|
 | `reflection_id` | ✅ | ID refleksi |
 | `item_id` | ✅ | Item refleksi |
-| `user_id` | ✅ | Siswa |
+| `user_id` | ✅ | Murid |
 | `content` | ✅ | Isi refleksi |
 | `created_at` | ✅ | Waktu dibuat |
 | `updated_at` | ✅ | Waktu diubah |
@@ -826,39 +762,71 @@ Contoh:
 user_id + entity_type + entity_id + type + deadline_date
 ```
 
-### 7.20 `Sessions`
+### 7.20 `Session`
 
+Sama seperti v1 — token disimpan utuh (bukan hash), dicabut dengan menghapus barisnya.
 
 ```text
-session_id_hash
-user_id
-created_at
-expires_at
-last_active
-revoked_at
-user_agent_hash (opsional)
+token       token sesi acak 32 karakter (primary key)
+user_id     pemilik sesi
+dibuat_at   waktu dibuat
+expired_at  batas kedaluwarsa (12 jam)
+```
+
+CacheService menyimpan snapshot `sesi_<token>` selama 1 jam untuk mempercepat validasi; cache tidak pernah menjadi satu-satunya sumber kebenaran.
+
+### 7.20A `Materi_AI`
+
+Riwayat generate AI — sama seperti v1 (`materi_ai`):
+
+```text
+ai_id, item_id, class_id, prompt_ringkas, konten_hasil,
+saran_soal, saran_lkpd, model, key_index, token_terpakai,
+durasi_ms, status (sukses/gagal/antre), error, dibuat_at
+```
+
+Key TIDAK PERNAH dicatat — hanya indeksnya (`key_index`, mis. `key#3`).
+
+### 7.20B `Permintaan_Reset`
+
+Antrean lupa kata sandi — sama seperti v1 (`permintaan_reset`):
+
+```text
+request_id, user_id, input_user, status (antre/selesai/kedaluwarsa),
+dibuat_at, diproses_at
 ```
 
 ### 7.21 `Counters`
 
 ```text
-entity_name
+entity
 last_number
 ```
 
-Generator ID harus menggunakan lock dan update counter atomik. Prefix ID sebaiknya konsisten, misalnya:
+Generator ID harus menggunakan lock (`LockService`) dan update counter atomik. Prefix ID konsisten format `<PREFIX>-0000`:
 
 ```text
-U0001   user
-C0001   class
-S0001   subject
-TA0001  teaching assignment
-T0001   topic
-I0001   item
-Q0001   quiz
-A0001   assignment
-GR0001  grade
-SUB0001 submission
+USR-0001   user
+KLS-0001   class
+SBK-0001   subject (mapel)
+TA-0001    teaching assignment
+ENR-0001   enrollment
+TPC-0001   topic
+ITM-0001   item
+PRG-0001   progress
+QIZ-0001   quiz
+QQA-0001   quiz question
+QSB-0001   quiz submission
+ASG-0001   assignment
+KLP-0001   kelompok
+KLM-0001   anggota kelompok
+SBM-0001   submission tugas
+GRD-0001   grade
+RFL-0001   refleksi
+NTF-0001   notifikasi
+AIG-0001   riwayat AI
+RST-0001   permintaan reset
+LOG-0001   audit log
 ```
 
 ---
@@ -881,9 +849,9 @@ rekonsiliasi data. Audit log bukan tempat menyimpan token atau data rahasia.
 | `detail_json` | ❌ | Detail non-rahasia |
 | `created_at` | ✅ | Waktu server |
 
-Audit log harus ditulis secara ringkas. Raw OAuth token, raw session token,
-client secret, password, dan isi data sensitif yang tidak diperlukan tidak
-boleh dicatat.
+Audit log harus ditulis secara ringkas. Raw session token, API key Gemini,
+kata sandi (termasuk hash/salt), dan isi data sensitif yang tidak diperlukan
+tidak boleh dicatat.
 
 ---
 
@@ -893,25 +861,26 @@ boleh dicatat.
 
 | ID | Fitur | Aktor |
 |---|---|---|
-| FR-001 | Login/logout Google | Semua pengguna |
-| FR-002 | Admin menambah guru | Admin |
-| FR-003 | Import/upsert siswa | Guru |
-| FR-004 | Melihat profil | Semua pengguna |
-| FR-005 | Menonaktifkan guru/siswa | Admin |
-| FR-006 | Mengubah role/status | Admin |
+| FR-001 | Login/logout nama pengguna + kata sandi | Semua pengguna |
+| FR-002 | Ganti kata sandi mandiri | Semua pengguna |
+| FR-003 | Ajukan lupa kata sandi (tanpa login) | Murid |
+| FR-004 | Reset kata sandi murid (sandi sementara tampil sekali) | Guru |
+| FR-005 | Menambah murid manual / import upsert | Guru |
+| FR-006 | Melihat profil & biodata | Semua pengguna |
+| FR-007 | Menonaktifkan murid | Guru |
 
 ### 8.2 Mata pelajaran, kelas, dan relasi pengajaran
 
 | ID | Fitur | Aktor |
 |---|---|---|
 | FR-010 | Membuat kelas | Guru |
-| FR-011 | Mengarsipkan kelas | Guru/Admin |
-| FR-012 | Menambahkan siswa melalui `Class_Members` | Guru |
-| FR-013 | Melihat anggota kelas | Guru/Siswa sesuai akses |
-| FR-014 | Membuat/mengelola mapel | Guru/Admin |
-| FR-015 | Menugaskan guru-mapel-kelas | Guru/Admin sesuai kebijakan |
+| FR-011 | Mengarsipkan kelas | Guru |
+| FR-012 | Mendaftarkan murid melalui `Enrollment` | Guru |
+| FR-013 | Melihat anggota kelas | Guru/Murid sesuai akses |
+| FR-014 | Membuat/mengelola mapel | Guru |
+| FR-015 | Menugaskan guru-mapel-kelas | Guru |
 | FR-016 | Mendukung banyak mapel dalam satu kelas | Sistem |
-| FR-017 | Filter aktivitas berdasarkan mapel | Guru/Siswa |
+| FR-017 | Filter aktivitas berdasarkan mapel | Guru/Murid |
 
 ### 8.3 Topic dan item
 
@@ -930,10 +899,10 @@ boleh dicatat.
 
 | ID | Fitur | Aktor |
 |---|---|---|
-| FR-030 | Melihat materi yang boleh diakses | Siswa |
-| FR-031 | Menandai item selesai | Siswa |
+| FR-030 | Melihat materi yang boleh diakses | Murid |
+| FR-031 | Menandai item selesai | Murid |
 | FR-032 | Melihat progres per topic/mapel/kelas | Guru |
-| FR-033 | Melihat progres pribadi | Siswa |
+| FR-033 | Melihat progres pribadi | Murid |
 
 ### 8.5 Tugas individu dan kelompok
 
@@ -942,8 +911,8 @@ boleh dicatat.
 | FR-040 | Membuat tugas individu | Guru |
 | FR-041 | Membuat tugas kelompok | Guru |
 | FR-042 | Menyediakan template Drive | Guru |
-| FR-043 | Melihat instruksi dan template | Siswa |
-| FR-044 | Mengirim link/file submission | Siswa |
+| FR-043 | Melihat instruksi dan template | Murid |
+| FR-044 | Mengirim link/file submission | Murid |
 | FR-045 | Membuat kelompok | Guru |
 | FR-046 | Menentukan ketua kelompok | Guru |
 | FR-047 | Submit hanya oleh ketua | Sistem |
@@ -957,8 +926,8 @@ boleh dicatat.
 | FR-060 | Membuat quiz | Guru |
 | FR-061 | Menambah dan mengurutkan soal | Guru |
 | FR-062 | Menampilkan soal tanpa answer key | Sistem |
-| FR-063 | Mengerjakan quiz | Siswa |
-| FR-064 | Submit quiz dengan validasi deadline | Siswa/Sistem |
+| FR-063 | Mengerjakan quiz | Murid |
+| FR-064 | Submit quiz dengan validasi deadline | Murid/Sistem |
 | FR-065 | Auto-grade PG dan benar-salah | Sistem |
 | FR-066 | Menilai jawaban singkat/uraian | Guru/Sistem sesuai aturan |
 | FR-067 | Mencegah submit duplikat | Sistem |
@@ -967,44 +936,56 @@ boleh dicatat.
 
 | ID | Fitur | Aktor |
 |---|---|---|
-| FR-070 | Menulis refleksi | Siswa |
+| FR-070 | Menulis refleksi | Murid |
 | FR-071 | Melihat refleksi | Guru |
 | FR-080 | Rekap progres kelas | Guru |
 | FR-081 | Rekap nilai kelas | Guru |
-| FR-082 | Melihat nilai pribadi | Siswa |
+| FR-082 | Melihat nilai pribadi | Murid |
 | FR-083 | Filter laporan per kelas/mapel/topic | Guru |
 | FR-084 | Rekap semua guru | Admin |
 | FR-090 | Notifikasi deadline in-app | Sistem |
 | FR-091 | Email notifikasi terbatas | Sistem |
 | FR-092 | Menandai notifikasi dibaca | Pengguna |
 
-### 8.8 Admin dan operasional
+### 8.8 Admin dan operasional (dipegang guru)
 
 | ID | Fitur | Aktor |
 |---|---|---|
-| FR-100 | Menambah/nonaktifkan guru | Admin |
-| FR-101 | Backup database | Admin |
-| FR-102 | Melihat metrik pemakaian internal | Admin |
-| FR-103 | Melihat log error dan eksekusi | Admin |
-| FR-104 | Menjalankan pemeriksaan integritas data | Admin |
+| FR-100 | Menambah/nonaktifkan akun guru lain | Guru |
+| FR-101 | Backup database | Guru |
+| FR-102 | Melihat metrik pemakaian internal | Guru |
+| FR-103 | Melihat log error dan eksekusi | Guru |
+| FR-104 | Menjalankan pemeriksaan integritas data | Guru |
+
+### 8.9 Generator AI (sama seperti v1)
+
+| ID | Fitur | Aktor |
+|---|---|---|
+| FR-110 | Menyimpan & merotasi API key Gemini (≤10, Script Properties) | Guru |
+| FR-111 | Generate draf materi dari konteks kelas/topic/item | Guru |
+| FR-112 | Generate draf LKPD/kegiatan individu & kelompok | Guru |
+| FR-113 | Generate pertanyaan refleksi | Guru |
+| FR-114 | Generate soal (pg/benar-salah/isian/esai, maks 20 sekali generate) | Guru |
+| FR-115 | Generate kerangka topic+pertemuan+item | Guru |
+| FR-116 | Semua hasil AI berstatus DRAFT hingga ditinjau (`ai_ditinjau`) | Sistem |
+| FR-117 | Riwayat generate tercatat di `Materi_AI` tanpa menyimpan key | Sistem |
 
 ---
 
 ## 9. Alur Kerja Utama
 
-### 9.1 Admin menambah guru
+### 9.1 Guru menambah murid & reset kata sandi
 
 ```text
-Admin login
-→ buka halaman Guru
-→ isi email/nama/nomor telepon
-→ server validasi role Admin
-→ upsert Users dengan role guru dan status active
-→ kirim email undangan jika kuota tersedia
-→ guru login melalui URL yang sama
+Guru login
+→ buka halaman Kelola Murid
+→ isi nama/username/rombel (atau import massal)
+→ server membuat Users role murid + kata sandi sementara
+→ sandi sementara tampil di daftar murid sampai diganti
+→ murid login → dipaksa ganti kata sandi → melengkapi biodata (email + no WA)
 ```
 
-Tidak ada pembuatan project atau spreadsheet baru.
+Alur lupa kata sandi: murid mengajukan dari layar login → `Permintaan_Reset` → notifikasi guru → guru mereset → sandi sementara tampil sekali. Tidak ada pembuatan project atau spreadsheet baru.
 
 ### 9.2 Guru membuat kelas dan penugasan mapel
 
@@ -1012,7 +993,7 @@ Tidak ada pembuatan project atau spreadsheet baru.
 Guru membuat kelas
 → memilih mapel
 → server membuat Teaching_Assignment
-→ guru dapat menambahkan siswa melalui Class_Members
+→ guru dapat mendaftarkan murid melalui Enrollment
 → guru membuat topic di bawah Teaching_Assignment
 ```
 
@@ -1024,7 +1005,7 @@ Import harus menggunakan aturan upsert:
 2. Cari `Users` berdasarkan email.
 3. Jika belum ada, buat siswa baru.
 4. Jika sudah ada, jangan membuat user duplikat.
-5. Buat atau aktifkan row `Class_Members`.
+5. Buat baris `Enrollment` baru, atau aktifkan kembali baris `keluar`.
 6. Validasi NISN sesuai kebijakan sekolah.
 7. Catat baris yang gagal dan alasannya.
 
@@ -1279,9 +1260,10 @@ WhatsApp ditunda dari MVP inti. Implementasi berikutnya memerlukan:
 
 Data yang disimpan mencakup nama, email, NISN, nomor telepon, progres, refleksi, dan nilai. Karena itu:
 
-- Spreadsheet database hanya dimiliki/diakses Admin.
-- Jangan menaruh raw OAuth token di Spreadsheet.
-- Jangan menaruh secret API di HTML atau JavaScript client.
+- Spreadsheet database hanya dimiliki/diakses guru/pemilik.
+- Kata sandi hanya disimpan sebagai hash + salt; kata sandi sementara tidak dikirim lewat email/WhatsApp otomatis.
+- Token sesi tidak dituliskan permanen di URL.
+- Jangan menaruh secret API (mis. `GEMINI_KEYS`) di HTML atau JavaScript client.
 - Semua input pengguna divalidasi server-side.
 - Semua output teks pengguna di-escape untuk mencegah XSS.
 - Isi refleksi dan deskripsi tidak boleh dimasukkan langsung ke `innerHTML` tanpa sanitasi.
@@ -1299,13 +1281,13 @@ Soft delete adalah default. Penghapusan permanen hanya boleh dilakukan oleh Admi
 
 ## 15. UI/UX Utama
 
-### 15.1 Dashboard Admin
+### 15.1 Dashboard Guru (admin)
 
-- Ringkasan jumlah guru/siswa/kelas.
-- Daftar guru aktif/nonaktif.
+- Ringkasan jumlah murid/kelas/mapel.
+- Daftar murid aktif/nonaktif + permintaan reset kata sandi.
 - Monitoring error dan metrik sistem.
 - Status backup terakhir.
-- Rekap progres/nilai dengan filter guru, kelas, mapel.
+- Rekap progres/nilai dengan filter kelas dan mapel.
 
 ### 15.2 Dashboard Guru
 
@@ -1382,12 +1364,11 @@ Trigger harus idempotent dan tidak mengirim notifikasi yang sama berulang kali.
 - Tetapkan aturan resubmit.
 - Tetapkan ownership file Drive.
 - Tetapkan kebijakan data pribadi dan retensi.
-- Finalisasi OAuth Client dan redirect URI.
+- Tetapkan kebijakan kata sandi (panjang minimal, rotasi, sandi sementara).
 
 ### Tahap 1 — Fondasi
 
-- Buat Cloud Project dan Apps Script.
-- Buat Spreadsheet 21 sheet.
+- Buat Apps Script project dan Spreadsheet 23 sheet.
 - Isi konfigurasi header dan Spreadsheet ID.
 - Buat folder Drive induk.
 - Buat repository baca/tulis batch.
@@ -1396,10 +1377,10 @@ Trigger harus idempotent dan tidak mengirim notifikasi yang sama berulang kali.
 
 ### Tahap 2 — Autentikasi dan authorization
 
-- Implementasi OAuth callback.
-- Validasi state, nonce, PKCE, ID token.
-- Implementasi `Users` dan `Sessions`.
-- Implementasi login ticket.
+- Implementasi `Auth.gs` v1: login username+kata sandi, hash+salt.
+- Implementasi kunci otomatis 5×/15 menit.
+- Implementasi `Session` + cache sesi.
+- Implementasi ganti/lupa/reset kata sandi.
 - Implementasi `requireSession()` dan helper authorization.
 - Uji akses dengan dua guru dan dua kelas.
 
@@ -1407,7 +1388,7 @@ Trigger harus idempotent dan tidak mengirim notifikasi yang sama berulang kali.
 
 - Classes.
 - Users/import siswa.
-- Class_Members.
+- Enrollment.
 - Subjects.
 - Teaching_Assignments.
 - Topics.
@@ -1466,8 +1447,11 @@ Fitur WhatsApp dan otomatisasi copy file siswa hanya ditambahkan setelah pilot b
 
 ### 18.1 Functional test
 
-- Login admin/guru/siswa.
+- Login guru/murid.
 - Login dengan akun yang tidak terdaftar.
+- 5× gagal dalam 15 menit → akun terkunci 15 menit.
+- Reset kata sandi murid oleh guru (sandi sementara tampil sekali).
+- Lupa kata sandi: rate limit 3/24 jam, notifikasi guru.
 - Logout dan session kedaluwarsa.
 - Tambah/nonaktifkan pengguna.
 - Import siswa duplikat.
@@ -1492,9 +1476,9 @@ Fitur WhatsApp dan otomatisasi copy file siswa hanya ditambahkan setelah pilot b
 - Akses kelas yang bukan membership siswa.
 - Akses `answer_key` quiz.
 - Submit file milik pengguna lain.
-- Replay OAuth code.
-- State OAuth salah/kedaluwarsa.
-- ID token invalid atau expired.
+- Token sesi palsu/dipalsukan.
+- Murid memanggil API khusus guru (reset kata sandi, generate AI).
+- User enumeration lewat pesan login/lupa kata sandi.
 - XSS pada nama, deskripsi, dan refleksi.
 - Direct sharing database.
 
@@ -1514,8 +1498,8 @@ Fitur WhatsApp dan otomatisasi copy file siswa hanya ditambahkan setelah pilot b
 | Risiko | Dampak | Mitigasi |
 |---|---|---|
 | Kebocoran data antar-guru | Kritis | Authorization terpusat, test dua tenant, database tidak dibagikan |
-| OAuth custom salah implementasi | Kritis | Validasi signature/claim, nonce/state/PKCE, staging test |
-| Akun Admin hilang | Kritis | 2FA, recovery, akun cadangan, backup lintas akun |
+| Kata sandi lemah/bocor | Tinggi | Kebijakan sandi (minimal 6 karakter huruf+angka), salt per user, kunci otomatis 5×/15 menit, wajib ganti sandi sementara, reset hanya oleh guru |
+| Akun pemilik hilang/terkunci | Kritis | 2FA pada akun Google pemilik, `resetGuruDarurat()` dari editor, akun guru cadangan, backup lintas akun |
 | Kuota email habis | Sedang | In-app notification, batching, cek remaining quota |
 | Sheet lambat | Sedang | Batch read/write, filter awal, cache, load test |
 | Race condition submission | Tinggi | Script lock, composite key, idempotency |
@@ -1560,13 +1544,13 @@ Sebelum implementasi, Admin/developer harus menyetujui jawaban atas pertanyaan b
 6. Bagaimana validasi link file submission?
 7. Apakah email hanya fitur tambahan jika kuota tersedia?
 8. Apakah WhatsApp ditunda dari MVP?
-9. Siapa Admin cadangan jika akun utama bermasalah?
+9. Siapa guru cadangan jika akun utama bermasalah?
 10. Apakah database akan benar-benar tidak dibagikan langsung?
-11. Apakah penggunaan OAuth Client hanya meminta `openid email profile`?
+11. Apakah kebijakan kata sandi (minimal 6 karakter huruf+angka, kunci otomatis 5×/15 menit) disetujui?
 12. Apakah tersedia staging environment terpisah dari production?
 13. Apakah ada prosedur backup dan restore?
 14. Apakah ada test isolasi data dengan dua guru?
-15. Apakah struktur 21 sheet sudah disetujui?
+15. Apakah struktur 23 sheet sudah disetujui?
 
 ---
 
@@ -1602,10 +1586,10 @@ Rancangan v2 menggabungkan keputusan terbaik dari dua rancangan v1.3:
 | Keputusan | Status |
 |---|---|
 | 1 Project + 1 Spreadsheet | Disetujui untuk MVP |
-| OAuth custom Gmail | Disetujui dengan PoC sebagai gate |
-| `google_sub` sebagai identitas Google | Wajib |
-| Validasi signature/iss/aud/exp/nonce | Wajib |
-| `Class_Members` sebagai relasi siswa-kelas | Wajib |
+| Login username + kata sandi (sama seperti v1) | **Keputusan final v2.1 — menggantikan OAuth** |
+| Role `guru` (admin) + `murid` | **Keputusan final v2.1** |
+| `Enrollment` proses v1 sebagai relasi murid-kelas | **Keputusan final v2.1** |
+| Sistem AI generate v1 (Gemini + rotasi key + draf wajib tinjau) | **Keputusan final v2.1 — bagian MVP inti** |
 | `Teaching_Assignments` sebagai relasi guru-kelas-mapel | Disarankan |
 | `Group_Members` sebagai relasi kelompok | Wajib |
 | `Audit_Logs` | Disarankan dan dimasukkan sebagai sheet ke-21 |
@@ -1639,17 +1623,30 @@ yang direkomendasikan.
 12. Mengubah status dokumen menjadi siap dilanjutkan setelah gate PoC, security
     test, dan finalisasi schema lulus.
 
+## 22C. Revisi v2 → v2.1 (Keputusan Final)
+
+Empat keputusan pemilik produk, 2 September 2026:
+
+1. **Sistem login sama seperti versi lama.** OAuth 2.0/OpenID Connect custom dihapus seluruhnya (§4A, §5 lama, Gate PoC OAuth). Diganti port `Auth.gs` v1: username + kata sandi (SHA-256 + salt), sesi token TTL 12 jam, kunci otomatis 5× gagal/15 menit, ganti/lupa/reset kata sandi. Konsekuensi: `Users` memakai field v1 (tanpa `google_sub`), sheet `Sessions` diganti `Session` sederhana, ditambah sheet `Permintaan_Reset`. Web App di-deploy dengan Access **Anyone**.
+2. **Role tetap `guru` sebagai admin dan `murid`.** Role `admin` dan `siswa` dihapus dari seluruh dokumen; authorization matrix menjadi dua kolom; seluruh fungsi operasional (backup, monitoring, kelola user) dipegang guru.
+3. **Proses enrollment sama seperti v1.** Sheet `Class_Members` diganti `Enrollment` dengan field & alur v1 (enroll/reaktivasi/keluarkan + notifikasi `enroll_kelas`).
+4. **Sistem AI generate sama seperti v1.** AI keluar dari daftar "di luar MVP" dan menjadi bagian inti (§8.9): Gemini, rotasi ≤10 key, fallback model, cooldown, hasil draf wajib ditinjau; riwayat di sheet `Materi_AI`.
+
+Perubahan turunan: database final menjadi **23 sheet**; Gate 0 berubah dari "OAuth PoC" menjadi "PoC Login & Sesi"; roadmap, pengujian, risiko, dan checklist persetujuan disesuaikan.
+
+---
+
 ## 23. Kesimpulan
 
 Google Apps Script cukup sesuai untuk membangun LMS MVP ini, dengan syarat:
 
 - Target tetap pada skala MVP.
 - Single Spreadsheet tidak dibagikan langsung.
-- OAuth custom dibuat dengan standar keamanan yang benar.
+- Login username + kata sandi diimplementasikan setia pada pola v1 (salt per user, kunci otomatis, reset terkendali oleh guru).
 - Authorization dilakukan pada setiap resource.
 - Relasi kelas, mapel, dan kelompok tidak disimpan sebagai JSON Array inti.
 - Operasi tulis menggunakan lock, composite key, dan idempotency.
 - Email dan WhatsApp dianggap layanan terbatas, bukan jalur utama sistem.
 - Database dan deployment diuji dengan data dan beban yang mendekati kondisi nyata.
 
-Arsitektur v2 dapat dilanjutkan ke tahap implementasi setelah seluruh pertanyaan pada checklist persetujuan dijawab dan schema 21 sheet disetujui.
+Arsitektur v2 dapat dilanjutkan ke tahap implementasi setelah seluruh pertanyaan pada checklist persetujuan dijawab dan schema 23 sheet disetujui.

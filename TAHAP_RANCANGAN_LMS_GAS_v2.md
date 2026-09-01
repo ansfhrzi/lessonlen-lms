@@ -1,10 +1,15 @@
 # TAHAP RANCANGAN LMS GAS
 
 **Nama Proyek:** LMS Sekolah Berbasis Google Apps Script  
-**Versi:** 2  
-**Tanggal:** 31 Agustus 2026  
-**Status:** Tahap Rancangan / Blueprint Implementasi  
+**Versi:** 2.1 — revisi keputusan final  
+**Tanggal:** 2 September 2026  
+**Status:** Blueprint Implementasi (Gate 0 = PoC Login & Sesi)  
 **Platform:** Google Apps Script + Google Sheets + Google Drive
+
+> **KEPUTUSAN FINAL v2.1:** (1) login nama pengguna + kata sandi sama seperti
+> LessonLen v1 — OAuth Google dihapus; (2) role hanya `guru` (admin) dan
+> `murid`; (3) proses enrollment sama seperti v1 (sheet `Enrollment`);
+> (4) sistem AI generate sama seperti v1 (`Ai.gs`) — bagian MVP inti.
 
 ---
 
@@ -77,6 +82,7 @@ Target MVP:
 - Progress
 - Nilai
 - Notifikasi dasar
+- Generator AI Gemini untuk draf materi/soal/LKPD/refleksi/kerangka (sama seperti v1)
 
 MVP bukan ditujukan untuk trafik besar atau kebutuhan real-time.
 
@@ -99,12 +105,12 @@ MVP bukan ditujukan untuk trafik besar atau kebutuhan real-time.
 | Google Drive | 🟢 |
 | Email | 🟢 |
 | Chart.js | 🟢 |
+| AI generate (Gemini) | 🟢 |
 
 ## 4.2 Bisa, tetapi perlu perhatian
 
 | Fitur | Status |
 |---|---|
-| Custom OAuth | 🟠 |
 | Jawaban singkat | 🟡 |
 | Essay | 🟡 |
 | Google Docs/Sheets/Slides automation | 🟡 |
@@ -119,7 +125,7 @@ MVP bukan ditujukan untuk trafik besar atau kebutuhan real-time.
 | Chat real-time | 🔴 |
 | Mobile app native | 🔴 |
 | Payment gateway | 🔴 |
-| AI grading sebagai dependency utama | 🔴 |
+| AI grading sebagai dependency utama | 🔴 (generate konten AI justru 🟢 di MVP) |
 | WhatsApp API | 🟡 Phase 2 |
 
 ---
@@ -171,10 +177,9 @@ Response
 
 Bertanggung jawab terhadap:
 
-- Google OAuth
-- validasi identity token
-- state
-- nonce
+- login username + kata sandi (hash + salt)
+- kunci otomatis 5x gagal / 15 menit
+- ganti / lupa / reset kata sandi
 - session
 - logout
 
@@ -221,13 +226,13 @@ Bertanggung jawab terhadap:
 
 # 7. Struktur Database
 
-Database MVP menggunakan 21 sheet:
+Database MVP menggunakan 23 sheet:
 
 1. `Users`
 2. `Classes`
-3. `Class_Members`
-4. `Subjects`
-5. `Teaching_Assignments`
+3. `Subjects`
+4. `Teaching_Assignments`
+5. `Enrollment`
 6. `Topics`
 7. `Items`
 8. `Progress`
@@ -241,9 +246,11 @@ Database MVP menggunakan 21 sheet:
 16. `Grades`
 17. `Reflections`
 18. `Notifications`
-19. `Sessions`
-20. `Counters`
-21. `Audit_Logs`
+19. `Materi_AI`
+20. `Permintaan_Reset`
+21. `Session`
+22. `Counters`
+23. `Audit_Logs`
 
 ---
 
@@ -253,7 +260,7 @@ Database MVP menggunakan 21 sheet:
 Users
  │
  ├── Classes
- ├── Class_Members
+ ├── Enrollment
  ├── Teaching_Assignments
  ├── Progress
  ├── Quiz_Submissions
@@ -262,7 +269,7 @@ Users
  └── Reflections
 
 Classes
- ├── Class_Members
+ ├── Enrollment
  └── Teaching_Assignments
 
 Subjects
@@ -296,17 +303,22 @@ Groups
 
 # 9. Users
 
-Field utama:
+Field utama (sama seperti v1):
 
 ```text
 user_id
+username
+password_hash
+salt
+pwd_awal
+nama
+role        (guru | murid)
+rombel
 email
-google_sub
-name
-role
-phone
 nisn
-status
+no_wa
+status      (aktif | nonaktif)
+harus_ganti_password
 last_login
 created_at
 updated_at
@@ -315,10 +327,10 @@ updated_at
 Aturan:
 
 - `user_id` adalah primary key.
-- `google_sub` menjadi identitas Google utama.
-- Email digunakan sebagai informasi akun dan komunikasi.
-- Password lokal tidak digunakan pada MVP.
-- User inactive tidak boleh menggunakan sistem.
+- `username` adalah identitas login — unik, lowercase.
+- `password_hash` = SHA-256(`salt` + password); salt acak per user.
+- Tidak ada `google_sub` — tidak ada identitas Google.
+- User nonaktif tidak boleh menggunakan sistem.
 
 ---
 
@@ -329,41 +341,44 @@ Field:
 ```text
 class_id
 name
-year
-teacher_id
+academic_year
 status
 created_at
 updated_at
 ```
 
-Akses guru tetap harus ditentukan melalui scope yang tervalidasi.
+Penugasan guru ditentukan melalui `Teaching_Assignments`, bukan kolom di `Classes`.
 
-Relasi siswa tidak disimpan sebagai JSON Array di `Classes`.
+Relasi murid tidak disimpan sebagai JSON Array di `Classes` — gunakan `Enrollment`.
 
 ---
 
-# 11. Class_Members
+# 11. Enrollment
+
+Proses enrollment **sama seperti v1**: guru mendaftarkan murid, murid yang
+pernah keluar diaktifkan kembali (bukan baris baru), `keluarkan()` mengubah
+status menjadi `keluar`, dan notifikasi `enroll_kelas` dikirim setelah enroll.
 
 Field:
 
 ```text
-class_member_id
+enroll_id
 class_id
-student_id
-status
-joined_at
+user_id
+tanggal_daftar
+status (aktif | keluar)
 ```
 
 Unique:
 
 ```text
-class_id + student_id
+class_id + user_id
 ```
 
 Tujuan:
 
-- menghubungkan siswa dengan kelas;
-- mencegah duplicate membership;
+- menghubungkan murid dengan kelas;
+- mencegah duplicate enrollment;
 - mempermudah query;
 - mengurangi ketergantungan JSON Array.
 
@@ -716,20 +731,20 @@ Phase 2
 
 ---
 
-# 25. Sessions
+# 25. Session
 
-Field:
+Sama seperti v1:
 
 ```text
-session_id
+token       (primary key, acak 32 karakter)
 user_id
-created_at
-expires_at
-last_active
-status
+dibuat_at
+expired_at  (TTL 12 jam)
 ```
 
-Session tidak boleh dipercaya hanya berdasarkan data client.
+Snapshot sesi di-cache di CacheService selama 1 jam (`sesi_<token>`).
+Sesi tidak boleh dipercaya hanya berdasarkan data client; user nonaktif
+otomatis menggugurkan sesinya.
 
 ---
 
@@ -783,52 +798,49 @@ ROLE_CHANGE
 ```text
 User
  ↓
-Login Google
+Username + Password
  ↓
-OAuth
+Normalisasi username
  ↓
-Authorization Code
+Cek kunci otomatis (5x gagal / 15 menit)
  ↓
-Token Validation
+Cari Users.username
  ↓
-google_sub
- ↓
-Users
+Bandingkan password_hash (SHA-256 + salt)
  ↓
 Status?
- ├── inactive → reject
- └── active
+ ├── nonaktif → tolak
+ └── aktif
        ↓
-Create Session
+harus_ganti_password? → paksa ganti
+       ↓
+Create Session (token, TTL 12 jam)
        ↓
 Dashboard
 ```
 
 ---
 
-# 29. OAuth PoC
+# 29. PoC Login & Sesi (Gate 0)
 
-OAuth menjadi **Gate 0**.
+Login username + kata sandi menjadi **Gate 0**.
 
-Sebelum coding LMS:
+Sebelum coding modul LMS:
 
 ```text
-[ ] Login Google berhasil
-[ ] Callback berhasil
-[ ] Token valid
-[ ] state valid
-[ ] nonce valid
-[ ] iss valid
-[ ] aud valid
-[ ] exp valid
-[ ] email_verified valid
-[ ] google_sub diperoleh
-[ ] User lookup berhasil
-[ ] User inactive ditolak
-[ ] Session dibuat
-[ ] Logout berhasil
+[ ] Login guru berhasil
+[ ] Login murid berhasil
+[ ] User tidak terdaftar ditolak (pesan seragam)
+[ ] Password salah 5x → terkunci 15 menit
+[ ] User nonaktif ditolak
+[ ] harus_ganti_password memaksa ganti sandi
+[ ] Session token valid diterima
 [ ] Session expired ditolak
+[ ] Logout menghapus session + cache
+[ ] Reset password murid oleh guru berhasil
+[ ] Reset mencabut seluruh sesi murid
 [ ] Role tidak dapat diubah dari client
+[ ] Murid tidak bisa memanggil API guru
 ```
 
 Jika Gate 0 gagal:
@@ -881,28 +893,22 @@ user_id untuk akses data orang lain
 
 # 31. Role
 
-## Admin
+Hanya dua role — sama seperti v1. **Guru sekaligus admin.**
 
-- kelola guru;
-- monitoring;
-- konfigurasi;
-- backup;
-- audit.
+## Guru (admin)
 
-## Guru
-
-- kelola kelas;
-- kelola siswa dalam scope;
+- kelola murid (tambah, import, nonaktifkan, reset kata sandi);
+- kelola kelas dan enrollment;
 - kelola mapel yang ditugaskan;
-- membuat topic;
-- membuat item;
-- membuat quiz;
-- membuat tugas;
+- membuat topic dan item;
+- membuat quiz dan tugas;
 - membuat kelompok;
 - memberi nilai;
-- melihat progress siswa dalam scope.
+- melihat progress murid dalam scope;
+- generate & meninjau draf AI;
+- monitoring, konfigurasi, backup, audit.
 
-## Siswa
+## Murid
 
 - melihat kelas;
 - melihat materi;
@@ -911,6 +917,24 @@ user_id untuk akses data orang lain
 - mengikuti kelompok;
 - melihat nilai sendiri;
 - mengisi refleksi.
+
+# 31A. AI Generate (sama seperti v1)
+
+Sistem AI generator dipindahkan dari `Ai.gs` v1 tanpa perubahan perilaku:
+
+```text
+Gemini via UrlFetch
+→ rotasi ≤10 API key round-robin (Script Properties GEMINI_KEYS)
+→ fallback daftar model + cooldown (429 60 dtk / 1 jam; 400/403 24 jam)
+→ batas total 240 detik per permintaan
+→ hasil SELALU draf — wajib ditinjau guru (ai_ditinjau) sebelum publish
+→ riwayat di sheet Materi_AI (key tidak pernah dicatat, hanya indeks)
+```
+
+Generator: `generateMateri`, `generateKegiatan` (LKPD & tugas kelompok),
+`generateRefleksi`, `generateSoal` (maks 20), `generateKerangka`/`terapkanKerangka`.
+
+Tidak ada jalur otomatis dari AI ke murid.
 
 ---
 
@@ -1136,14 +1160,15 @@ LMS_Utama/
 │   ├── Grades.gs
 │   ├── Reflections.gs
 │   ├── Notifications.gs
-│   ├── Sessions.gs
+│   ├── MateriAi.gs
+│   ├── PermintaanReset.gs
+│   ├── Session.gs
 │   ├── Counters.gs
 │   └── AuditLogs.gs
 │
 ├── Controllers/
-│   ├── AdminController.gs
-│   ├── TeacherController.gs
-│   ├── StudentController.gs
+│   ├── GuruController.gs
+│   ├── MuridController.gs
 │   ├── ClassController.gs
 │   ├── TopicController.gs
 │   ├── QuizController.gs
@@ -1173,12 +1198,12 @@ LMS_Utama/
 
 # 41. Roadmap Implementasi
 
-## Gate 0 — OAuth PoC
+## Gate 0 — PoC Login & Sesi
 
 Output:
 
 ```text
-OAuth bekerja
+Login username + kata sandi bekerja
 Session bekerja
 Role bekerja
 Authorization dasar bekerja
@@ -1426,8 +1451,7 @@ Tidak diperlukan untuk MVP selama GAS masih memenuhi kebutuhan.
 ```text
 [ ] WhatsApp API
 [ ] Otomatisasi copy template
-[ ] AI-assisted content
-[ ] AI-assisted grading
+[ ] AI-assisted grading (AI CONTENT GENERATE sudah masuk MVP sejak v2.1)
 [ ] Advanced analytics
 [ ] Real-time features
 [ ] Mobile/PWA enhancement
@@ -1440,7 +1464,7 @@ Fitur Phase 2 tidak boleh menjadi dependency untuk fungsi inti LMS.
 # 47. Urutan Pengerjaan yang Dikunci
 
 ```text
-0. OAuth PoC
+0. PoC Login & Sesi
       ↓
 1. Database
       ↓
@@ -1471,21 +1495,21 @@ Fitur Phase 2 tidak boleh menjadi dependency untuk fungsi inti LMS.
 
 # 48. Status Rancangan
 
-**STATUS: READY FOR IMPLEMENTATION**
+**STATUS: READY FOR IMPLEMENTATION (v2.1)**
 
 Rancangan ini digunakan sebagai blueprint coding.
 
 Implementasi tidak dimulai dari seluruh LMS.
 
-**Langkah pertama wajib: Gate 0 — OAuth PoC.**
+**Langkah pertama wajib: Gate 0 — PoC Login & Sesi.**
 
-Jika OAuth PoC berhasil, lanjut ke:
+Jika PoC Login & Sesi berhasil, lanjut ke:
 
 ```text
 Database Initializer
 ```
 
-Jika OAuth PoC mengalami kendala, autentikasi diselesaikan terlebih dahulu sebelum modul lain dibangun.
+Jika PoC Login & Sesi mengalami kendala, autentikasi diselesaikan terlebih dahulu sebelum modul lain dibangun.
 
 ---
 
@@ -1540,7 +1564,7 @@ Incremental Development
 Kunci keberhasilan:
 
 ```text
-OAuth
+Login
 → Session
 → Authorization
 → Database

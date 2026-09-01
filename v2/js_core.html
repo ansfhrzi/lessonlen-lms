@@ -1,0 +1,162 @@
+<script>
+/* ============================================================
+ *  LMS v2 — js_core.html
+ *  Inti klien: token sesi, pembungkus google.script.run,
+ *  escape HTML, router layar sederhana
+ * ============================================================ */
+
+var Core = (function () {
+
+  var KUNCI_TOKEN = 'lmsv2_token';
+
+  var state = {
+    token: null,
+    user: null,          /* hasil cekSesi */
+    ringkas: null        /* hasil ringkasDashboard */
+  };
+
+  /* ---------- token ---------- */
+
+  function ambilToken() {
+    try { return sessionStorage.getItem(KUNCI_TOKEN) || ''; } catch (e) { return ''; }
+  }
+  function simpanToken(t) {
+    try { sessionStorage.setItem(KUNCI_TOKEN, t); } catch (e) {}
+    state.token = t;
+  }
+  function buangToken() {
+    try { sessionStorage.removeItem(KUNCI_TOKEN); } catch (e) {}
+    state.token = null;
+    state.user = null;
+    state.ringkas = null;
+  }
+
+  /* ---------- api ---------- */
+
+  /**
+   * Panggil fungsi server lewat google.script.run.
+   * Mengembalikan Promise; resolusi = data (bukan seluruh {ok,...}).
+   * SESI_INVALID otomatis memaksa kembali ke layar login.
+   */
+  function api(namaFn) {
+    var args = Array.prototype.slice.call(arguments, 1);
+    return new Promise(function (resolve, reject) {
+      var runner = google.script.run
+        .withSuccessHandler(function (res) {
+          if (res && res.ok === false) {
+            if (res.error === 'SESI_INVALID') {
+              buangToken();
+              Auth.tampilkanLogin('Sesi berakhir. Silakan masuk kembali.');
+            }
+            reject(new Error(res.pesan || res.error || 'Gagal'));
+            return;
+          }
+          resolve(res ? res.data : null);
+        })
+        .withFailureHandler(function (err) {
+          reject(new Error((err && err.message) || 'Kesalahan jaringan'));
+        });
+      runner[namaFn].apply(runner, args);
+    });
+  }
+
+  /* ---------- util ---------- */
+
+  function esc(t) {
+    return String(t == null ? '' : t)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  }
+
+  function $(id) { return document.getElementById(id); }
+
+  /** Instansiasi <template> ke #app. */
+  function pasangTemplate(idTpl) {
+    var tpl = $(idTpl);
+    var app = $('app');
+    app.innerHTML = '';
+    app.appendChild(tpl.content.cloneNode(true));
+  }
+
+  function kirimForm(btn, sedang, teksAksi) {
+    if (btn) {
+      btn.disabled = sedang;
+      if (sedang) {
+        btn.dataset.teks = btn.textContent;
+        btn.textContent = teksAksi || 'Memproses…';
+      } else if (btn.dataset.teks) {
+        btn.textContent = btn.dataset.teks;
+      }
+    }
+  }
+
+  function tampilkanPesanError(el, pesan) {
+    if (!el) return;
+    el.textContent = pesan || 'Terjadi kesalahan.';
+    el.classList.add('tampil');
+  }
+  function sembunyikanPesanError(el) {
+    if (!el) return;
+    el.textContent = '';
+    el.classList.remove('tampil');
+  }
+
+  /* ---------- merek ---------- */
+
+  function pasangMerek() {
+    var ikon = TYDATA.ikon, nama = TYDATA.nama;
+    ['merek-ikon-login', 'merek-ikon-topbar'].forEach(function (id) {
+      var el = $(id);
+      if (el) el.textContent = ikon;
+    });
+    ['merek-nama-login', 'merek-nama-topbar'].forEach(function (id) {
+      var el = $(id);
+      if (el) el.textContent = nama;
+    });
+    var v = $('versi-app');
+    if (v) v.textContent = 'v' + TYDATA.versi;
+  }
+
+  /* ---------- boot ---------- */
+
+  function muat() {
+    pasangMerek();
+    var t = ambilToken();
+    if (!t) { Auth.tampilkanLogin(); return; }
+    state.token = t;
+
+    pasangTemplate('tpl-dashboard');
+    $('app').querySelector('.konten').style.visibility = 'hidden';
+
+    api('cekSesi', t).then(function (user) {
+      state.user = user;
+      if (!user) return;
+      return api('ringkasDashboard', t).then(function (r) {
+        state.ringkas = r;
+        Dashboard.tampilkan(user, r);
+        $('app').querySelector('.konten').style.visibility = 'visible';
+      });
+    }).catch(function () {
+      /* api() sudah mengarahkan ke login bila SESI_INVALID */
+    });
+  }
+
+  return {
+    state: state,
+    ambilToken: ambilToken, simpanToken: simpanToken, buangToken: buangToken,
+    api: api, esc: esc, $: $,
+    pasangTemplate: pasangTemplate, pasangMerek: pasangMerek,
+    kirimForm: kirimForm,
+    tampilkanPesanError: tampilkanPesanError,
+    sembunyikanPesanError: sembunyikanPesanError,
+    muat: muat
+  };
+})();
+
+/* Data template dari Code.gs — satu sumber kebenaran merek. */
+var TYDATA = { nama: '<?= appNama ?>', versi: '<?= appVersi ?>', ikon: '<?= appIkon ?>' };
+
+document.addEventListener('DOMContentLoaded', function () {
+  Core.muat();
+});
+</script>
