@@ -7,67 +7,93 @@
       <button class="btn-teks" id="btn-keluar">Keluar</button>
     </div>
 
+    <nav class="menu" id="menu-utama"></nav>
+
     <div class="konten">
-      <div class="sambutan">
-        <span class="peran" id="peran-user">guru</span>
-        <h2 id="sapa-user">Halo</h2>
-        <p class="kecil" id="info-user"></p>
-      </div>
-
-      <!-- peringatan wajib ganti kata sandi -->
-      <div class="panel" id="panel-ganti" style="display:none; border-color:#e6c200; background:#fffbe8;">
-        <h3>🔐 Wajib ganti kata sandi</h3>
-        <p class="kecil">
-          Kata sandi Anda masih kata sandi sementara. Silakan ganti sebelum lanjut.
-        </p>
-        <form id="form-ganti">
-          <div class="grup">
-            <label for="in-ganti-lama">Kata sandi lama</label>
-            <input class="isian" id="in-ganti-lama" type="password" autocomplete="current-password" required>
-          </div>
-          <div class="grup">
-            <label for="in-ganti-baru">Kata sandi baru</label>
-            <input class="isian" id="in-ganti-baru" type="password" autocomplete="new-password" required>
-            <span class="bantuan">Minimal 6 karakter, memuat huruf dan angka.</span>
-          </div>
-          <div class="pesan-salah" id="salah-ganti"></div>
-          <button class="btn" type="submit" id="btn-ganti">Ganti kata sandi</button>
-        </form>
-      </div>
-
-      <!-- biodata murid belum lengkap -->
-      <div class="panel" id="panel-biodata" style="display:none;">
-        <h3>📋 Lengkapi biodata</h3>
-        <p class="kecil">Email dan nomor WhatsApp diperlukan agar guru dapat
-          menghubungi Anda dan membantu bila lupa kata sandi.</p>
-        <form id="form-biodata">
-          <div class="grup">
-            <label for="in-bio-email">Email</label>
-            <input class="isian" id="in-bio-email" type="email" placeholder="nama@contoh.id" required>
-          </div>
-          <div class="grup">
-            <label for="in-bio-wa">Nomor WhatsApp</label>
-            <input class="isian" id="in-bio-wa" inputmode="numeric" placeholder="08xxxxxxxxxx" required>
-          </div>
-          <div class="pesan-salah" id="salah-biodata"></div>
-          <button class="btn" type="submit" id="btn-biodata">Simpan biodata</button>
-        </form>
-      </div>
-
-      <!-- ringkasan -->
-      <div class="baris-kartu" id="kartu-ringkas"></div>
-
-      <!-- notifikasi -->
-      <div class="panel">
-        <h3>🔔 Notifikasi</h3>
-        <div id="daftar-notif">
-          <div class="daftar-kosong">Memuat notifikasi…</div>
+      <!-- ============ BERANDA ============ -->
+      <section class="tampilan aktif" id="tampilan-beranda">
+        <div class="sambutan">
+          <span class="peran" id="peran-user">guru</span>
+          <h2 id="sapa-user">Halo</h2>
+          <p class="kecil" id="info-user"></p>
         </div>
-      </div>
+
+        <!-- peringatan wajib ganti kata sandi -->
+        <div class="panel" id="panel-ganti" style="display:none; border-color:#e6c200; background:#fffbe8;">
+          <h3>🔐 Wajib ganti kata sandi</h3>
+          <p class="kecil">
+            Kata sandi Anda masih kata sandi sementara. Silakan ganti sebelum lanjut.
+          </p>
+          <form id="form-ganti">
+            <div class="grup">
+              <label for="in-ganti-lama">Kata sandi lama</label>
+              <input class="isian" id="in-ganti-lama" type="password" autocomplete="current-password" required>
+            </div>
+            <div class="grup">
+              <label for="in-ganti-baru">Kata sandi baru</label>
+              <input class="isian" id="in-ganti-baru" type="password" autocomplete="new-password" required>
+              <span class="bantuan">Minimal 6 karakter, memuat huruf dan angka.</span>
+            </div>
+            <div class="pesan-salah" id="salah-ganti"></div>
+            <button class="btn" type="submit" id="btn-ganti">Ganti kata sandi</button>
+          </form>
+        </div>
+
+        <!-- biodata murid belum lengkap -->
+        <div class="panel" id="panel-biodata" style="display:none;">
+          <h3>📋 Lengkapi biodata</h3>
+          <p class="kecil">Email dan nomor WhatsApp diperlukan agar guru dapat
+            menghubungi Anda dan membantu bila lupa kata sandi.</p>
+          <form id="form-biodata">
+            <div class="grup">
+              <label for="in-bio-email">Email</label>
+              <input class="isian" id="in-bio-email" type="email" placeholder="nama@contoh.id" required>
+            </div>
+            <div class="grup">
+              <label for="in-bio-wa">Nomor WhatsApp</label>
+              <input class="isian" id="in-bio-wa" inputmode="numeric" placeholder="08xxxxxxxxxx" required>
+            </div>
+            <div class="grup">
+              <label for="in-bio-nisn">NISN <span class="kecil">(opsional)</span></label>
+              <input class="isian" id="in-bio-nisn" inputmode="numeric" placeholder="mis. 0098765432">
+            </div>
+            <div class="pesan-salah" id="salah-biodata"></div>
+            <button class="btn" type="submit" id="btn-biodata">Simpan biodata</button>
+          </form>
+        </div>
+
+        <!-- ringkasan -->
+        <div class="baris-kartu" id="kartu-ringkas"></div>
+      </section>
+
+      <!-- ============ KELAS (guru) ============ -->
+      <section class="tampilan" id="tampilan-kelas">
+        <div id="isi-kelas"><div class="pemuat"><span class="ikon">⏳</span>Memuat kelas…</div></div>
+      </section>
+
+      <!-- ============ MURID (guru) ============ -->
+      <section class="tampilan" id="tampilan-murid">
+        <div id="isi-murid"><div class="pemuat"><span class="ikon">⏳</span>Memuat murid…</div></div>
+      </section>
+
+      <!-- ============ KELAS SAYA (murid) ============ -->
+      <section class="tampilan" id="tampilan-kelas-saya">
+        <div id="isi-kelas-saya"><div class="pemuat"><span class="ikon">⏳</span>Memuat kelas…</div></div>
+      </section>
+
+      <!-- ============ NOTIFIKASI ============ -->
+      <section class="tampilan" id="tampilan-notif">
+        <div class="panel">
+          <h3>🔔 Notifikasi</h3>
+          <div id="daftar-notif">
+            <div class="daftar-kosong">Memuat notifikasi…</div>
+          </div>
+        </div>
+      </section>
 
       <p class="kecil tengah">
-        Fondasi LMS v2 — modul kelas, materi, quiz, tugas, kelompok,
-        dan AI generate menyusul pada tahap berikutnya.
+        LMS v2 · Tahap 3: kelas, murid, enrollment.
+        Materi, quiz, tugas, kelompok & AI menyusul.
       </p>
     </div>
   </div>

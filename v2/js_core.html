@@ -101,6 +101,59 @@ var Core = (function () {
     el.classList.remove('tampil');
   }
 
+  /* ---------- tampilan & dialog ---------- */
+
+  /** Tampilkan satu .tampilan dan sorot tombol menunya. */
+  function tampilkanTampilan(id) {
+    document.querySelectorAll('.tampilan').forEach(function (s) {
+      s.classList.toggle('aktif', s.id === 'tampilan-' + id);
+    });
+    document.querySelectorAll('#menu-utama button').forEach(function (b) {
+      b.classList.toggle('aktif', b.dataset.tampilan === id);
+    });
+  }
+
+  /**
+   * Dialog modal serbaguna.
+   * @param {string}   judul
+   * @param {Node}     isi       node konten (form dsb.)
+   * @param {Array}    tombol    [{teks, kelas, klik(btn, tirai)}]
+   *                             klik mengembalikan false → dialog tetap terbuka
+   */
+  function dialog(judul, isi, tombol) {
+    var tirai = document.createElement('div');
+    tirai.className = 'tirai';
+
+    var kotak = document.createElement('div');
+    kotak.className = 'kotak-dialog';
+    kotak.innerHTML = '<h3>' + esc(judul) + '</h3>';
+    kotak.appendChild(isi);
+
+    var aksi = document.createElement('div');
+    aksi.className = 'aksi';
+    (tombol || []).forEach(function (t) {
+      var b = document.createElement('button');
+      b.className = 'btn ' + (t.kelas || 'btn-sekunder');
+      b.textContent = t.teks;
+      b.addEventListener('click', function () {
+        var r = t.klik ? t.klik(b, tirai) : undefined;
+        if (r !== false) tirai.remove();
+      });
+      aksi.appendChild(b);
+    });
+
+    kotak.appendChild(aksi);
+    tirai.appendChild(kotak);
+    document.body.appendChild(tirai);
+
+    tirai.addEventListener('click', function (e) {
+      if (e.target === tirai) tirai.remove();
+    });
+    var inputPertama = kotak.querySelector('input, textarea, select');
+    if (inputPertama) inputPertama.focus();
+    return tirai;
+  }
+
   /* ---------- merek ---------- */
 
   function pasangMerek() {
@@ -149,6 +202,8 @@ var Core = (function () {
     kirimForm: kirimForm,
     tampilkanPesanError: tampilkanPesanError,
     sembunyikanPesanError: sembunyikanPesanError,
+    tampilkanTampilan: tampilkanTampilan,
+    dialog: dialog,
     muat: muat
   };
 })();

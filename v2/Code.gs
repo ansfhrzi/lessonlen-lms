@@ -143,6 +143,94 @@ function resetPasswordMurid(token, userId, requestId) {
 }
 
 /* ============================================================
+ *  API — KELAS, MURID, ENROLLMENT (Tahap 3 — guru)
+ * ============================================================ */
+
+function kelasDaftar(token, semua) {
+  return _bungkus(token, 'guru', function () {
+    return Kelas.daftar(semua !== true);
+  });
+}
+
+function kelasSimpan(token, p) {
+  return _bungkus(token, 'guru', function (sesi) {
+    return Kelas.simpan(sesi, p || {});
+  });
+}
+
+function kelasUbahStatus(token, classId, status) {
+  return _bungkus(token, 'guru', function (sesi) {
+    return Kelas.ubahStatus(sesi, classId, status);
+  });
+}
+
+function muridDaftar(token, filter) {
+  return _bungkus(token, 'guru', function () {
+    return Kelas.daftarMurid(filter || {});
+  });
+}
+
+function muridSimpan(token, p) {
+  return _bungkus(token, 'guru', function (sesi) {
+    return Kelas.simpanMurid(sesi, p || {});
+  });
+}
+
+function muridImporPratinjau(token, teks) {
+  return _bungkus(token, 'guru', function () {
+    return Kelas.pratinjauImpor(teks);
+  });
+}
+
+function muridImpor(token, classId, teks) {
+  return _bungkus(token, 'guru', function (sesi) {
+    return Kelas.imporMurid(sesi, classId || '', teks);
+  });
+}
+
+function kelasMurid(token, classId) {
+  return _bungkus(token, 'guru', function () {
+    return Kelas.muridDiKelas(classId);
+  });
+}
+
+function muridTersedia(token, classId) {
+  return _bungkus(token, 'guru', function () {
+    return Kelas.muridTersedia(classId);
+  });
+}
+
+/** Daftarkan murid ke kelas (enroll — proses sama seperti v1). */
+function muridDaftarkan(token, classId, userIds) {
+  return _bungkus(token, 'guru', function (sesi) {
+    return Kelas.enroll(sesi, classId, userIds);
+  });
+}
+
+function muridKeluarkan(token, classId, userId) {
+  return _bungkus(token, 'guru', function (sesi) {
+    return Kelas.keluarkan(sesi, classId, userId);
+  });
+}
+
+/* ============================================================
+ *  API — KELAS SAYA (murid) & BIODATA
+ * ============================================================ */
+
+function kelasSaya(token) {
+  return _bungkus(token, 'apa_saja', function (sesi) {
+    return Kelas.kelasSaya(sesi);
+  });
+}
+
+/** Murid melengkapi biodata sendiri (email + WA wajib, NISN longgar). */
+function simpanBiodataSaya(token, p) {
+  return _bungkus(token, 'murid', function (sesi) {
+    return Kelas.simpanBiodata(sesi, p || {});
+  });
+}
+
+/* ============================================================
  *  API — DASBOR (ringkasan awal per role)
  * ============================================================ */
 
@@ -187,18 +275,17 @@ function _ringkasMurid(sesi) {
 }
 
 /* ============================================================
- *  API — NOTIFIKASI (dasar)
+ *  API — NOTIFIKASI (in-app)
  * ============================================================ */
 
 function daftarNotifikasi(token) {
   return _bungkus(token, 'apa_saja', function (sesi) {
-    return Db.saring('Notifications', { user_id: sesi.user_id })
-      .sort(function (a, b) { return String(a.created_at) < String(b.created_at) ? 1 : -1; })
-      .slice(0, 20)
-      .map(function (n) {
-        return { notif_id: n.notif_id, jenis: n.jenis, judul: n.judul,
-                 pesan: n.pesan, dibaca: n.dibaca === true || n.dibaca === 'TRUE',
-                 created_at: String(n.created_at) };
-      });
+    return Notif.daftar(sesi.user_id, 20);
+  });
+}
+
+function notifTandaiDibaca(token, notifId) {
+  return _bungkus(token, 'apa_saja', function (sesi) {
+    return Notif.tandaiDibaca(sesi.user_id, notifId);
   });
 }

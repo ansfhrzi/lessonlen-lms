@@ -27,6 +27,10 @@ global.PropertiesService = {
 /* ---- Db tiruan berbasis objek ---- */
 const HEAD = {
   Users: ['user_id','username','password_hash','salt','pwd_awal','nama','role','rombel','email','nisn','no_wa','status','harus_ganti_password','last_login','created_at','updated_at'],
+  Classes: ['class_id','name','academic_year','status','created_at','updated_at'],
+  Subjects: ['subject_id','name','code','owner_teacher_id','status','created_at','updated_at'],
+  Teaching_Assignments: ['teaching_assignment_id','class_id','teacher_id','subject_id','academic_year','status','created_at','updated_at'],
+  Enrollment: ['enroll_id','class_id','user_id','tanggal_daftar','status'],
   Session: ['token','user_id','dibuat_at','expired_at'],
   Permintaan_Reset: ['request_id','user_id','input_user','status','dibuat_at','diproses_at'],
   Notifications: ['notif_id','user_id','jenis','judul','pesan','link','dibaca','created_at'],
@@ -56,12 +60,34 @@ global.Db = {
     if (r) Object.assign(r, obj);
   },
   hapus: (n, baris) => { (TABEL[n]||[]).splice(baris-2, 1); },
+  perbaruiBanyak: (n, items) => {
+    items.forEach(it => global.Db.perbarui(n, it._baris, it));
+    return items.length;
+  },
   hapusBanyak: (n, daftar) => {
     daftar.slice().sort((a,b)=>b-a).forEach(b => global.Db.hapus(n,b));
     return daftar.length;
   },
   invalidasi: () => {},
   denganKunci: (fn) => fn(),
+  saringBaris: (n, kolKunci, val, kolom) => {
+    let rows = global.Db.baca(n).filter(r => r[kolKunci] === val);
+    if (kolom && kolom.length) {
+      rows = rows.map(r => {
+        const o = { _baris: r._baris };
+        kolom.forEach(k => { o[k] = r[k]; });
+        o[kolKunci] = r[kolKunci];
+        return o;
+      });
+    }
+    return rows;
+  },
+  bacaKolom: (n, kolom) => global.Db.baca(n).map(r => {
+    const o = {};
+    kolom.forEach(k => { o[k] = r[k]; });
+    return o;
+  }),
+  cariCepat: (n, kol, val) => global.Db.cari(n, kol, val),
   /* untuk Util.buatId — tiru sheet Counters */
   sheet: (n) => {
     TABEL[n] = TABEL[n] || [];
@@ -69,6 +95,7 @@ global.Db = {
       getLastRow: () => TABEL[n].length + 1,
       getRange: (row, col, nrows) => ({
         getValues: () => TABEL[n].slice(row-2, row-2+(nrows||1)).map(r=>[r[HEAD[n][col-1]]]),
+        getValue:  () => TABEL[n][row-2] ? TABEL[n][row-2][HEAD[n][col-1]] : '',
         setValue: (v) => { TABEL[n][row-2][HEAD[n][col-1]] = v; },
         setValues: (vs) => { vs.forEach((v,i)=>{ TABEL[n][row-2+i] = {}; HEAD[n].forEach((h,c)=>TABEL[n][row-2+i][h]=v[c]); }); }
       })

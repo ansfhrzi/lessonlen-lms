@@ -1,7 +1,8 @@
 <script>
 /* ============================================================
  *  LMS v2 — js_auth.html
- *  Layar masuk, lupa kata sandi, ganti kata sandi, biodata murid
+ *  Layar masuk, lupa kata sandi, dasbor, ganti kata sandi,
+ *  biodata murid
  * ============================================================ */
 
 var Auth = (function () {
@@ -35,6 +36,7 @@ var Auth = (function () {
 
     Core.api('login', u, p).then(function (d) {
       Core.kirimForm(Core.$('btn-masuk'), false);
+      Core.state.biodata = d.biodata || null;
       Core.simpanToken(d.token);
       Core.muat();
     }).catch(function (err) {
@@ -46,59 +48,38 @@ var Auth = (function () {
   /* ---------- lupa kata sandi ---------- */
 
   function dialogLupa() {
-    var tirai = document.createElement('div');
-    tirai.className = 'tirai';
-
-    var kotak = document.createElement('div');
-    kotak.className = 'kotak-dialog';
-    kotak.innerHTML = '<h3>Lupa kata sandi?</h3>';
-    kotak.appendChild(Core.$('tpl-lupa').content.cloneNode(true));
+    var isi = Core.$('tpl-lupa').content.cloneNode(true);
 
     var balikan = document.createElement('p');
     balikan.className = 'kecil';
     balikan.style.display = 'none';
 
-    var aksi = document.createElement('div');
-    aksi.className = 'aksi';
-    var batal = document.createElement('button');
-    batal.className = 'btn btn-sekunder';
-    batal.textContent = 'Batal';
-    var kirim = document.createElement('button');
-    kirim.className = 'btn';
-    kirim.textContent = 'Kirim permintaan';
-    aksi.appendChild(batal);
-    aksi.appendChild(kirim);
+    var wadah = document.createElement('div');
+    wadah.appendChild(isi);
+    wadah.appendChild(balikan);
 
-    kotak.appendChild(balikan);
-    kotak.appendChild(aksi);
-    tirai.appendChild(kotak);
-    document.body.appendChild(tirai);
-    Core.$('in-lupa').focus();
-
-    batal.addEventListener('click', function () { tirai.remove(); });
-    tirai.addEventListener('click', function (e) {
-      if (e.target === tirai) tirai.remove();
-    });
-
-    kirim.addEventListener('click', function () {
-      var input = Core.$('in-lupa').value;
-      if (!input.trim()) { Core.$('in-lupa').focus(); return; }
-      kirim.disabled = true;
-      kirim.textContent = 'Mengirim…';
-
-      Core.api('ajukanReset', input).then(function () {
-        balikan.style.display = 'block';
-        balikan.textContent =
-          'Permintaan diterima. Hubungi guru Anda untuk mendapatkan kata sandi sementara.';
-        kirim.style.display = 'none';
-      }).catch(function (err) {
-        kirim.disabled = false;
-        kirim.textContent = 'Kirim permintaan';
-        balikan.style.display = 'block';
-        balikan.style.color = '#b3392f';
-        balikan.textContent = err.message;
-      });
-    });
+    Core.dialog('Lupa kata sandi?', wadah, [
+      { teks: 'Batal' },
+      { teks: 'Kirim permintaan', kelas: '', klik: function (btn, tirai) {
+          var input = Core.$('in-lupa').value;
+          if (!input.trim()) { Core.$('in-lupa').focus(); return false; }
+          btn.disabled = true;
+          btn.textContent = 'Mengirim…';
+          Core.api('ajukanReset', input).then(function () {
+            balikan.style.display = 'block';
+            balikan.textContent =
+              'Permintaan diterima. Hubungi guru Anda untuk mendapatkan kata sandi sementara.';
+            btn.style.display = 'none';
+          }).catch(function (err) {
+            btn.disabled = false;
+            btn.textContent = 'Kirim permintaan';
+            balikan.style.display = 'block';
+            balikan.style.color = '#b3392f';
+            balikan.textContent = err.message;
+          });
+          return false;   /* dialog tetap terbuka sampai selesai */
+        }}
+    ]);
   }
 
   /* ---------- keluar ---------- */
@@ -119,20 +100,20 @@ var Auth = (function () {
 
 
 /* ============================================================
- *  Dasbor — rendering ringkasan, ganti kata sandi, biodata murid
+ *  Dasbor — menu, ringkasan, ganti kata sandi, biodata murid
  * ============================================================ */
 
 var Dashboard = (function () {
 
   var LABEL_KARTU = {
-    murid_aktif:  'Murid aktif',
-    kelas_aktif:  'Kelas aktif',
-    mapel_aktif:  'Mapel aktif',
-    topik:        'Topic',
-    item:         'Item',
-    reset_antre:  'Reset antre',
-    kelas_diikuti:'Kelas diikuti',
-    notif_baru:   'Notifikasi baru'
+    murid_aktif:   'Murid aktif',
+    kelas_aktif:   'Kelas aktif',
+    mapel_aktif:   'Mapel aktif',
+    topik:         'Topic',
+    item:          'Item',
+    reset_antre:   'Reset antre',
+    kelas_diikuti: 'Kelas diikuti',
+    notif_baru:    'Notifikasi baru'
   };
 
   function tampilkan(user, ringkas) {
@@ -158,17 +139,57 @@ var Dashboard = (function () {
     /* panel wajib ganti kata sandi */
     if (user.harus_ganti_password) {
       Core.$('panel-ganti').style.display = 'block';
-      Core.$('panel-ganti').scrollIntoView({ behavior: 'smooth' });
     }
 
-    /* panel biodata murid */
+    /* panel biodata murid — praisi dari data login bila ada */
     if (user.biodata_kurang) {
+      var b = Core.state.biodata;
+      if (b) {
+        if (b.email) Core.$('in-bio-email').value = b.email;
+        if (b.no_wa) Core.$('in-bio-wa').value = b.no_wa;
+        if (b.nisn)  Core.$('in-bio-nisn').value = b.nisn;
+      }
       Core.$('panel-biodata').style.display = 'block';
     }
 
+    pasangMenu(user.role);
     pasangAksi();
     muatNotif();
   }
+
+  /* ---------- menu ---------- */
+
+  function pasangMenu(role) {
+    var menu = Core.$('menu-utama');
+    menu.innerHTML = '';
+
+    var item = [{ id: 'beranda', teks: '🏠 Beranda' }];
+    if (role === 'guru') {
+      item.push({ id: 'kelas', teks: '🏫 Kelas' });
+      item.push({ id: 'murid', teks: '👥 Murid' });
+    } else {
+      item.push({ id: 'kelas-saya', teks: '🏫 Kelas Saya' });
+    }
+    item.push({ id: 'notif', teks: '🔔 Notifikasi' });
+
+    item.forEach(function (it) {
+      var b = document.createElement('button');
+      b.textContent = it.teks;
+      b.dataset.tampilan = it.id;
+      b.addEventListener('click', function () { buka(it.id); });
+      menu.appendChild(b);
+    });
+  }
+
+  function buka(id) {
+    Core.tampilkanTampilan(id);
+    if (id === 'kelas')        Kelola.bukaKelas();
+    else if (id === 'murid')   Kelola.bukaMurid();
+    else if (id === 'kelas-saya') Kelola.bukaKelasSaya();
+    else if (id === 'notif')   muatNotif();
+  }
+
+  /* ---------- aksi umum ---------- */
 
   function pasangAksi() {
     Core.$('btn-keluar').addEventListener('click', Auth.keluar);
@@ -207,10 +228,22 @@ var Dashboard = (function () {
   function simpanBiodata() {
     var salah = Core.$('salah-biodata');
     Core.sembunyikanPesanError(salah);
-    Core.tampilkanPesanError(salah,
-      'Penyimpanan biodata tersedia pada modul Kelola Murid (tahap berikutnya). ' +
-      'Untuk sementara, sampaikan email & nomor WA Anda kepada guru.');
+    Core.kirimForm(Core.$('btn-biodata'), true, 'Menyimpan…');
+
+    Core.api('simpanBiodataSaya', Core.ambilToken(), {
+      email: Core.$('in-bio-email').value,
+      no_wa: Core.$('in-bio-wa').value,
+      nisn:  Core.$('in-bio-nisn').value
+    }).then(function () {
+      Core.$('panel-biodata').style.display = 'none';
+      Core.state.user.biodata_kurang = false;
+    }).catch(function (err) {
+      Core.kirimForm(Core.$('btn-biodata'), false);
+      Core.tampilkanPesanError(salah, err.message);
+    });
   }
+
+  /* ---------- notifikasi ---------- */
 
   function muatNotif() {
     var wadah = Core.$('daftar-notif');
@@ -224,10 +257,18 @@ var Dashboard = (function () {
         var div = document.createElement('div');
         div.className = 'notif-item' + (n.dibaca ? '' : ' belum');
         div.innerHTML =
-          '<span class="titik"></span>' +
+          '<span class="ikon">' + Core.esc(n.ikon || '🔔') + '</span>' +
           '<div><div><b>' + Core.esc(n.judul) + '</b></div>' +
           '<div>' + Core.esc(n.pesan) + '</div>' +
-          '<div class="waktu">' + Core.esc(n.created_at) + '</div></div>';
+          '<div class="waktu">' + Core.esc(n.relatif || n.created_at) + '</div></div>';
+        if (!n.dibaca) {
+          div.style.cursor = 'pointer';
+          div.addEventListener('click', function () {
+            Core.api('notifTandaiDibaca', Core.ambilToken(), n.notif_id)
+              .then(function () { muatNotif(); })
+              .catch(function () {});
+          });
+        }
         wadah.appendChild(div);
       });
     }).catch(function () {
@@ -235,6 +276,6 @@ var Dashboard = (function () {
     });
   }
 
-  return { tampilkan: tampilkan };
+  return { tampilkan: tampilkan, muatNotif: muatNotif };
 })();
 </script>

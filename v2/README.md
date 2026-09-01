@@ -18,14 +18,17 @@ yang ada di akar repositori.
 
 | Berkas | Fungsi |
 |---|---|
-| `Code.gs` | `doGet`, `include`, pembungkus API `_bungkus`, endpoint auth + dasbor |
+| `Code.gs` | `doGet`, `include`, pembungkus API `_bungkus`, endpoint auth + dasbor + kelas/murid/enrollment |
 | `Setup.gs` | Skema **23 sheet**, `setupLengkap()`, seed, migrasi, `infoDatabase()` |
 | `Db.gs` | Lapisan akses Sheets: baca/tulis batch, cache, `LockService` |
 | `Util.gs` | Generator ID (sheet `Counters` + lock), hash kata sandi, sanitasi, audit log |
 | `Auth.gs` | Login, sesi, ganti/lupa/reset kata sandi (port v1) |
-| `index.html` + `css.html` | Cangkang UI |
-| `v_login.html`, `v_dashboard.html` | Layar masuk & dasbor guru/murid |
-| `js_core.html`, `js_auth.html` | Pembungkus `google.script.run`, token sesi, logika layar |
+| `Notif.gs` | Notifikasi in-app: `kirim`, `kirimKeKelas`, `daftar`, `tandaiDibaca` |
+| `Kelas.gs` | CRUD kelas, murid + impor massal, enrollment (enroll/reaktivasi/keluarkan), kelas saya, biodata murid |
+| `index.html` + `css.html` | Cangkang UI + gaya |
+| `v_login.html`, `v_dashboard.html` | Layar masuk & dasbor bernavigasi (Beranda/Kelas/Murid/Notifikasi) |
+| `js_core.html`, `js_auth.html`, `js_kelola.html` | Pembungkus `google.script.run`, token sesi, logika layar |
+| `test/` | Uji logika: Gate 0 (18 kasus) + Tahap 3 (42 kasus) |
 
 ## Cara pasang (sekali saja)
 
@@ -74,13 +77,38 @@ di deployment `/exec` sungguhan:
 
 - ✅ Tahap 1 — Database initializer (23 sheet + seed + migrasi)
 - ✅ Tahap 2 (sebagian) — Auth + session + audit log
-- ⬜ Tahap 3 — Kelas, murid, enrollment (Kelas.gs)
+- ✅ Tahap 3 — Kelas, murid, enrollment:
+  - Guru: CRUD kelas (buat/edit/arsip), kelola murid (tambah/edit/
+    nonaktifkan/reset sandi), impor massal dengan pratinjau,
+    daftarkan/keluarkan murid dari kelas
+  - Murid: layar Kelas Saya (kelas + mapel), lengkapi biodata sendiri
+  - Enrollment mengikuti v1: dedupe, reaktivasi baris `keluar`,
+    notifikasi `enroll_kelas`
 - ⬜ Tahap 4 — Subjects, Teaching_Assignments, Topics, Items
 - ⬜ Tahap 5 — Quiz + soal + penilaian
 - ⬜ Tahap 6 — Tugas individu & kelompok
 - ⬜ Tahap 7 — Rekap nilai & progres
 - ⬜ Tahap 8 — Porting `Ai.gs` v1 (generator Gemini, perilaku tidak berubah)
 - ⬜ Tahap 9 — Notifikasi lengkap + email terbatas
+
+### API Tahap 3 (semua lewat `_bungkus`, role diperiksa server-side)
+
+| Endpoint | Peran | Fungsi |
+|---|---|---|
+| `kelasDaftar(token, semua)` | guru | daftar kelas + jumlah murid/mapel |
+| `kelasSimpan(token, p)` | guru | buat/edit kelas |
+| `kelasUbahStatus(token, id, status)` | guru | arsip/aktifkan kelas |
+| `muridDaftar(token, filter)` | guru | daftar murid + filter cari/rombel/status/kelas |
+| `muridSimpan(token, p)` | guru | tambah/edit murid |
+| `muridImporPratinjau(token, teks)` | guru | pratinjau impor tanpa menulis |
+| `muridImpor(token, classId, teks)` | guru | impor massal + enroll opsional |
+| `kelasMurid(token, classId)` | guru | murid terdaftar di kelas |
+| `muridTersedia(token, classId)` | guru | kandidat pendaftaran |
+| `muridDaftarkan(token, classId, ids)` | guru | enroll (dedupe + reaktivasi) |
+| `muridKeluarkan(token, classId, userId)` | guru | status enrollment `keluar` |
+| `kelasSaya(token)` | semua | kelas diikuti murid / diajar guru |
+| `simpanBiodataSaya(token, p)` | murid | lengkapi email + WA (+NISN opsional) |
+| `daftarNotifikasi(token)` / `notifTandaiDibaca` | semua | notifikasi in-app |
 
 ## Darurat
 

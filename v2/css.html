@@ -250,8 +250,149 @@ p  { margin: .3em 0; }
 }
 .pemuat .ikon { display: block; font-size: 1.6rem; margin-bottom: 6px; }
 
+/* ---------- navigasi menu ---------- */
+.menu {
+  background: #fff;
+  border-bottom: 1px solid var(--garis);
+  position: sticky;
+  top: 47px;
+  z-index: 4;
+  overflow-x: auto;
+}
+.menu button {
+  background: none;
+  border: none;
+  border-bottom: 3px solid transparent;
+  padding: 10px 14px;
+  font-size: .88rem;
+  font-weight: 600;
+  color: var(--abu);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.menu button.aktif {
+  color: var(--hijau);
+  border-bottom-color: var(--hijau);
+}
+
+.tampilan { display: none; }
+.tampilan.aktif { display: block; }
+
+/* ---------- toolbar & aksi ---------- */
+.toolbar {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+.toolbar .isian { max-width: 240px; }
+.toolbar .tumbuh { flex: 1; }
+.kiri-kanan {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* ---------- tabel ---------- */
+.balut-tabel { overflow-x: auto; }
+table.tabel {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: .86rem;
+}
+.tabel th, .tabel td {
+  text-align: left;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--garis);
+  vertical-align: top;
+}
+.tabel th {
+  font-size: .74rem;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  color: var(--abu);
+  white-space: nowrap;
+}
+.tabel td.aksi { white-space: nowrap; }
+.tabel .btn-teks { padding: 3px 6px; font-size: .8rem; }
+
+/* ---------- lencana & chip ---------- */
+.lencana {
+  display: inline-block;
+  font-size: .7rem;
+  font-weight: 700;
+  border-radius: 999px;
+  padding: 2px 8px;
+  background: #eef2ee;
+  color: var(--abu);
+}
+.lencana.hijau { background: var(--hijau-muda); color: var(--hijau); }
+.lencana.merah { background: #fdecea; color: var(--merah); }
+.lencana.kuning { background: #fff6d9; color: var(--kuning); }
+.chip {
+  display: inline-block;
+  font-size: .72rem;
+  background: #eef2ee;
+  border-radius: 6px;
+  padding: 2px 7px;
+  margin: 1px 3px 1px 0;
+}
+.chip-rombel { background: #e7ecf7; color: #33507b; }
+
+/* ---------- kartu kelas ---------- */
+.kartu-kelas {
+  background: #fff;
+  border: 1px solid var(--garis);
+  border-radius: 12px;
+  padding: 14px;
+  margin-bottom: 10px;
+}
+.kartu-kelas .nama { font-weight: 700; font-size: 1rem; }
+.kartu-kelas .meta { color: var(--abu); font-size: .8rem; margin: 2px 0 8px; }
+.kartu-kelas .aksi { display: flex; gap: 6px; flex-wrap: wrap; }
+
+/* ---------- daftar pilih (checkbox) ---------- */
+.daftar-pilih {
+  max-height: 300px;
+  overflow: auto;
+  border: 1px solid var(--garis);
+  border-radius: 8px;
+  margin-top: 8px;
+}
+.daftar-pilih label {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding: 7px 10px;
+  border-bottom: 1px solid var(--garis);
+  font-size: .86rem;
+  cursor: pointer;
+}
+.daftar-pilih label:last-child { border-bottom: none; }
+.daftar-pilih label:hover { background: var(--hijau-muda); }
+
+/* ---------- pratinjau impor ---------- */
+.pratinjau { font-size: .84rem; }
+.pratinjau .baris-ok  { color: var(--teks); padding: 2px 0; }
+.pratinjau .baris-no  { color: var(--merah); padding: 2px 0; }
+
+/* ---------- hasil sandi ---------- */
+.kotak-sandi {
+  background: var(--hijau-muda);
+  border: 1px dashed var(--hijau);
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: .9rem;
+  margin: 8px 0;
+}
+.kotak-sandi b { font-family: monospace; font-size: 1.05rem; letter-spacing: .06em; }
+
 @media (max-width: 480px) {
   .konten { padding: 14px 12px 40px; }
   .kartu .angka { font-size: 1.4rem; }
+  .toolbar .isian { max-width: none; width: 100%; }
 }
 </style>
