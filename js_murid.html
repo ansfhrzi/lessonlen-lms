@@ -1,0 +1,246 @@
+<script>
+function layarBerandaMurid() {
+  var isi = pasangShell();
+  isi.innerHTML = '<div class="rangka" style="height:80px"></div>';
+  callApi('getBeranda', []).then(function (d) {
+    State.beranda = d;
+    var h = '<h1>Halo, ' + esc(d.user.nama.split(' ')[0]) + '</h1>' +
+      '<p class="lembut mb-16">Pilih bab yang sudah dibuka guru. Tidak ada kunci urutan — yang terbuka boleh dikerjakan.</p>';
+    if (!d.kelas.length) {
+      h += '<div class="kartu">Belum terdaftar di kelas mana pun.</div>';
+      isi.innerHTML = h; return;
+    }
+    d.kelas.forEach(function (k) {
+      var m = k.rekap.materi_total ? Math.round(k.rekap.materi_selesai / k.rekap.materi_total * 100) : 0;
+      h += '<div class="kartu mb-16">' +
+        '<div class="baris-antara mb-8"><div><div class="tebal">' + esc(k.nama_kelas) +
+        '</div><div class="kecil lembut">' + esc(k.mapel) + '</div></div>' +
+        '<span class="lencana">' + k.rekap.materi_selesai + '/' + k.rekap.materi_total + ' materi</span></div>' +
+        bilah(m) +
+        '<div class="kolom mt-16">';
+      k.bab.forEach(function (b) {
+        var rk = b.rekap;
+        if (b.terbuka) {
+          h += '<button class="kartu kartu-kelas" data-bab="' + esc(b.bab_id) + '" style="text-align:left">' +
+            '<div class="baris-antara"><div><span class="lencana">' + b.urutan + '</span> ' +
+            '<span class="tebal">' + esc(b.judul) + '</span></div>' +
+            '<span class="kecil lembut">' + rk.materi_selesai + '/' + rk.materi_total + '</span></div></button>';
+        } else {
+          var ket = b.akses === 'jadwal' && b.buka_at
+            ? 'Dibuka ' + esc(b.buka_at)
+            : 'Ditutup guru';
+          h += '<div class="kartu kartu-bab tertutup"><div class="baris-antara">' +
+            '<div><span class="lencana lencana-abu">' + b.urutan + '</span> ' +
+            esc(b.judul) + '</div><span class="kecil lembut">' + ket + '</span></div></div>';
+        }
+      });
+      h += '</div></div>';
+    });
+    isi.innerHTML = h;
+    isi.onclick = function (e) {
+      var b = e.target.closest('[data-bab]');
+      if (b) pergiKe('#/bab/' + b.dataset.bab);
+    };
+  });
+}
+
+var BabUI = { data: null, itemId: null };
+
+daftarRute('bab', function (arg) {
+  if (!State.user || State.user.role !== 'murid') { pergiKe('#/beranda'); return; }
+  var id = arg && arg[0];
+  if (!id) { pergiKe('#/beranda'); return; }
+  var isi = pasangShell();
+  isi.innerHTML = '<p class="lembut">Memuat bab…</p>';
+
+  function pakai(d) {
+    State.bab = d; BabUI.data = d;
+    BabUI.itemId = (arg && arg[1]) || _itemPertama(d);
+    gambarBab(isi);
+  }
+  if (State.bab && State.bab.bab && State.bab.bab.bab_id === id) pakai(State.bab);
+  else callApi('bukaBab', [id], { pesanMuat: 'Memuat bab…' }).then(pakai);
+});
+
+function _itemPertama(d) {
+  var id = null;
+  (d.grup || []).forEach(function (g) {
+    (g.item || []).forEach(function (i) { if (!id && i.terbuka) id = i.item_id; });
+  });
+  return id;
+}
+
+function _cariItem(id) {
+  var ketemu = null;
+  (BabUI.data.grup || []).forEach(function (g) {
+    (g.item || []).forEach(function (i) { if (i.item_id === id) ketemu = i; });
+  });
+  return ketemu;
+}
+
+function gambarBab(isi) {
+  var d = BabUI.data;
+  var h = '<button class="tautan-balik" data-act="beranda">‹ ' + esc(d.kelas.nama_kelas) + '</button>' +
+    '<div class="kepala-halaman mb-16"><h1>' + esc(d.bab.judul) + '</h1>' +
+    (d.bab.deskripsi ? '<p class="lembut kecil">' + esc(d.bab.deskripsi) + '</p>' : '') +
+    '<div class="kecil lembut">Materi ditandai ' + d.rekap.materi_selesai + '/' + d.rekap.materi_total +
+    ' · tugas ' + d.rekap.tugas_selesai + '/' + d.rekap.tugas_total + '</div></div>' +
+    '<div class="tata-bab"><aside class="daftar-item kartu" id="sisi-item">';
+
+  d.grup.forEach(function (g) {
+    h += '<div class="grup-nama">' + esc(g.nama) + '</div>';
+    g.item.forEach(function (i) {
+      var ikon = { materi: '📄', lkpd: '📝', quiz: '🎯' }[i.tipe] || '•';
+      var tanda = !i.terbuka ? '🔒'
+        : (i.tipe === 'materi' && i.progres.ditandai) ? '✓'
+        : (i.tipe === 'lkpd' && i.progres.lkpd_status) ? '⏳'
+        : (i.tipe === 'quiz' && i.progres.quiz_nilai !== '') ? i.progres.quiz_nilai
+        : '';
+      h += '<button class="item-baris' + (i.item_id === BabUI.itemId ? ' aktif' : '') +
+        (i.terbuka ? '' : ' mati') + '" data-item="' + esc(i.item_id) + '"' +
+        (i.terbuka ? '' : ' disabled') + '>' +
+        '<span class="item-ikon">' + ikon + '</span>' +
+        '<span class="tumbuh"><span class="tebal kecil" style="display:block">' + esc(i.judul) +
+        '</span></span><span class="kecil">' + tanda + '</span></button>';
+    });
+  });
+  h += '</aside><section class="kartu" id="panel-item"></section></div>';
+  isi.innerHTML = h;
+  gambarPanel();
+  isi.onclick = function (e) {
+    if (e.target.closest('[data-act="beranda"]')) { pergiKe('#/beranda'); return; }
+    var b = e.target.closest('[data-item]');
+    if (!b || b.disabled) return;
+    BabUI.itemId = b.dataset.item;
+    $$('.item-baris', isi).forEach(function (x) {
+      x.classList.toggle('aktif', x.dataset.item === BabUI.itemId);
+    });
+    gambarPanel();
+  };
+}
+
+function gambarPanel() {
+  var el = document.getElementById('panel-item');
+  if (!el) return;
+  var i = _cariItem(BabUI.itemId);
+  if (!i) { el.innerHTML = '<p class="lembut">Pilih item di kiri.</p>'; return; }
+  if (!i.terbuka) { el.innerHTML = '<p>Item ini ditutup guru.</p>'; return; }
+  if (i.tipe === 'materi') panelMateri(el, i);
+  else if (i.tipe === 'lkpd') panelLkpd(el, i);
+  else if (i.tipe === 'quiz') panelQuiz(el, i);
+}
+
+function panelMateri(el, i) {
+  var bagian = String(i.konten || '').split(/<!--bagian-->/i);
+  var body = bagian.map(function (html) { return '<div class="baca">' + html + '</div>'; }).join('<hr>');
+  el.innerHTML = '<h2>' + esc(i.judul) + '</h2>' + body +
+    '<div class="mt-16">' +
+      (i.progres.ditandai
+        ? '<button class="btn btn-hantu" id="btn-tanda">Batalkan tandai selesai</button>' +
+          '<p class="bantuan">Sudah masuk rekap progres Anda.</p>'
+        : '<button class="btn" id="btn-tanda">✓ Tandai selesai</button>' +
+          '<p class="bantuan">Baca dulu. Selesai hanya jika Anda menandainya — bukan otomatis.</p>') +
+    '</div>';
+  $('#btn-tanda', el).onclick = function () {
+    var jadi = !i.progres.ditandai;
+    callApi('tandaiSelesai', [i.item_id, jadi], { tombol: this }).then(function (r) {
+      i.progres.ditandai = r.ditandai;
+      BabUI.data.rekap = r.rekap;
+      toast(jadi ? 'Ditandai selesai.' : 'Tanda dilepas.', 'sukses');
+      gambarBab(document.getElementById('isi-halaman'));
+    });
+  };
+}
+
+function panelLkpd(el, i) {
+  var st = i.progres.lkpd_status;
+  var links = [];
+  try { links = JSON.parse(i.progres.lkpd_links || '[]'); } catch (e) {}
+  if (!links.length) links = [''];
+  var kunci = st === 'menunggu' || st === 'diterima';
+  el.innerHTML = '<h2>' + esc(i.judul) + '</h2><div class="baca">' + (i.konten || '') + '</div>' +
+    (st === 'diterima' ? '<p class="lencana">Diterima' + (i.progres.lkpd_nilai !== '' ? ' · ' + i.progres.lkpd_nilai : '') + '</p>' : '') +
+    (st === 'menunggu' ? '<p class="lencana lencana-tunggu">Menunggu penilaian</p>' : '') +
+    (st === 'ditolak' ? '<p class="kecil">Perlu perbaikan. ' + esc(i.progres.lkpd_catatan || '') + '</p>' : '') +
+    '<div id="lkpd-links"></div>' +
+    '<label>Catatan</label><textarea id="lkpd-cat" ' + (kunci ? 'disabled' : '') + '></textarea>' +
+    (kunci ? '' : '<button class="btn mt-16" id="btn-kumpul">Kumpulkan</button>');
+  var wadah = $('#lkpd-links', el);
+  function gambarLink() {
+    wadah.innerHTML = links.map(function (u, n) {
+      return '<label>Tautan ' + (n + 1) + '</label><input type="text" data-n="' + n + '" value="' + esc(u) + '" ' +
+        (kunci ? 'disabled' : '') + ' placeholder="https://…">';
+    }).join('') + (kunci || links.length >= 5 ? '' : '<button class="btn btn-hantu btn-kecil mt-8" id="btn-plus" type="button">+ Tautan</button>');
+    $$('input[data-n]', wadah).forEach(function (inp) {
+      inp.oninput = function () { links[Number(inp.dataset.n)] = inp.value; };
+    });
+    var plus = $('#btn-plus', wadah);
+    if (plus) plus.onclick = function () { links.push(''); gambarLink(); };
+  }
+  gambarLink();
+  var btn = $('#btn-kumpul', el);
+  if (btn) btn.onclick = function () {
+    callApi('kumpulkanLkpd', [i.item_id, links, $('#lkpd-cat', el).value], { tombol: btn })
+      .then(function (r) {
+        i.progres.lkpd_status = r.status;
+        BabUI.data.rekap = r.rekap;
+        toast('Terkumpul.', 'sukses');
+        gambarBab(document.getElementById('isi-halaman'));
+      });
+  };
+}
+
+function panelQuiz(el, i) {
+  var meta = i.quiz_meta || {};
+  if (i._kuis) { gambarKerjaQuiz(el, i); return; }
+  el.innerHTML = '<h2>' + esc(i.judul) + '</h2><div class="baca">' + (i.konten || '') + '</div>' +
+    '<p class="kecil lembut">' + (meta.jml_soal || 0) + ' soal · KKM ' + (meta.kkm || '—') +
+    (meta.max_percobaan ? ' · maks ' + meta.max_percobaan + 'x' : '') + '</p>' +
+    (i.progres.quiz_nilai !== '' ? '<p>Nilai terbaik: <b>' + esc(i.progres.quiz_nilai) + '</b></p>' : '') +
+    '<button class="btn mt-16" id="btn-mulai">Mulai quiz</button>' +
+    '<p class="bantuan">Jawaban tersimpan di perangkat sampai Anda mengumpulkan. Satu kali ke server saat mulai, satu kali saat kumpulkan.</p>';
+  $('#btn-mulai', el).onclick = function () {
+    callApi('mulaiQuiz', [i.item_id], { tombol: this, pesanMuat: 'Menyiapkan soal…' })
+      .then(function (q) {
+        i._kuis = q;
+        i._jawab = {};
+        gambarKerjaQuiz(el, i);
+      });
+  };
+}
+
+function gambarKerjaQuiz(el, i) {
+  var q = i._kuis;
+  var h = '<h2>' + esc(q.judul) + '</h2><p class="kecil lembut">Percobaan ke-' + q.percobaan_ke + '</p>';
+  q.soal.forEach(function (s) {
+    h += '<div class="tebal mt-16">' + s.nomor + '. ' + esc(s.pertanyaan) + '</div><div class="soal-opsi">';
+    (s.opsi || []).forEach(function (o, n) {
+      var huruf = String.fromCharCode(65 + n);
+      var cek = i._jawab[s.soal_id] === huruf ? ' checked' : '';
+      h += '<label><input type="radio" name="s' + esc(s.soal_id) + '" value="' + huruf + '"' + cek + '> ' +
+        '<span><b>' + huruf + '.</b> ' + esc(o) + '</span></label>';
+    });
+    h += '</div>';
+  });
+  h += '<button class="btn" id="btn-kumpul-q">Kumpulkan</button>';
+  el.innerHTML = h;
+  el.onchange = function (e) {
+    if (e.target && e.target.name && e.target.name.indexOf('s') === 0) {
+      i._jawab[e.target.name.slice(1)] = e.target.value;
+    }
+  };
+  $('#btn-kumpul-q', el).onclick = function () {
+    callApi('kumpulkanQuiz', [q.attempt_id, i._jawab], { tombol: this, pesanMuat: 'Menilai…' })
+      .then(function (r) {
+        i.progres.quiz_nilai = r.nilai;
+        i.progres.quiz_lulus = r.lulus;
+        BabUI.data.rekap = r.rekap;
+        i._kuis = null;
+        el.innerHTML = '<h2>Hasil</h2><p style="font-size:2rem;font-weight:800">' + r.nilai +
+          '</p><p>' + (r.lulus ? 'Lulus' : 'Belum mencapai KKM ' + r.kkm) + '.</p>' +
+          '<button class="btn mt-16" id="btn-kembali-q">Kembali</button>';
+        $('#btn-kembali-q', el).onclick = function () { gambarBab(document.getElementById('isi-halaman')); };
+      });
+  };
+}
+</script>

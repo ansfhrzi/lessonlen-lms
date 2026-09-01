@@ -1,54 +1,33 @@
 <template id="tpl-login">
-  <div class="layar-login">
-    <div class="kotak-login">
-
-      <div class="login-merek">
-        <!-- Diisi js_auth dari APP_IKON / APP_NAMA (v1.15.6).
-             Nilai di sini hanya cadangan bila Code.gs belum
-             tersalin — layar masuk tidak boleh kosong. -->
-        <div class="ikon" id="merek-ikon-login">🌱</div>
-        <h1 id="merek-nama-login">LessonLen</h1>
-        <p>Belajar bertahap, tuntas per pertemuan</p>
-      </div>
-
-      <form id="form-login" autocomplete="on">
-        <div class="grup">
-          <label for="in-username">Nama Pengguna</label>
-          <input class="isian" id="in-username" name="username"
-                 autocomplete="username" placeholder="mis. siswa01"
-                 autocapitalize="off" spellcheck="false" required>
-        </div>
-
-        <div class="grup">
-          <label for="in-password">Kata Sandi</label>
-          <input class="isian" id="in-password" name="password" type="password"
-                 autocomplete="current-password" placeholder="••••••••" required>
-        </div>
-
-        <div class="pesan-salah" id="salah-login"></div>
-
-        <button class="btn btn-penuh mt-8" type="submit" id="btn-masuk">Masuk</button>
+  <div class="layar-masuk">
+    <div class="kartu kartu-masuk">
+      <div class="merek-besar"><span class="merek-ikon" id="login-ikon"></span><span id="login-nama"></span></div>
+      <p class="lembut kecil mb-16" id="login-sub">Masuk untuk belajar atau mengajar.</p>
+      <form id="form-masuk">
+        <label>Nama pengguna</label>
+        <input type="text" id="in-user" autocomplete="username" required>
+        <label>Kata sandi</label>
+        <input type="password" id="in-sandi" autocomplete="current-password" required>
+        <button class="btn btn-penuh mt-16" type="submit">Masuk</button>
       </form>
-
-      <div class="tengah mt-16">
-        <button class="btn btn-teks kecil" id="btn-lupa">Lupa kata sandi?</button>
-      </div>
-
+      <p class="kecil lembut mt-16" style="text-align:center">Lupa akun? Hubungi guru.</p>
     </div>
   </div>
 </template>
 
-
-<template id="tpl-lupa">
-  <div>
-    <div class="grup">
-      <label for="in-lupa">Nama pengguna atau email</label>
-      <input class="isian" id="in-lupa" placeholder="mis. siswa01"
-             autocapitalize="off" spellcheck="false">
-      <span class="bantuan">
-        Permintaan akan diteruskan ke guru. Anda akan diberi
-        kata sandi sementara.
-      </span>
+<template id="tpl-ganti">
+  <div class="layar-masuk">
+    <div class="kartu kartu-masuk">
+      <h2>Ganti kata sandi</h2>
+      <p class="lembut kecil mb-16">Akun baru wajib mengganti kata sandi sementara.</p>
+      <form id="form-ganti">
+        <label>Kata sandi lama</label>
+        <input type="password" id="in-lama" required>
+        <label>Kata sandi baru</label>
+        <input type="password" id="in-baru" required>
+        <p class="bantuan">Minimal 6 karakter, memuat huruf dan angka.</p>
+        <button class="btn btn-penuh mt-16" type="submit">Simpan</button>
+      </form>
     </div>
   </div>
 </template>

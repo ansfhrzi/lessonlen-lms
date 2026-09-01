@@ -4,78 +4,30 @@
   <base target="_top">
   <meta charset="UTF-8">
   <title><?= appNama ?></title>
-  <!-- Favicon dari APP_IKON (v1.15.6) — ganti ikon cukup di Code.gs.
-       encodeURIComponent WAJIB: emoji mentah di dalam data-URI ditolak
-       sebagian peramban, dan tanda # pada warna memotong URI-nya. -->
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'><?= appIkon ?></text></svg>">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap"
-        rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
   <?!= include('css'); ?>
 </head>
 <body>
-
-  <!-- tempat seluruh layar dirender -->
   <div id="app"></div>
-
-  <!-- lapisan global -->
-  <div id="tirai-muat">
-    <div class="kotak-muat">
-      <div class="putar"></div>
-      <div id="pesan-muat" class="pesan-muat"></div>
-    </div>
-  </div>
+  <div id="tirai-muat"><div class="kotak-muat"><div class="putar"></div><div id="pesan-muat" class="pesan-muat"></div></div></div>
   <div id="toast-wadah"></div>
-  <div class="tirai-dialog" id="tirai-dialog">
-    <div class="dialog" id="isi-dialog"></div>
-  </div>
-  <div class="tirai-panel" id="tirai-panel"></div>
+  <div class="tirai-dialog" id="tirai-dialog"><div class="dialog" id="isi-dialog"></div></div>
 
-  <!-- template layar -->
   <?!= include('v_login'); ?>
-  <?!= include('v_ganti_password'); ?>
-  <?!= include('v_biodata'); ?>
-  <?!= include('v_dashboard'); ?>
-  <?!= include('v_editor'); ?>
-  <?!= include('v_baca'); ?>
+  <?!= include('v_app'); ?>
 
-  <!-- skrip -->
   <script>
     var APP_VERSI = '<?= appVersi ?>';
-    /* Nama & ikon diteruskan ke peramban supaya topbar dan layar
-       masuk tidak perlu mengetiknya ulang (v1.15.6). */
     var APP_NAMA  = '<?= appNama ?>';
     var APP_IKON  = '<?= appIkon ?>';
   </script>
+  <?!= include('js_mock'); ?>
   <?!= include('js_core'); ?>
   <?!= include('js_auth'); ?>
-  <?!= include('js_beranda'); ?>
-  <!-- js_menu SEBELUM layar guru: menuRangka() dipanggil dari
-       js_beranda, js_kelola, js_rekap, js_lkpd, js_quiz -->
-  <?!= include('js_menu'); ?>
-  <?!= include('js_kelola'); ?>
-  <?!= include('js_editor'); ?>
-  <?!= include('js_nav'); ?>
-  <?!= include('js_belajar'); ?>
-  <?!= include('js_lkpd'); ?>
-  <?!= include('js_quiz'); ?>
-  <?!= include('js_refleksi'); ?>
-  <?!= include('js_soal_ai'); ?>
-  <?!= include('js_rekap'); ?>
-  <?!= include('js_kelompok'); ?>
-  <?!= include('js_kunci'); ?>
-  <?!= include('js_kerangka'); ?>
-
-  <!-- MathJax: WAJIB dipanggil ulang tiap render (KONVENSI §7.7) -->
-  <script>
-    window.MathJax = {
-      tex: { inlineMath: [['\\(', '\\)']], displayMath: [['$$', '$$']] },
-      options: { skipHtmlTags: ['script','noscript','style','textarea','pre'] },
-      startup: { typeset: false }
-    };
-  </script>
-  <script defer src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
-
+  <?!= include('js_murid'); ?>
+  <?!= include('js_guru'); ?>
 </body>
 </html>

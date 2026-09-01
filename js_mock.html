@@ -1,0 +1,509 @@
+<script>
+/* Aktif hanya jika bukan Apps Script sungguhan — untuk pratinjau lokal. */
+(function () {
+  if (typeof google !== 'undefined' && google.script && google.script.run) return;
+
+  function now() {
+    var d = new Date();
+    function p(n) { return n < 10 ? '0' + n : '' + n; }
+    return d.getFullYear() + '-' + p(d.getMonth()+1) + '-' + p(d.getDate()) + ' ' +
+      p(d.getHours()) + ':' + p(d.getMinutes()) + ':' + p(d.getSeconds());
+  }
+  function parseWaktu(s) {
+    if (!s) return null;
+    var m = String(s).trim().match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})/);
+    if (!m) return null;
+    return new Date(m[1], m[2]-1, m[3], m[4], m[5]).getTime();
+  }
+  var ctr = { USR: 4, KLS: 1, ENR: 3, BAB: 2, ITM: 4, SOL: 5, PRG: 0, ATT: 0, LKP: 0 };
+  function id(p) { ctr[p] = (ctr[p] || 0) + 1; return p + '-' + ('0000' + ctr[p]).slice(-4); }
+
+  var DB = {
+    users: [
+      { user_id: 'USR-0001', username: 'guru', password: 'guru123', nama: 'Guru PKPJ', role: 'guru', status: 'aktif', harus_ganti_password: false },
+      { user_id: 'USR-0002', username: 'siswa01', password: 'siswa123', nama: 'Ahmad Fauzi', role: 'murid', status: 'aktif', harus_ganti_password: false },
+      { user_id: 'USR-0003', username: 'siswa02', password: 'siswa123', nama: 'Bella Kusuma', role: 'murid', status: 'aktif', harus_ganti_password: false },
+      { user_id: 'USR-0004', username: 'siswa03', password: 'siswa123', nama: 'Candra Wijaya', role: 'murid', status: 'aktif', harus_ganti_password: false }
+    ],
+    kelas: [{ kelas_id: 'KLS-0001', nama_kelas: 'XI TJKT 1', mapel: 'PKPJ', jenjang: 'SMK', status: 'aktif' }],
+    enrollment: [
+      { enroll_id: 'ENR-0001', kelas_id: 'KLS-0001', user_id: 'USR-0002', status: 'aktif' },
+      { enroll_id: 'ENR-0002', kelas_id: 'KLS-0001', user_id: 'USR-0003', status: 'aktif' },
+      { enroll_id: 'ENR-0003', kelas_id: 'KLS-0001', user_id: 'USR-0004', status: 'aktif' }
+    ],
+    bab: [
+      { bab_id: 'BAB-0001', kelas_id: 'KLS-0001', urutan: 1, judul: 'Konsep Dasar VLAN',
+        deskripsi: 'Pengertian, manfaat, dan jenis VLAN.', status: 'publish', akses: 'manual', terbuka: true, buka_at: '', tutup_at: '' },
+      { bab_id: 'BAB-0002', kelas_id: 'KLS-0001', urutan: 2, judul: 'Konfigurasi VLAN',
+        deskripsi: 'Praktik membuat VLAN pada switch.', status: 'publish', akses: 'manual', terbuka: false, buka_at: '', tutup_at: '' }
+    ],
+    item: [
+      { item_id: 'ITM-0001', bab_id: 'BAB-0001', kelas_id: 'KLS-0001', grup: 'Pertemuan 1', urutan: 1, tipe: 'materi',
+        judul: 'Apa itu VLAN', konten: '<h3>Pengertian</h3><p><b>VLAN</b> membagi satu jaringan fisik menjadi beberapa jaringan logis.</p><!--bagian--><h3>Manfaat</h3><ul><li>Keamanan</li><li>Efisiensi</li><li>Fleksibilitas</li></ul>',
+        status: 'publish', akses: 'ikut_bab', terbuka: false, kkm: '', max_percobaan: '' },
+      { item_id: 'ITM-0002', bab_id: 'BAB-0001', kelas_id: 'KLS-0001', grup: 'Pertemuan 1', urutan: 2, tipe: 'lkpd',
+        judul: 'LKPD — Identifikasi Kebutuhan VLAN',
+        konten: '<p>Rancang pembagian VLAN untuk sekolah (minimal 3). Tempel tautan Docs/PDF di bawah.</p>',
+        status: 'publish', akses: 'ikut_bab', terbuka: false, kkm: '', max_percobaan: '' },
+      { item_id: 'ITM-0003', bab_id: 'BAB-0001', kelas_id: 'KLS-0001', grup: 'Pertemuan 1', urutan: 3, tipe: 'quiz',
+        judul: 'Quiz Konsep VLAN', konten: 'Lima soal pilihan ganda.',
+        status: 'publish', akses: 'ikut_bab', terbuka: false, kkm: 75, max_percobaan: 3 },
+      { item_id: 'ITM-0004', bab_id: 'BAB-0002', kelas_id: 'KLS-0001', grup: 'Pertemuan 2', urutan: 1, tipe: 'materi',
+        judul: 'Langkah Konfigurasi', konten: '<p>Buat VLAN, lalu tetapkan port.</p><pre>Switch(config)# vlan 10</pre>',
+        status: 'publish', akses: 'ikut_bab', terbuka: false, kkm: '', max_percobaan: '' }
+    ],
+    soal: [
+      { soal_id: 'SOL-0001', item_id: 'ITM-0003', nomor: 1, tipe: 'pg', pertanyaan: 'Fungsi utama VLAN?',
+        opsi: JSON.stringify(['Memisahkan broadcast domain secara logis','Menambah kecepatan kabel','Mengganti IP otomatis','Mempercepat routing']), kunci: 'A', bobot: 1 },
+      { soal_id: 'SOL-0002', item_id: 'ITM-0003', nomor: 2, tipe: 'pg', pertanyaan: 'Jenis VLAN paling umum?',
+        opsi: JSON.stringify(['MAC-based','Port-based','Protocol-based','Dynamic']), kunci: 'B', bobot: 1 },
+      { soal_id: 'SOL-0003', item_id: 'ITM-0003', nomor: 3, tipe: 'pg', pertanyaan: 'Perintah melihat VLAN di Cisco?',
+        opsi: JSON.stringify(['show ip route','show running-config','show vlan brief','show interfaces']), kunci: 'C', bobot: 1 },
+      { soal_id: 'SOL-0004', item_id: 'ITM-0003', nomor: 4, tipe: 'pg', pertanyaan: 'Bukan manfaat VLAN?',
+        opsi: JSON.stringify(['Keamanan','Mengurangi broadcast','Menambah bandwidth fisik kabel','Pengelompokan mudah']), kunci: 'C', bobot: 1 },
+      { soal_id: 'SOL-0005', item_id: 'ITM-0003', nomor: 5, tipe: 'pg', pertanyaan: 'Agar dua VLAN saling bicara perlu…',
+        opsi: JSON.stringify(['Hub tambahan','Router atau switch layer 3','Kabel crossover','Repeater']), kunci: 'B', bobot: 1 }
+    ],
+    progress: [], quiz_attempt: [], lkpd_submission: [], session: []
+  };
+
+  var SESI = {};
+
+  function ya(v) { return v === true || v === 'TRUE' || v === 'true'; }
+  function cari(arr, k, v) {
+    for (var i = 0; i < arr.length; i++) if (arr[i][k] === v) return arr[i];
+    return null;
+  }
+  function vis(ent, t) {
+    if ((ent.akses || 'manual') === 'jadwal') {
+      var b = parseWaktu(ent.buka_at), u = parseWaktu(ent.tutup_at);
+      if (b && t < b) return false;
+      if (u && t > u) return false;
+      return true;
+    }
+    return ya(ent.terbuka);
+  }
+  function babTerbuka(b, t) { return b.status === 'publish' && vis(b, t); }
+  function statusItem(bab, item, t) {
+    if (!bab || bab.status !== 'publish' || !item || item.status !== 'publish') return 'tersembunyi';
+    if (!vis(bab, t)) return 'tertutup';
+    if ((item.akses || 'ikut_bab') === 'ikut_bab') return 'terbuka';
+    return vis(item, t) ? 'terbuka' : 'tertutup';
+  }
+  function tokenSesi(token) { return SESI[token] || null; }
+  function wajibSesi(token) {
+    var s = tokenSesi(token);
+    if (!s) { var e = { kode: 'SESI_INVALID', message: 'Sesi berakhir.' }; throw e; }
+    return s;
+  }
+  function wrap(data) { return { ok: true, data: data }; }
+  function fail(kode, pesan) { return { ok: false, error: kode, pesan: pesan }; }
+
+  function petaProg(uid) {
+    var p = {}; DB.progress.forEach(function (r) { if (r.user_id === uid) p[r.item_id] = r; }); return p;
+  }
+  function petaLkpd(uid) {
+    var p = {}; DB.lkpd_submission.forEach(function (r) { if (r.user_id === uid) p[r.item_id] = r; }); return p;
+  }
+  function petaQuiz(uid) {
+    var p = {};
+    DB.quiz_attempt.forEach(function (r) {
+      if (r.user_id === uid && r.status === 'selesai') {
+        if (!p[r.item_id] || Number(r.nilai) > Number(p[r.item_id].nilai)) p[r.item_id] = r;
+      }
+    });
+    return p;
+  }
+  function rekapItems(items, uid) {
+    var P = petaProg(uid), L = petaLkpd(uid), Q = petaQuiz(uid);
+    var materi = items.filter(function (i) { return i.tipe === 'materi'; });
+    var tugas = items.filter(function (i) { return i.tipe !== 'materi'; });
+    return {
+      materi_selesai: materi.filter(function (i) { return P[i.item_id] && ya(P[i.item_id].ditandai); }).length,
+      materi_total: materi.length,
+      tugas_selesai: tugas.filter(function (i) {
+        if (i.tipe === 'lkpd') { var s = L[i.item_id]; return s && (s.status === 'menunggu' || s.status === 'diterima'); }
+        return !!Q[i.item_id];
+      }).length,
+      tugas_total: tugas.length
+    };
+  }
+  function progresItem(item, uid) {
+    var pr = petaProg(uid)[item.item_id];
+    var out = { ditandai: !!(pr && ya(pr.ditandai)), nilai: pr ? pr.nilai : '' };
+    var s = petaLkpd(uid)[item.item_id];
+    if (item.tipe === 'lkpd') {
+      out.lkpd_status = s ? s.status : ''; out.lkpd_nilai = s ? s.nilai : '';
+      out.lkpd_catatan = s ? (s.catatan_guru || '') : ''; out.lkpd_links = s ? s.links : '';
+    }
+    var q = petaQuiz(uid)[item.item_id];
+    if (item.tipe === 'quiz') { out.quiz_nilai = q ? q.nilai : ''; out.quiz_lulus = q ? ya(q.lulus) : false; }
+    return out;
+  }
+
+  var API = {};
+
+  API.login = function (u, p) {
+    u = String(u || '').trim().toLowerCase();
+    var user = cari(DB.users, 'username', u);
+    if (!user || user.password !== p) return fail('LOGIN_GAGAL', 'Nama pengguna atau kata sandi salah.');
+    var token = 'tok-' + Math.random().toString(36).slice(2);
+    SESI[token] = { user_id: user.user_id, username: user.username, nama: user.nama, role: user.role,
+                    harus_ganti_password: !!user.harus_ganti_password };
+    return wrap({ token: token, user: { user_id: user.user_id, username: user.username, nama: user.nama, role: user.role },
+                  harus_ganti_password: !!user.harus_ganti_password });
+  };
+  API.cekSesi = function (token) {
+    var s = tokenSesi(token); if (!s) return fail('SESI_INVALID', 'Sesi berakhir.');
+    return wrap({ user: { user_id: s.user_id, username: s.username, nama: s.nama, role: s.role },
+                  harus_ganti_password: !!s.harus_ganti_password });
+  };
+  API.logout = function (token) { delete SESI[token]; return wrap({ keluar: true }); };
+  API.gantiPassword = function (token, lama, baru) {
+    var s = wajibSesi(token);
+    var u = cari(DB.users, 'user_id', s.user_id);
+    if (u.password !== lama) return fail('VALIDASI_GAGAL', 'Kata sandi lama tidak cocok.');
+    u.password = baru; u.harus_ganti_password = false; s.harus_ganti_password = false;
+    return wrap({ berhasil: true });
+  };
+
+  API.getBeranda = function (token) {
+    var s = wajibSesi(token); var t = Date.now();
+    if (s.role === 'guru') {
+      var antre = DB.lkpd_submission.filter(function (x) { return x.status === 'menunggu'; }).length;
+      var kartu = DB.kelas.map(function (k) {
+        return { kelas_id: k.kelas_id, nama_kelas: k.nama_kelas, mapel: k.mapel, jenjang: k.jenjang,
+          n_murid: DB.enrollment.filter(function (e) { return e.kelas_id === k.kelas_id && e.status === 'aktif'; }).length,
+          n_bab: DB.bab.filter(function (b) { return b.kelas_id === k.kelas_id; }).length,
+          n_item: DB.item.filter(function (i) { return i.kelas_id === k.kelas_id; }).length };
+      });
+      return wrap({ user: { nama: s.nama, role: 'guru' }, kelas: kartu, antrean_lkpd: antre });
+    }
+    var enroll = DB.enrollment.filter(function (e) { return e.user_id === s.user_id && e.status === 'aktif'; });
+    var kelas = enroll.map(function (e) {
+      var k = cari(DB.kelas, 'kelas_id', e.kelas_id);
+      var bab = DB.bab.filter(function (b) { return b.kelas_id === k.kelas_id && b.status === 'publish'; })
+        .sort(function (a, b) { return a.urutan - b.urutan; });
+      var items = DB.item.filter(function (i) { return i.kelas_id === k.kelas_id && i.status === 'publish'; });
+      return {
+        kelas_id: k.kelas_id, nama_kelas: k.nama_kelas, mapel: k.mapel,
+        rekap: rekapItems(items, s.user_id),
+        bab: bab.map(function (b) {
+          var milik = items.filter(function (i) { return i.bab_id === b.bab_id; });
+          return { bab_id: b.bab_id, urutan: b.urutan, judul: b.judul, deskripsi: b.deskripsi,
+            terbuka: babTerbuka(b, t), akses: b.akses, buka_at: b.buka_at, tutup_at: b.tutup_at,
+            rekap: rekapItems(milik, s.user_id) };
+        })
+      };
+    });
+    return wrap({ user: { nama: s.nama, role: s.role }, kelas: kelas });
+  };
+
+  API.bukaBab = function (token, babId) {
+    var s = wajibSesi(token); var t = Date.now();
+    var bab = cari(DB.bab, 'bab_id', babId);
+    if (!bab || !babTerbuka(bab, t)) return fail('DITUTUP', 'Bab ini belum dibuka guru.');
+    var k = cari(DB.kelas, 'kelas_id', bab.kelas_id);
+    var items = DB.item.filter(function (i) { return i.bab_id === babId; }).sort(function (a, b) { return a.urutan - b.urutan; });
+    var daftar = [];
+    items.forEach(function (i) {
+      var st = statusItem(bab, i, t); if (st === 'tersembunyi') return;
+      var row = { item_id: i.item_id, tipe: i.tipe, grup: i.grup, urutan: i.urutan, judul: i.judul,
+        terbuka: st === 'terbuka', konten: '', progres: progresItem(i, s.user_id) };
+      if (st === 'terbuka') {
+        row.konten = i.konten || '';
+        if (i.tipe === 'quiz') row.quiz_meta = {
+          jml_soal: DB.soal.filter(function (x) { return x.item_id === i.item_id; }).length,
+          kkm: Number(i.kkm) || 0, max_percobaan: Number(i.max_percobaan) || 0
+        };
+      }
+      daftar.push(row);
+    });
+    var grup = [], peta = {};
+    daftar.forEach(function (i) {
+      var n = i.grup || 'Umum';
+      if (!peta[n]) { peta[n] = { nama: n, item: [] }; grup.push(peta[n]); }
+      peta[n].item.push(i);
+    });
+    return wrap({
+      bab: { bab_id: bab.bab_id, judul: bab.judul, deskripsi: bab.deskripsi },
+      kelas: { kelas_id: k.kelas_id, nama_kelas: k.nama_kelas, mapel: k.mapel },
+      grup: grup, rekap: rekapItems(items.filter(function (i) { return i.status === 'publish'; }), s.user_id)
+    });
+  };
+
+  API.tandaiSelesai = function (token, itemId, selesai) {
+    var s = wajibSesi(token);
+    var it = cari(DB.item, 'item_id', itemId);
+    var ada = DB.progress.filter(function (p) { return p.user_id === s.user_id && p.item_id === itemId; })[0];
+    if (ada) { ada.ditandai = !!selesai; ada.ditandai_at = selesai ? now() : ''; }
+    else if (selesai) DB.progress.push({ progress_id: id('PRG'), user_id: s.user_id, item_id: itemId,
+      bab_id: it.bab_id, kelas_id: it.kelas_id, tipe: 'materi', ditandai: true, ditandai_at: now(), nilai: '' });
+    var items = DB.item.filter(function (i) { return i.bab_id === it.bab_id && i.status === 'publish'; });
+    return wrap({ ditandai: !!selesai, rekap: rekapItems(items, s.user_id) });
+  };
+
+  API.kumpulkanLkpd = function (token, itemId, links, catatan) {
+    var s = wajibSesi(token);
+    var it = cari(DB.item, 'item_id', itemId);
+    var arr = (links || []).map(function (x) { return String(x || '').trim(); }).filter(Boolean);
+    if (!arr.length) return fail('VALIDASI_GAGAL', 'Tempel minimal satu tautan.');
+    var ada = DB.lkpd_submission.filter(function (x) { return x.user_id === s.user_id && x.item_id === itemId; })[0];
+    if (ada) { ada.links = JSON.stringify(arr); ada.status = 'menunggu'; ada.catatan_murid = catatan || ''; ada.waktu_kumpul = now(); }
+    else DB.lkpd_submission.push({ submission_id: id('LKP'), user_id: s.user_id, item_id: itemId, kelas_id: it.kelas_id,
+      links: JSON.stringify(arr), catatan_murid: catatan || '', status: 'menunggu', nilai: '', catatan_guru: '', waktu_kumpul: now() });
+    var items = DB.item.filter(function (i) { return i.bab_id === it.bab_id && i.status === 'publish'; });
+    return wrap({ status: 'menunggu', rekap: rekapItems(items, s.user_id) });
+  };
+
+  API.mulaiQuiz = function (token, itemId) {
+    var s = wajibSesi(token);
+    var it = cari(DB.item, 'item_id', itemId);
+    var semua = DB.quiz_attempt.filter(function (a) { return a.user_id === s.user_id && a.item_id === itemId; });
+    var berjalan = semua.filter(function (a) { return a.status === 'berjalan'; })[0];
+    if (!berjalan) {
+      berjalan = { attempt_id: id('ATT'), user_id: s.user_id, item_id: itemId,
+        percobaan_ke: semua.filter(function (a) { return a.status === 'selesai'; }).length + 1,
+        status: 'berjalan', jawaban: '', nilai: '', lulus: false, mulai_at: now() };
+      DB.quiz_attempt.push(berjalan);
+    }
+    var soal = DB.soal.filter(function (x) { return x.item_id === itemId; }).sort(function (a, b) { return a.nomor - b.nomor; })
+      .map(function (x) { return { soal_id: x.soal_id, nomor: x.nomor, tipe: x.tipe, pertanyaan: x.pertanyaan, opsi: JSON.parse(x.opsi) }; });
+    return wrap({ attempt_id: berjalan.attempt_id, item_id: itemId, judul: it.judul, kkm: Number(it.kkm) || 0,
+      percobaan_ke: berjalan.percobaan_ke, soal: soal });
+  };
+
+  API.kumpulkanQuiz = function (token, attemptId, jawaban) {
+    var s = wajibSesi(token);
+    var att = cari(DB.quiz_attempt, 'attempt_id', attemptId);
+    var it = cari(DB.item, 'item_id', att.item_id);
+    var soal = DB.soal.filter(function (x) { return x.item_id === it.item_id; });
+    var skor = 0, maks = 0, kunci = {};
+    soal.forEach(function (q) {
+      maks += q.bobot || 1;
+      var j = String((jawaban || {})[q.soal_id] || '').toUpperCase();
+      var k = String(q.kunci || '').toUpperCase();
+      if (j === k) skor += q.bobot || 1;
+      kunci[q.soal_id] = { kunci: q.kunci, benar: j === k };
+    });
+    var nilai = maks ? Math.round(skor / maks * 100) : 0;
+    var lulus = nilai >= (Number(it.kkm) || 0);
+    att.status = 'selesai'; att.nilai = nilai; att.lulus = lulus; att.jawaban = JSON.stringify(jawaban || {});
+    var items = DB.item.filter(function (i) { return i.bab_id === it.bab_id && i.status === 'publish'; });
+    return wrap({ nilai: nilai, lulus: lulus, kkm: Number(it.kkm) || 0, kunci: kunci, rekap: rekapItems(items, s.user_id) });
+  };
+
+  API.simpanKelas = function (token, p) {
+    wajibSesi(token);
+    if (p.kelas_id) {
+      var k = cari(DB.kelas, 'kelas_id', p.kelas_id);
+      k.nama_kelas = p.nama_kelas; k.mapel = p.mapel; return wrap({ kelas_id: k.kelas_id });
+    }
+    var idk = id('KLS');
+    DB.kelas.push({ kelas_id: idk, nama_kelas: p.nama_kelas, mapel: p.mapel, jenjang: 'SMK', status: 'aktif' });
+    return wrap({ kelas_id: idk });
+  };
+  API.hapusKelas = function (token, kelasId) {
+    wajibSesi(token);
+    DB.kelas = DB.kelas.filter(function (k) { return k.kelas_id !== kelasId; });
+    return wrap({ hapus: true });
+  };
+  API.getIsiKelas = function (token, kelasId) {
+    wajibSesi(token);
+    var k = cari(DB.kelas, 'kelas_id', kelasId);
+    var bab = DB.bab.filter(function (b) { return b.kelas_id === kelasId; }).sort(function (a, b) { return a.urutan - b.urutan; });
+    var items = DB.item.filter(function (i) { return i.kelas_id === kelasId; });
+    var murid = DB.enrollment.filter(function (e) { return e.kelas_id === kelasId && e.status === 'aktif'; }).map(function (e) {
+      var u = cari(DB.users, 'user_id', e.user_id);
+      return { user_id: u.user_id, username: u.username, nama: u.nama, status: u.status };
+    });
+    return wrap({
+      kelas: k,
+      bab: bab.map(function (b) {
+        return {
+          bab_id: b.bab_id, urutan: b.urutan, judul: b.judul, deskripsi: b.deskripsi, status: b.status,
+          akses: b.akses, terbuka: ya(b.terbuka), buka_at: b.buka_at, tutup_at: b.tutup_at,
+          item: items.filter(function (i) { return i.bab_id === b.bab_id; }).map(function (i) {
+            var soal = DB.soal.filter(function (s) { return s.item_id === i.item_id; });
+            return { item_id: i.item_id, bab_id: b.bab_id, grup: i.grup, urutan: i.urutan, tipe: i.tipe, judul: i.judul,
+              konten: i.konten, status: i.status, akses: i.akses, terbuka: ya(i.terbuka),
+              buka_at: i.buka_at || '', tutup_at: i.tutup_at || '', kkm: i.kkm, max_percobaan: i.max_percobaan, soal: soal };
+          })
+        };
+      }),
+      murid: murid
+    });
+  };
+  API.simpanBab = function (token, p) {
+    wajibSesi(token);
+    if (p.bab_id) {
+      var b = cari(DB.bab, 'bab_id', p.bab_id);
+      b.judul = p.judul; b.deskripsi = p.deskripsi; b.status = p.status || b.status;
+      b.akses = p.akses || b.akses; b.terbuka = !!p.terbuka;
+      return wrap({ bab_id: b.bab_id });
+    }
+    var idb = id('BAB');
+    DB.bab.push({ bab_id: idb, kelas_id: p.kelas_id, urutan: DB.bab.length + 1, judul: p.judul,
+      deskripsi: p.deskripsi || '', status: p.status || 'draft', akses: p.akses || 'manual',
+      terbuka: !!p.terbuka, buka_at: '', tutup_at: '' });
+    return wrap({ bab_id: idb });
+  };
+  API.hapusBab = function (token, babId) {
+    wajibSesi(token);
+    DB.bab = DB.bab.filter(function (b) { return b.bab_id !== babId; });
+    DB.item = DB.item.filter(function (i) { return i.bab_id !== babId; });
+    return wrap({ hapus: true });
+  };
+  API.simpanItem = function (token, p) {
+    wajibSesi(token);
+    if (p.item_id) {
+      var it = cari(DB.item, 'item_id', p.item_id);
+      ['judul','grup','konten','status','akses','kkm','max_percobaan'].forEach(function (k) {
+        if (p[k] !== undefined) it[k] = p[k];
+      });
+      it.terbuka = !!p.terbuka;
+      if (p.soal) {
+        DB.soal = DB.soal.filter(function (s) { return s.item_id !== it.item_id; });
+        (p.soal || []).forEach(function (s, i) {
+          DB.soal.push({ soal_id: id('SOL'), item_id: it.item_id, nomor: i + 1, tipe: 'pg',
+            pertanyaan: s.pertanyaan, opsi: JSON.stringify(s.opsi || []), kunci: s.kunci, bobot: 1 });
+        });
+      }
+      return wrap({ item_id: it.item_id });
+    }
+    var bab = cari(DB.bab, 'bab_id', p.bab_id);
+    var idi = id('ITM');
+    DB.item.push({ item_id: idi, bab_id: p.bab_id, kelas_id: bab.kelas_id, grup: p.grup || '', urutan: 99,
+      tipe: p.tipe || 'materi', judul: p.judul, konten: p.konten || '', status: p.status || 'draft',
+      akses: p.akses || 'ikut_bab', terbuka: !!p.terbuka, kkm: p.kkm || '', max_percobaan: p.max_percobaan || '' });
+    if (p.soal) (p.soal || []).forEach(function (s, i) {
+      DB.soal.push({ soal_id: id('SOL'), item_id: idi, nomor: i + 1, tipe: 'pg',
+        pertanyaan: s.pertanyaan, opsi: JSON.stringify(s.opsi || []), kunci: s.kunci, bobot: 1 });
+    });
+    return wrap({ item_id: idi });
+  };
+  API.hapusItem = function (token, itemId) {
+    wajibSesi(token);
+    DB.item = DB.item.filter(function (i) { return i.item_id !== itemId; });
+    return wrap({ hapus: true });
+  };
+  API.aturAkses = function (token, p) {
+    wajibSesi(token);
+    var ent = p.jenis === 'bab' ? cari(DB.bab, 'bab_id', p.id) : cari(DB.item, 'item_id', p.id);
+    if (p.status) ent.status = p.status;
+    if (p.akses) ent.akses = p.akses;
+    if (p.terbuka !== undefined) ent.terbuka = !!p.terbuka;
+    if (p.buka_at !== undefined) ent.buka_at = p.buka_at;
+    if (p.tutup_at !== undefined) ent.tutup_at = p.tutup_at;
+    return wrap({ ok: true });
+  };
+  API.simpanMurid = function (token, p) {
+    wajibSesi(token);
+    var uname = String(p.nama.split(/\s+/)[0] || 'siswa').toLowerCase().replace(/[^a-z0-9]/g, '') || 'siswa';
+    var n = 2, u = uname;
+    while (cari(DB.users, 'username', u)) { u = uname + n; n++; }
+    var pwd = 's' + Math.random().toString(36).slice(2, 8);
+    var uid = id('USR');
+    DB.users.push({ user_id: uid, username: u, password: pwd, nama: p.nama, role: 'murid', status: 'aktif', harus_ganti_password: true });
+    if (p.kelas_id) DB.enrollment.push({ enroll_id: id('ENR'), kelas_id: p.kelas_id, user_id: uid, status: 'aktif' });
+    return wrap({ user_id: uid, username: u, password_sementara: pwd });
+  };
+  API.imporMurid = function (token, kelasId, teks) {
+    wajibSesi(token);
+    var akun = String(teks || '').split(/\n/).map(function (s) { return s.trim(); }).filter(Boolean)
+      .map(function (nama) { return API.simpanMurid(token, { nama: nama, kelas_id: kelasId }).data; });
+    return wrap({ jumlah: akun.length, akun: akun });
+  };
+  API.keluarkanMurid = function (token, kelasId, userId) {
+    wajibSesi(token);
+    DB.enrollment.forEach(function (e) {
+      if (e.kelas_id === kelasId && e.user_id === userId) e.status = 'keluar';
+    });
+    return wrap({ ok: true });
+  };
+  API.resetPasswordMurid = function (token, userId) {
+    wajibSesi(token);
+    var u = cari(DB.users, 'user_id', userId);
+    u.password = 's' + Math.random().toString(36).slice(2, 8);
+    return wrap({ username: u.username, nama: u.nama, password_sementara: u.password });
+  };
+  API.getRekap = function (token, kelasId) {
+    wajibSesi(token);
+    var k = cari(DB.kelas, 'kelas_id', kelasId);
+    var murid = DB.enrollment.filter(function (e) { return e.kelas_id === kelasId && e.status === 'aktif'; })
+      .map(function (e) { return cari(DB.users, 'user_id', e.user_id); });
+    var items = DB.item.filter(function (i) { return i.kelas_id === kelasId && i.status === 'publish'; })
+      .sort(function (a, b) { return a.urutan - b.urutan; });
+    var kolom = items.map(function (i) {
+      var b = cari(DB.bab, 'bab_id', i.bab_id);
+      return { item_id: i.item_id, bab: b ? b.judul : '', grup: i.grup, judul: i.judul, tipe: i.tipe };
+    });
+    var baris = murid.map(function (u) {
+      return { user_id: u.user_id, nama: u.nama, username: u.username, sel: items.map(function (i) {
+        if (i.tipe === 'materi') {
+          var p = DB.progress.filter(function (r) { return r.user_id === u.user_id && r.item_id === i.item_id; })[0];
+          return p && ya(p.ditandai) ? { jenis: 'tanda', teks: '✓' } : { jenis: 'kosong', teks: '—' };
+        }
+        if (i.tipe === 'lkpd') {
+          var s2 = DB.lkpd_submission.filter(function (r) { return r.user_id === u.user_id && r.item_id === i.item_id; })[0];
+          if (!s2) return { jenis: 'kosong', teks: '—' };
+          if (s2.status === 'menunggu') return { jenis: 'tunggu', teks: '⏳' };
+          if (s2.status === 'diterima') return { jenis: 'ok', teks: String(s2.nilai === '' ? '✓' : s2.nilai) };
+          return { jenis: 'tolak', teks: '↩' };
+        }
+        var q = null;
+        DB.quiz_attempt.forEach(function (r) {
+          if (r.user_id === u.user_id && r.item_id === i.item_id && r.status === 'selesai') {
+            if (!q || Number(r.nilai) > Number(q.nilai)) q = r;
+          }
+        });
+        if (!q) return { jenis: 'kosong', teks: '—' };
+        return { jenis: Number(q.nilai) < (Number(i.kkm)||0) ? 'kurang' : 'ok', teks: String(q.nilai) };
+      }) };
+    });
+    return wrap({ kelas: k, kolom: kolom, baris: baris });
+  };
+  API.getAntreanLkpd = function (token) {
+    wajibSesi(token);
+    return wrap(DB.lkpd_submission.filter(function (s) { return s.status === 'menunggu'; }).map(function (s) {
+      var u = cari(DB.users, 'user_id', s.user_id); var i = cari(DB.item, 'item_id', s.item_id);
+      var links = []; try { links = JSON.parse(s.links || '[]'); } catch (e) {}
+      return { submission_id: s.submission_id, nama: u.nama, username: u.username, judul: i.judul,
+        item_id: s.item_id, links: links, catatan_murid: s.catatan_murid, waktu_kumpul: s.waktu_kumpul };
+    }));
+  };
+  API.nilaiLkpd = function (token, sid, kep, nilai, catatan) {
+    wajibSesi(token);
+    var s = cari(DB.lkpd_submission, 'submission_id', sid);
+    s.status = kep; s.nilai = nilai; s.catatan_guru = catatan || '';
+    return wrap({ status: kep });
+  };
+
+  window.google = {
+    script: {
+      run: {
+        withSuccessHandler: function (ok) {
+          return {
+            withFailureHandler: function (failFn) {
+              var o = {};
+              Object.keys(API).forEach(function (nama) {
+                o[nama] = function () {
+                  var args = [].slice.call(arguments);
+                  setTimeout(function () {
+                    try { ok(API[nama].apply(null, args)); }
+                    catch (e) {
+                      if (e && e.kode === 'SESI_INVALID') ok(fail('SESI_INVALID', e.message));
+                      else failFn(e);
+                    }
+                  }, 70);
+                };
+              });
+              return o;
+            }
+          };
+        }
+      }
+    }
+  };
+})();
+</script>
