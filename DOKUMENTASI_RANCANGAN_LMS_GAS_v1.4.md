@@ -1,6 +1,6 @@
 # 📚 Dokumentasi Rancangan LMS dengan Google Apps Script
 
-**Versi:** 1.4  
+**Versi:** 2  
 **Tanggal:** 31 Agustus 2026  
 **Status:** Draft integrasi — basis finalisasi teknis dan PoC sebelum implementasi MVP  
 **Proyek:** LMS sederhana — fase MVP  
@@ -37,7 +37,7 @@ Semua dimiliki dan dijalankan oleh akun Admin
 
 Data guru, kelas, dan aktivitas dipisahkan secara **logis melalui relasi dan authorization server-side**, bukan dengan spreadsheet fisik terpisah per guru.
 
-### Keputusan utama versi 1.4
+### Keputusan utama versi 2
 
 1. Arsitektur single project dan single spreadsheet dipertahankan.
 2. `Session.getActiveUser().getEmail()` tidak dipakai sebagai mekanisme login utama.
@@ -1176,7 +1176,7 @@ class_id + user_id
 
 Jika request diulang karena retry, server mengembalikan hasil submission sebelumnya atau pesan yang aman, bukan membuat row duplikat.
 
-### 11.4 Retry client
+### 12 Retry client
 
 `google.script.run` adalah asynchronous dan pemanggilan dapat berjalan tidak sesuai urutan jika dipanggil bersamaan. API tersebut juga membatasi maksimal 10 call bersamaan dari satu halaman. [Dokumentasi google.script.run](https://developers.google.com/apps-script/guides/html/communication)
 
@@ -1595,9 +1595,9 @@ Sebelum implementasi, Admin/developer harus menyetujui jawaban atas pertanyaan b
 
 ---
 
-## 22A. Keputusan Integrasi v1.4
+## 22A. Keputusan Integrasi v2
 
-Rancangan v1.4 menggabungkan keputusan terbaik dari dua rancangan v1.3:
+Rancangan v2 menggabungkan keputusan terbaik dari dua rancangan v1.3:
 
 | Keputusan | Status |
 |---|---|
@@ -1619,7 +1619,7 @@ Jika sekolah memastikan bahwa satu kelas hanya akan memiliki satu guru,
 mendukung model sekolah yang umum, `Teaching_Assignments` tetap menjadi desain
 yang direkomendasikan.
 
-## 22B. Catatan Perubahan dari v1.3 ke v1.4
+## 22B. Catatan Perubahan dari v1.3 ke v2
 
 1. Menggabungkan rancangan teknis v1.3 alternatif dengan rancangan v1.3 utama.
 2. Menetapkan **21 sheet** dan menambahkan `Audit_Logs` secara resmi.
@@ -1652,4 +1652,4 @@ Google Apps Script cukup sesuai untuk membangun LMS MVP ini, dengan syarat:
 - Email dan WhatsApp dianggap layanan terbatas, bukan jalur utama sistem.
 - Database dan deployment diuji dengan data dan beban yang mendekati kondisi nyata.
 
-Arsitektur v1.4 dapat dilanjutkan ke tahap implementasi setelah seluruh pertanyaan pada checklist persetujuan dijawab dan schema 21 sheet disetujui.
+Arsitektur v2 dapat dilanjutkan ke tahap implementasi setelah seluruh pertanyaan pada checklist persetujuan dijawab dan schema 21 sheet disetujui.
