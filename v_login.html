@@ -1,100 +1,33 @@
 <template id="tpl-login">
-  <div class="layar-login">
-    <div class="kotak-login">
-
-      <div class="login-merek">
-        <!-- Diisi js_auth dari APP_IKON / APP_NAMA (v1.15.6).
-             Nilai di sini hanya cadangan bila Code.gs belum
-             tersalin — layar masuk tidak boleh kosong. -->
-        <div class="ikon" id="merek-ikon-login">🌱</div>
-        <h1 id="merek-nama-login">LessonLen</h1>
-        <p>Belajar bertahap, tuntas per pertemuan</p>
-      </div>
-
-      <form id="form-login" autocomplete="on">
-        <div class="grup">
-          <label for="in-username">Nama Pengguna</label>
-          <!-- v1.18.1 — placeholder berisi nama akun seed DIBUANG.
-
-               Yang tadinya tertulis di situ bukan contoh karangan: ia
-               akun nyata yang dibuat `Setup.isiSeedData()`, sandinya
-               baku, dan `harus_ganti_password: false`. Layar masuk
-               terlihat oleh siapa pun tanpa login.
-
-               Nama akunnya sengaja TIDAK diulang di komentar ini —
-               komentar HTML tetap terkirim ke peramban, jadi
-               menuliskannya di sini hanya memindahkan bocorannya.
-               Rincian ada di PERUBAHAN.md bagian v1.18.1.
-
-               Juga sengaja TIDAK diganti contoh lain: format username
-               asli dibuat `_usernameDari()` (nama depan + huruf awal
-               nama belakang), jadi contoh apa pun yang mirip nama akan
-               mengajarkan pola itu. Label di atas sudah cukup. -->
-          <input class="isian" id="in-username" name="username"
-                 autocomplete="username"
-                 autocapitalize="off" spellcheck="false" required>
-        </div>
-
-        <div class="grup">
-          <label for="in-password">Kata Sandi</label>
-          <input class="isian" id="in-password" name="password" type="password"
-                 autocomplete="current-password" placeholder="••••••••" required>
-        </div>
-
-        <div class="pesan-salah" id="salah-login"></div>
-
-        <button class="btn btn-penuh mt-8" type="submit" id="btn-masuk">Masuk</button>
+  <div class="layar-masuk">
+    <div class="kartu kartu-masuk">
+      <div class="merek-besar"><span class="merek-ikon" id="login-ikon"></span><span id="login-nama"></span></div>
+      <p class="lembut kecil mb-16" id="login-sub">Masuk untuk belajar atau mengajar.</p>
+      <form id="form-masuk">
+        <label>Nama pengguna</label>
+        <input type="text" id="in-user" autocomplete="username" required>
+        <label>Kata sandi</label>
+        <input type="password" id="in-sandi" autocomplete="current-password" required>
+        <button class="btn btn-penuh mt-16" type="submit">Masuk</button>
       </form>
-
-      <div class="tengah mt-16">
-        <button class="btn btn-teks kecil" id="btn-lupa">Lupa kata sandi?</button>
-        <!-- v1.17.0 — jalur pemulihan username. Dipisah dari "Lupa kata
-             sandi?" karena dua masalah ini berbeda: yang ini SELESAI di
-             sini tanpa melibatkan guru, yang itu tidak. -->
-        <button class="btn btn-teks kecil" id="btn-pulihkan">Lupa nama pengguna?</button>
-      </div>
-
+      <p class="kecil lembut mt-16" style="text-align:center">Lupa akun? Hubungi guru.</p>
     </div>
   </div>
 </template>
 
-
-<template id="tpl-lupa">
-  <div>
-    <div class="grup">
-      <label for="in-lupa">Nama pengguna atau email</label>
-      <!-- v1.18.1 — placeholder akun seed dibuang; lihat catatan pada
-           isian nama pengguna di atas. -->
-      <input class="isian" id="in-lupa"
-             autocapitalize="off" spellcheck="false">
-      <span class="bantuan">
-        Permintaan akan diteruskan ke guru. Anda akan diberi
-        kata sandi sementara.
-      </span>
-    </div>
-  </div>
-</template>
-
-
-<!-- ============ potongan: pulihkan nama pengguna (v1.17.0) ============ -->
-<template id="tpl-pulihkan">
-  <div>
-    <div class="grup">
-      <label for="in-pulih-email">Email yang Anda daftarkan</label>
-      <input class="isian" id="in-pulih-email" type="email"
-             placeholder="mis. nama@gmail.com"
-             autocapitalize="off" spellcheck="false" autocomplete="email">
-    </div>
-    <div class="grup">
-      <label for="in-pulih-wa">Nomor WhatsApp yang Anda daftarkan</label>
-      <input class="isian" id="in-pulih-wa" type="tel"
-             placeholder="mis. 081234567890"
-             autocapitalize="off" spellcheck="false" autocomplete="tel">
-      <span class="bantuan">
-        Keduanya harus sama persis dengan yang Anda isi di
-        <b>Lengkapi Biodata</b>. Bila belum pernah mengisi, temui
-        guru Anda langsung.
-      </span>
+<template id="tpl-ganti">
+  <div class="layar-masuk">
+    <div class="kartu kartu-masuk">
+      <h2>Ganti kata sandi</h2>
+      <p class="lembut kecil mb-16">Akun baru wajib mengganti kata sandi sementara.</p>
+      <form id="form-ganti">
+        <label>Kata sandi lama</label>
+        <input type="password" id="in-lama" required>
+        <label>Kata sandi baru</label>
+        <input type="password" id="in-baru" required>
+        <p class="bantuan">Minimal 6 karakter, memuat huruf dan angka.</p>
+        <button class="btn btn-penuh mt-16" type="submit">Simpan</button>
+      </form>
     </div>
   </div>
 </template>
