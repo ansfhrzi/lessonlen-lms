@@ -59,7 +59,13 @@ global.Db = {
   },
   perbarui: (n, baris, obj) => {
     const r = (TABEL[n]||[])[baris-2];
-    if (r) Object.assign(r, obj);
+    if (r) {
+      /* Db.perbarui asli hanya menulis kolom sesuai header —
+         _baris (nomor baris) tidak pernah ikut tersimpan */
+      const bersih = Object.assign({}, obj);
+      delete bersih._baris;
+      Object.assign(r, bersih);
+    }
   },
   hapus: (n, baris) => { (TABEL[n]||[]).splice(baris-2, 1); },
   perbaruiBanyak: (n, items) => {

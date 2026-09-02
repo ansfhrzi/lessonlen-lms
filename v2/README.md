@@ -26,6 +26,7 @@ yang ada di akar repositori.
 | `Notif.gs` | Notifikasi in-app: `kirim`, `kirimKeKelas`, `daftar`, `tandaiDibaca` |
 | `Kelas.gs` | CRUD kelas, murid + impor massal, enrollment (enroll/reaktivasi/keluarkan), kelas saya, biodata murid |
 | `Mapel.gs` | CRUD mapel, penugasan mengajar (unik per kelas+guru+mapel, reaktivasi), topik (urut, draft/publish, hapus kosong saja), item (jenis materi/quiz/tugas/refleksi, konten disanitasi), bacaan murid (publish + terdaftar) |
+| `Uji.gs` | **Uji tahapan dari EDITOR Apps Script**: `ujiGate0()`, `ujiTahap3()`, `ujiTahap4()`, `ujiSemua()` — data uji dibuat & dihapus otomatis |
 | `index.html` + `css.html` | Cangkang UI + gaya |
 | `v_login.html`, `v_dashboard.html` | Layar masuk & dasbor bernavigasi (Beranda/Kelas/Murid/Mapel/Penugasan/Topik/Kelas Saya/Materi/Notifikasi) |
 | `js_core.html`, `js_auth.html`, `js_kelola.html`, `js_mapel.html` | Pembungkus `google.script.run`, token sesi, logika layar |
@@ -74,6 +75,33 @@ di deployment `/exec` sungguhan:
 [ ] Reset kata sandi oleh guru berhasil + mencabut sesi murid
 [ ] Murid tidak bisa memanggil API guru (resetPasswordMurid/getPermintaanReset)
 ```
+
+## Uji di editor Apps Script
+
+Selain uji Node (`test/`, jalankan dengan `node v2/test/<berkas>.js`),
+seluruh tahapan bisa diuji langsung dari editor Apps Script memakai
+`Uji.gs` — salin berkas ini ke project lalu jalankan salah satunya:
+
+| Fungsi | Cakupan | Cakupan uji |
+|---|---|---|
+| `ujiGate0()` | login, sesi, kunci 5×, ganti/reset sandi, penjaga peran | 19 |
+| `ujiTahap3()` | kelas, murid, impor, enrollment, biodata, notifikasi | 38 |
+| `ujiTahap4()` | mapel, penugasan, topik, item, bacaan murid, audit | 82 |
+| `ujiSemua()` | ketiganya berurutan + ringkasan | 139 |
+
+Cara baca hasil: **View → Log** (atau ikon *Execution log*) — tiap uji
+mencetak `OK <nama>` / `GAGAL <nama> → <info>`, diakhiri ringkasan
+`xx/yy lulus`.
+
+- Database harus sudah disiapkan (`setupLengkap()` sekali) — uji
+  berjalan pada DB sungguhan tetapi **data uji dibuat dan dihapus
+  otomatis** (juga saat ada uji yang gagal). Semua data uji memakai
+  penanda unik (mis. username `k3x9q2budi01`).
+- Nomor ID di sheet `Counters` ikut maju — normal, tidak berpengaruh.
+- Jalankan saat aplikasi tidak sedang dipakai orang lain.
+- Bila pembersihan terganggu (mis. eksekusi dihentikan paksa), sisa
+  data uji mudah dicari: username/nama memuat penanda yang tercetak
+  di awal log uji.
 
 ## Status & tahap berikutnya
 
