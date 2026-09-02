@@ -246,11 +246,13 @@ var Core = (function () {
     var s = $('sidebar'), o = $('overlay-samping');
     if (s) s.classList.add('tampil');
     if (o) o.classList.add('tampil');
+    document.body.style.overflow = 'hidden';   /* ponsel: latar tak ikut menggulir */
   }
   function tutupSidebar() {
     var s = $('sidebar'), o = $('overlay-samping');
     if (s) s.classList.remove('tampil');
     if (o) o.classList.remove('tampil');
+    document.body.style.overflow = '';
   }
 
   function muatLonceng() {
@@ -317,6 +319,12 @@ var Core = (function () {
       var panel = $('lonceng-panel');
       if (panel && !e.target.closest('.lonceng-wadah'))
         panel.classList.remove('tampil');
+    });
+
+    /* layar melebar lagi (putar perangkat / ubah ukuran jendela):
+       pastikan sidebar off-canvas tertutup */
+    window.addEventListener('resize', function () {
+      if (window.innerWidth > 900) tutupSidebar();
     });
   }
 
