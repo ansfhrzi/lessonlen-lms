@@ -42,6 +42,10 @@ MOCK = r"""
              harus_ganti_password: false,
              biodata: { nisn: '', email: '', no_wa: '', tanggal_lahir: '' } },
     sesi: null,
+    perlu: [
+      { request_id: 'r1', user_id: 'u-m3', nama: 'Citra Maharani', username: 'siswa03', dibuat_at: '2026-09-01 07:10' },
+      { request_id: 'r2', user_id: 'u-m6', nama: 'Fajar Ramadhan', username: 'siswa06', dibuat_at: '2026-08-31 15:47' }
+    ],
     notif: [
       { notif_id: 'n1', jenis: 'permintaan_reset', judul: 'Citra Maharani meminta reset sandi', pesan: 'Ajukan lewat Kelola Murid', dibaca: false, created_at: '2026-09-01 07:12' },
       { notif_id: 'n2', jenis: 'enroll_kelas', judul: 'Bayu Setiawan masuk kelas XI TKJ 1', pesan: 'oleh guru', dibaca: false, created_at: '2026-08-30 09:40' },
@@ -72,10 +76,8 @@ MOCK = r"""
     if (db.sesi.role === 'guru') {
       return { role: 'guru', kelas_aktif: 3, course_aktif: 3, murid_aktif: 5,
         api_key: { jml: 6, maks: 10, jml_siap: 5, terpasang: true },
-        perlu_tindakan: { jml: 2, daftar: [
-          { request_id: 'r1', user_id: 'u-m3', nama: 'Citra Maharani', username: 'siswa03', dibuat_at: '2026-09-01 07:10' },
-          { request_id: 'r2', user_id: 'u-m6', nama: 'Fajar Ramadhan', username: 'siswa06', dibuat_at: '2026-08-31 15:47' }
-        ] } };
+        perlu_tindakan: { jml: db.perlu.length,
+                          daftar: db.perlu.slice(0, 5) } };
     }
     return { role: 'murid', kelas_diikuti: 1, notif_baru: 2,
              biodata_kurang: !db.muridBiodataIsi };
@@ -170,10 +172,17 @@ MOCK = r"""
                if (p.status) m.status = p.status; }
       return {};
     },
-    resetPasswordMurid: function (t, id) {
+    resetPasswordMurid: function (t, id, requestId) {
       var m = db.muridDaftar.filter(function (x) { return x.user_id === id; })[0] || {};
+      /* permintaan terkait otomatis keluar dari antrean (kontrak nyata) */
+      db.perlu = db.perlu.filter(function (x) { return x.request_id !== requestId; });
       return { user_id: id, username: m.username, nama: m.nama, no_wa: m.no_wa || '',
                password_sementara: Math.random().toString(36).slice(2, 8) };
+    },
+    getPermintaanReset: function () {
+      return db.perlu.slice().sort(function (a, b) {
+        return String(a.dibuat_at) < String(b.dibuat_at) ? 1 : -1;
+      });
     },
     muridPratinjauImpor: function (t, teks) {
       var baris = String(teks || '').split('\n').filter(function (x) { return x.trim(); });

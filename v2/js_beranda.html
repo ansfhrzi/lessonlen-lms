@@ -40,16 +40,24 @@ var Beranda = (function () {
       '</div>';
 
     if (pt.jml > 0) {
+      /* tiap baris BISA DIKLIK → langsung proses (reset sandi);
+         "Lihat" membuka daftar lengkap yang bisa digulir */
       html += '<div class="judul-seksi">Perlu tindakan</div><div class="kartu"><div class="kartu-isi">' +
         '<span class="badge badge-tunggu">' + pt.jml + ' permintaan reset</span>';
       pt.daftar.forEach(function (x) {
-        html += '<div class="sel-orang mt-8"><div class="avatar">' +
-          Core.esc(Core.inisial(x.nama)) + '</div>' +
-          '<div style="flex:1;min-width:0"><b>' + Core.esc(x.nama) + '</b>' +
-          '<small>meminta reset kata sandi · ' + Core.esc(x.username) + '</small></div></div>';
+        html += '<button type="button" class="tindak-baris" ' +
+          'data-rid="' + Core.esc(x.request_id) + '" ' +
+          'data-uid="' + Core.esc(x.user_id) + '" ' +
+          'data-nama="' + Core.esc(x.nama) + '" ' +
+          'data-user="' + Core.esc(x.username) + '" title="Reset kata sandi">' +
+          '<span class="avatar">' + Core.esc(Core.inisial(x.nama)) + '</span>' +
+          '<span class="pilih-tengah"><b>' + Core.esc(x.nama) + '</b>' +
+          '<small>meminta reset kata sandi · ' + Core.esc(x.username) +
+          ' · ' + Core.esc(x.dibuat_at || '') + '</small></span>' +
+          '<span class="tindak-aksi">Reset →</span></button>';
       });
-      html += '<div class="mt-8"><button class="btn btn-sekunder btn-kecil" id="btn-pt-murid">' +
-              'Buka Kelola Murid</button></div></div></div>';
+      html += '<div class="mt-8"><button class="btn btn-sekunder btn-kecil" id="btn-pt-lihat">' +
+              'Lihat</button></div></div></div>';
     }
 
     html +=
@@ -60,8 +68,18 @@ var Beranda = (function () {
 
     layar.innerHTML = html;
 
-    var btnPt = Core.$('btn-pt-murid');
-    if (btnPt) btnPt.addEventListener('click', function () { Core.pergiKe('murid'); });
+    /* baris "Perlu tindakan" → reset sandi langsung (request_id ikut,
+       server menandai permintaan selesai otomatis) */
+    layar.querySelectorAll('.tindak-baris').forEach(function (b) {
+      b.addEventListener('click', function () {
+        MuridLayar.resetSandi(
+          { user_id: b.dataset.uid, nama: b.dataset.nama, username: b.dataset.user },
+          b.dataset.rid,
+          segarkan);
+      });
+    });
+    var btnLihat = Core.$('btn-pt-lihat');
+    if (btnLihat) btnLihat.addEventListener('click', dialogTindakan);
     var btnSemua = Core.$('btn-course-semua');
     if (btnSemua) btnSemua.addEventListener('click', function () { Core.pergiKe('course'); });
 
@@ -115,6 +133,77 @@ var Beranda = (function () {
       if (wadah) wadah.innerHTML = '<div class="kosong">' +
         Core.esc(err.message) + '</div>';
     });
+  }
+
+  /** Ambil ulang ringkasan lalu render beranda (dipakai setelah aksi). */
+  function segarkan() {
+    Core.api('ringkasDashboard', Core.ambilToken()).then(function (r) {
+      Core.state.ringkas = r;
+      render();
+    }).catch(function () {});
+  }
+
+  /**
+   * Daftar lengkap "Perlu tindakan" (tombol Lihat).
+   * Menggulir bila panjang — beranda hanya menampilkan 5 terbaru.
+   * Seksi per jenis: kini baru "reset kata sandi"; nilai tugas
+   * individu/kelompok & uraian quiz otomatis muncul di sini saat
+   * fiturnya aktif (Tahap 4–5).
+   */
+  function dialogTindakan() {
+    Core.api('getPermintaanReset', Core.ambilToken()).then(function (daftar) {
+      daftar = daftar || [];
+      var html =
+        '<div class="kecil" style="margin-bottom:8px">Klik siswa untuk ' +
+        'memproses. Daftar menggulir bila panjang.</div>' +
+        '<div class="pilih-list" id="tindak-list">' +
+        (daftar.length
+          ? daftar.map(function (x) {
+              return '<button type="button" class="tindak-baris" ' +
+                'data-rid="' + Core.esc(x.request_id) + '" ' +
+                'data-uid="' + Core.esc(x.user_id) + '" ' +
+                'data-nama="' + Core.esc(x.nama) + '" ' +
+                'data-user="' + Core.esc(x.username) + '">' +
+                '<span class="avatar">' + Core.esc(Core.inisial(x.nama)) + '</span>' +
+                '<span class="pilih-tengah"><b>' + Core.esc(x.nama) + '</b>' +
+                '<small>reset kata sandi · ' + Core.esc(x.username) +
+                ' · ' + Core.esc(x.dibuat_at || '') + '</small></span>' +
+                '<span class="tindak-aksi">Reset →</span></button>';
+            }).join('')
+          : '<div class="kosong">Semua tindakan sudah diproses 🎉</div>') +
+        '</div>' +
+        '<p class="bantuan mt-8">Jenis lain — nilai tugas individu, tugas ' +
+        'kelompok, uraian quiz — muncul di daftar ini otomatis saat ' +
+        'fiturnya aktif (Tahap 4–5).</p>';
+
+      Core.dialog({
+        judul: 'Perlu tindakan' + (daftar.length ? ' (' + daftar.length + ')' : ''),
+        html: html,
+        labelYa: 'Tutup',
+        tanpaBatal: true,
+        saatBuka: function (tirai) {
+          tirai.querySelectorAll('.tindak-baris').forEach(function (b) {
+            b.addEventListener('click', function () {
+              MuridLayar.resetSandi(
+                { user_id: b.dataset.uid, nama: b.dataset.nama,
+                  username: b.dataset.user },
+                b.dataset.rid,
+                function () {
+                  /* hapus baris + segarkan hitungan judul & beranda */
+                  b.remove();
+                  var sisa = tirai.querySelectorAll('.tindak-baris').length;
+                  var wadah = tirai.querySelector('#tindak-list');
+                  if (wadah && !sisa)
+                    wadah.innerHTML = '<div class="kosong">Semua tindakan sudah diproses 🎉</div>';
+                  var k = tirai.querySelector('h3');
+                  if (k) k.textContent = 'Perlu tindakan' + (sisa ? ' (' + sisa + ')' : '');
+                  segarkan();
+                });
+            });
+          });
+        }
+      });
+    }).catch(function (err) { Core.toast(err.message, 'bahaya'); });
   }
 
   function stat(ikon, angka, label) {

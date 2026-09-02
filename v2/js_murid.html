@@ -293,47 +293,64 @@ var MuridLayar = (function () {
            Core.esc(label) + '</td><td style="padding:6px 0">' + nilai + '</td></tr>';
   }
 
-  /** Reset sandi murid (alur v1) → sandi sementara baru. */
-  function dialogResetSandi(m) {
+  /** Dialog sandi sementara hasil reset — dipakai juga beranda (Perlu
+   *  Tindakan). Dipisah agar bisa dipanggil dari modul lain. */
+  function tampilSandiReset(hasil) {
+    var tautanWa = hasil.no_wa
+      ? 'https://wa.me/' + String(hasil.no_wa).replace(/[^0-9]/g, '') +
+        '?text=' + encodeURIComponent(
+          'Assalamualaikum ' + (hasil.nama || '') +
+          '. Kata sandi LMS Anda direset. Username "' + hasil.username +
+          '", sandi sementara: ' + hasil.password_sementara +
+          '. Segera ganti setelah masuk.')
+      : '';
+    Core.dialog({
+      judul: '🔐 Sandi direset',
+      html:
+        '<div class="sukses-sandi"><code>' +
+        Core.esc(hasil.password_sementara) + '</code>' +
+        '<small>' + Core.esc(hasil.username) + ' · sandi sementara baru</small></div>' +
+        '<div class="baris-salin">' +
+          '<button class="btn btn-sekunder btn-kecil" data-aksi-tambahan="salin">📋 Salin</button>' +
+          (tautanWa ? '<a class="btn btn-sekunder btn-kecil" href="' +
+            Core.esc(tautanWa) + '" target="_blank">💬 Kirim via WhatsApp</a>' : '') +
+        '</div>',
+      labelYa: 'Selesai',
+      saatBuka: function (tirai) {
+        tirai.querySelector('[data-aksi-tambahan="salin"]')
+          .addEventListener('click', function () {
+            salin(hasil.password_sementara);
+          });
+      }
+    });
+  }
+
+  /**
+   * Reset sandi murid (alur v1) → sandi sementara baru.
+   * requestId = id Permintaan_Reset (bila sumbernya antrean "Perlu
+   * Tindakan") → permintaan otomatis ditandai selesai oleh server.
+   * selesai() = callback setelah sukses (mis. segarkan beranda).
+   */
+  function resetSandi(m, requestId, selesai) {
     Core.konfirmasi('Reset kata sandi?',
       'Sandi baru dibuat otomatis untuk ' + m.nama +
       '; murid diminta menggantinya saat login berikutnya.',
       { labelYa: 'Ya, reset' })
       .then(function (ya) {
         if (!ya) return;
-        Core.api('resetPasswordMurid', Core.ambilToken(), m.user_id, '')
+        Core.api('resetPasswordMurid', Core.ambilToken(), m.user_id,
+                 requestId || '')
           .then(function (hasil) {
-            var tautanWa = hasil.no_wa
-              ? 'https://wa.me/' + String(hasil.no_wa).replace(/[^0-9]/g, '') +
-                '?text=' + encodeURIComponent(
-                  'Assalamualaikum ' + (hasil.nama || '') +
-                  '. Kata sandi LMS Anda direset. Username "' + hasil.username +
-                  '", sandi sementara: ' + hasil.password_sementara +
-                  '. Segera ganti setelah masuk.')
-              : '';
-            Core.dialog({
-              judul: '🔐 Sandi direset',
-              html:
-                '<div class="sukses-sandi"><code>' +
-                Core.esc(hasil.password_sementara) + '</code>' +
-                '<small>' + Core.esc(hasil.username) + ' · sandi sementara baru</small></div>' +
-                '<div class="baris-salin">' +
-                  '<button class="btn btn-sekunder btn-kecil" data-aksi-tambahan="salin">📋 Salin</button>' +
-                  (tautanWa ? '<a class="btn btn-sekunder btn-kecil" href="' +
-                    Core.esc(tautanWa) + '" target="_blank">💬 Kirim via WhatsApp</a>' : '') +
-                '</div>',
-              labelYa: 'Selesai',
-              saatBuka: function (tirai) {
-                tirai.querySelector('[data-aksi-tambahan="salin"]')
-                  .addEventListener('click', function () {
-                    salin(hasil.password_sementara);
-                  });
-              }
-            });
-            muatTabel();
+            tampilSandiReset(hasil);
+            if (selesai) selesai();
           })
           .catch(function (err) { Core.toast(err.message, 'bahaya'); });
       });
+  }
+
+  /** Versi lama (tanpa antrean) — masih dipakai tabel Kelola Murid. */
+  function dialogResetSandi(m) {
+    resetSandi(m, '', function () { muatTabel(); });
   }
 
   /* ---------- impor massal ---------- */
@@ -438,6 +455,7 @@ var MuridLayar = (function () {
   }
 
   Core.daftarRute('murid', render);
-  return { render: render, detail: dialogDetail };
+  return { render: render, detail: dialogDetail,
+           resetSandi: resetSandi, tampilSandiReset: tampilSandiReset };
 })();
 </script>

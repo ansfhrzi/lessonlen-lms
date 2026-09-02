@@ -117,6 +117,35 @@ const tunggu = (ms) => new Promise(r => setTimeout(r, ms));
   cek('beranda: 4 kartu angka', d.querySelectorAll('.kisi-stat .stat').length === 4);
   cek('beranda: perlu tindakan tampil (2)', d.getElementById('layar').textContent.includes('2 permintaan reset'));
   cek('beranda: seksi "Course saya" tampil', d.getElementById('layar').textContent.includes('Course saya'));
+
+  // --- Perlu Tindakan: baris bisa diklik → reset langsung ---
+  cek('beranda: 2 baris tindakan bisa diklik',
+      d.querySelectorAll('#layar .tindak-baris').length === 2);
+  d.querySelectorAll('#layar .tindak-baris')[0].click();
+  await tunggu(250);
+  cek('beranda: klik siswa → konfirmasi reset',
+      d.querySelector('.kotak-dialog') &&
+      d.querySelector('.kotak-dialog').textContent.includes('Reset kata sandi?'));
+  d.querySelector('.kotak-dialog [data-aksi="ya"]').click();
+  await tunggu(500);
+  cek('beranda: reset sukses → dialog sandi sementara',
+      d.querySelector('.kotak-dialog') &&
+      d.querySelector('.kotak-dialog').textContent.includes('sandi sementara baru'));
+  d.querySelector('.kotak-dialog [data-aksi="ya"]').click();
+  await tunggu(600);
+  cek('beranda: antrean berkurang 2 → 1 setelah reset',
+      d.querySelectorAll('#layar .tindak-baris').length === 1 &&
+      d.getElementById('layar').textContent.includes('1 permintaan reset'));
+
+  // --- tombol Lihat → daftar lengkap yang bisa digulir ---
+  d.getElementById('btn-pt-lihat').click();
+  await tunggu(500);
+  cek('beranda: "Lihat" → daftar lengkap (1 sisa) + catatan jenis lain',
+      d.querySelector('.kotak-dialog') &&
+      d.querySelectorAll('#tindak-list .tindak-baris').length === 1 &&
+      d.querySelector('.kotak-dialog').textContent.includes('Tahap 4–5'));
+  d.querySelector('.kotak-dialog [data-aksi="ya"]').click();
+  await tunggu(250);
   await tunggu(500);
   cek('beranda: 4 course terdaftar', d.querySelectorAll('#wadah-course .barang-course').length === 4);
   cek('beranda: course pertama = aktif teratas', d.querySelector('#wadah-course .barang-course .badge').textContent.includes('Aktif'));

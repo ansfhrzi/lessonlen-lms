@@ -415,6 +415,18 @@ tbody tr:hover { background: var(--permukaan); }
 .item-course b { font-size: 1.02rem; }
 .item-course small { color: var(--teks-lembut); font-size: .8rem; }
 
+/* ---------- baris "Perlu tindakan" (bisa diklik → proses) ---------- */
+button.tindak-baris {
+  display: flex; align-items: center; gap: 10px; width: 100%;
+  text-align: left; padding: 10px 12px; margin-top: 8px;
+  border: 1px solid var(--garis); border-radius: var(--radius-sm);
+  background: var(--putih); font-family: var(--font); color: var(--teks);
+  cursor: pointer; transition: border-color .15s, background .12s;
+}
+button.tindak-baris:hover { border-color: var(--hijau); background: var(--permukaan); }
+.tindak-aksi { flex: none; font-size: .78rem; font-weight: 700;
+               color: var(--hijau-tua); }
+
 /* ---------- dialog pilih murid (daftar + filter rombel) ---------- */
 .pilih-alat { display: flex; gap: 10px; align-items: center;
               margin-bottom: 10px; flex-wrap: wrap; }
