@@ -908,13 +908,153 @@ function ujiTahap4() {
  *  SEMUA
  * ============================================================ */
 
+/* ============================================================
+ *  COURSE — REPRO LAPORAN GURU (tahap 4.9)
+ *  Skenario: buat QUIZ MANDIRI → lalu buat TOPIK BARU → error.
+ *  Uji ini menjalankan persis urutan itu di DB nyata, langkah demi
+ *  langkah, PLUS pra-cek skema/berkas supaya penyebab tersembunyi
+ *  (kolom belum dimigrasi, berkas server lama) tertunjuk dengan jelas.
+ * ============================================================ */
+
+function ujiCourse() {
+  return _ujiPesta('COURSE — QUIZ MANDIRI lalu TOPIK BARU (repro laporan)',
+    function () {
+    _ujiLacak();
+    var S = UJI.stamp;
+
+    /* ---------- PRASYARAT: skema & berkas ---------- */
+    console.log('--- PRASYARAT SKEMA ---');
+    var headItems = Db.header('Items');
+    var headTopics = Db.header('Topics');
+    _ujiCek('SKEMA: Items punya kolom "ta_id" — bila GAGAL: jalankan migrasiStruktur()',
+      headItems.indexOf('ta_id') !== -1,
+      'header Items: ' + headItems.join(','));
+    _ujiCek('SKEMA: Items punya kolom "publish_at" — bila GAGAL: jalankan migrasiStruktur()',
+      headItems.indexOf('publish_at') !== -1,
+      'header Items: ' + headItems.join(','));
+    _ujiCek('SKEMA: Topics punya kolom "publish_at" — bila GAGAL: jalankan migrasiStruktur()',
+      headTopics.indexOf('publish_at') !== -1,
+      'header Topics: ' + headTopics.join(','));
+    _ujiCek('BERKAS: coursePindah ada — bila GAGAL: salin ulang Code.gs & Mapel.gs',
+      typeof coursePindah === 'function',
+      'coursePindah=' + typeof coursePindah);
+
+    /* ---------- SEED ---------- */
+    var G = S + 'guru';
+    _ujiBuatUser(G, 'Guru Uji Course', 'guru', 'guru123');
+    var TOKEN_G = _ujiLogin(G, 'guru123').data.token;
+
+    var r = muridSimpan(TOKEN_G, { nama: 'Budi Uji Course',
+                                   username: S + 'budi01' });
+    var BUDI = r.data.user_id; UJI.ids.Users.push(BUDI);
+    var SANDI = r.data.password_sementara;
+
+    r = kelasSimpan(TOKEN_G, { name: 'XI Uji Course' });
+    var KLS = r.data.class_id; UJI.ids.Classes.push(KLS);
+    muridDaftarkan(TOKEN_G, KLS, [BUDI]);
+
+    r = mapelSimpan(TOKEN_G, { name: 'Mapel Uji Course' });
+    var SBK = r.data.subject_id; UJI.ids.Subjects.push(SBK);
+
+    r = penugasanSimpan(TOKEN_G, { class_id: KLS, subject_id: SBK });
+    _ujiCek('seed: penugasan dibuat', r.ok === true, JSON.stringify(r));
+    var TA = r.data.teaching_assignment_id; UJI.ids.TA.push(TA);
+
+    /* ---------- LANGKAH 1: buat QUIZ MANDIRI (jalur editor) ---------- */
+    console.log('--- LANGKAH 1: quiz mandiri ---');
+    r = null;
+    try {
+      r = itemSimpan(TOKEN_G, { ta_id: TA, type: 'quiz',
+                                title: 'Quiz Mandiri A' });
+    } catch (e) {
+      _ujiCek('1a. quiz mandiri dibuat', false, 'THROW: ' + e.message);
+    }
+    _ujiCek('1a. quiz mandiri dibuat', r && r.ok === true, JSON.stringify(r));
+    if (!(r && r.ok)) return;
+    var QZ = r.data.item_id; UJI.ids.Items.push(QZ);
+
+    r = itemUbahStatus(TOKEN_G, QZ, 'publish');
+    _ujiCek('1b. quiz mandiri diterbitkan', r.ok === true, JSON.stringify(r));
+
+    var baris = Db.cari('Items', 'item_id', QZ);
+    _ujiCek('1c. "ta_id" TERSIMPAT di sheet — bila GAGAL: kolom belum ada (migrasiStruktur())',
+      String((baris && baris.ta_id) || '') === TA,
+      'ta_id="' + (baris && baris.ta_id) + '"');
+
+    /* ---------- LANGKAH 2: buat TOPIK BARU ← titik laporan error ---------- */
+    console.log('--- LANGKAH 2: topik baru (titik laporan error) ---');
+    r = null;
+    try {
+      r = topikSimpan(TOKEN_G, { teaching_assignment_id: TA,
+                                 title: 'Topik Pertama' });
+    } catch (e) {
+      _ujiCek('2a. topik baru dibuat', false, 'THROW: ' + e.message);
+    }
+    _ujiCek('2a. topik baru dibuat', r && r.ok === true, JSON.stringify(r));
+    if (!(r && r.ok)) return;
+    var TPC = r.data.topic_id; UJI.ids.Topics.push(TPC);
+
+    var row = Db.cari('Topics', 'topic_id', TPC);
+    var barisQ = Db.cari('Items', 'item_id', QZ);
+    _ujiCek('2b. urut topik = urut mandiri + 1 (mendarat di dasar)',
+      Number(row.sort_order) === Number(barisQ.sort_order) + 1,
+      'topik=' + row.sort_order + ' mandiri=' + barisQ.sort_order);
+
+    /* ---------- LANGKAH 3: layar course (topikDaftar) ---------- */
+    console.log('--- LANGKAH 3: layar course ---');
+    r = topikDaftar(TOKEN_G, TA);
+    _ujiCek('3a. topikDaftar berhasil', r.ok === true,
+      JSON.stringify(r).slice(0, 220));
+    if (!(r && r.ok)) return;
+    _ujiCek('3b. mandiri terbawa 1 item',
+      (r.data.mandiri || []).length === 1 &&
+      r.data.mandiri[0].item_id === QZ,
+      JSON.stringify(r.data.mandiri));
+    _ujiCek('3c. topik terbawa 1 item',
+      (r.data.topik || []).length === 1 &&
+      r.data.topik[0].topic_id === TPC,
+      JSON.stringify(r.data.topik));
+
+    /* ---------- LANGKAH 4: urutkan lintas jenis ---------- */
+    console.log('--- LANGKAH 4: susunan gabungan ---');
+    r = coursePindah(TOKEN_G, 'item', QZ, 'bawah');
+    _ujiCek('4a. coursePindah turun berhasil',
+      r.ok === true && r.data.pindah === true, JSON.stringify(r));
+    _ujiCek('4b. mandiri kini di bawah topik',
+      Number(Db.cari('Items', 'item_id', QZ).sort_order) === 2 &&
+      Number(Db.cari('Topics', 'topic_id', TPC).sort_order) === 1,
+      'mandiri=' + Db.cari('Items', 'item_id', QZ).sort_order +
+      ' topik=' + Db.cari('Topics', 'topic_id', TPC).sort_order);
+
+    r = topikUbahStatus(TOKEN_G, TPC, 'publish');
+    _ujiCek('4c. topik diterbitkan (agar terlihat murid)',
+      r.ok === true && Db.cari('Topics', 'topic_id', TPC).status === 'publish',
+      JSON.stringify(r));
+
+    /* ---------- LANGKAH 5: murid melihat urutan campuran ---------- */
+    console.log('--- LANGKAH 5: murid ---');
+    var TOKEN_B = Auth.login(S + 'budi01', SANDI).data.token;
+    UJI.tokens.push(TOKEN_B);
+    r = topikKelasSaya(TOKEN_B, TA);
+    _ujiCek('5a. topikKelasSaya berhasil', r.ok === true,
+      JSON.stringify(r).slice(0, 220));
+    if (!(r && r.ok)) return;
+    _ujiCek('5b. urutan murid = campuran [topik, mandiri]',
+      JSON.stringify(r.data.urutan) ===
+        JSON.stringify([{ jenis: 'topik', id: TPC },
+                        { jenis: 'item', id: QZ }]),
+      JSON.stringify(r.data.urutan));
+  });
+}
+
 /** Jalankan seluruh tahapan berurutan — laporan ringkas di akhir. */
 function ujiSemua() {
   var mulai = Date.now();
   var hasil = [
     { nama: 'Gate 0', h: ujiGate0() },
     { nama: 'Tahap 3', h: ujiTahap3() },
-    { nama: 'Tahap 4', h: ujiTahap4() }
+    { nama: 'Tahap 4', h: ujiTahap4() },
+    { nama: 'Course', h: ujiCourse() }
   ];
 
   console.log('####################################################');

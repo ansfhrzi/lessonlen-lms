@@ -36,8 +36,30 @@ bawah** lalu jalankan `migrasiStruktur()`.
 
 \* Wajib bila memakai `Uji.gs`/uji node di editor.
 
-**Tidak berubah**: `Auth.gs` · `Db.gs` · `Notif.gs` · `Uji.gs` ·
+**Tidak berubah**: `Auth.gs` · `Db.gs` · `Notif.gs` ·
 `test/uji-auth-gate0.js` · `test/uji-kelas.js`.
+
+### Tambahan 4.9 — uji editor untuk laporan "quiz mandiri → topik baru error"
+
+`Uji.gs` bertambah suite **`ujiCourse()`** (terdaftar di `ujiSemua`, bisa
+dijalankan sendiri dari editor: `ujiCourse()`). Ia mereproduksi persis
+skenario yang dilaporkan — buat quiz mandiri, lalu buat topik baru —
+langkah demi langkah di DB nyata, PLUS pra-cek yang menunjuk penyebab
+paling mungkin bila error masih terjadi:
+
+| Uji prasyarat | Artinya bila GAGAL |
+|---|---|
+| `SKEMA: Items punya kolom "ta_id"` / `"publish_at"` | Kolom belum ada → jalankan `migrasiStruktur()` dari editor |
+| `SKEMA: Topics punya kolom "publish_at"` | sama seperti di atas |
+| `BERKAS: coursePindah ada` | `Code.gs`/`Mapel.gs` belum tersalin versi baru |
+
+Hasil pada kode terbaru: **18/18 lulus** — skenario tidak bisa
+direproduksi; bila di editor Anda uji ini berhenti di LANGKAH 2 atau
+prasyarat, petunjuk di kolom pesan menunjukkan perbaikannya.
+
+| Berkas | Prioritas | Perubahan |
+|---|---|---|
+| `Uji.gs` | 🔴 **Wajib** (untuk yang memakai uji editor) | + suite `ujiCourse()` 18 uji; terdaftar di `ujiSemua` |
 
 ### Rincian
 
@@ -107,3 +129,5 @@ salin kata sandi sekali ketuk.
 | 4.7 | `fc97787`+`a80822c` | Satu susunan course gabungan bernomor | 111 |
 | 4.8 | `8c7e583` | Urutan murid = campuran guru (`urutan[]`) | 113 |
 | dok | `a70119c` | Adendum rancangan §7.8b | — |
+| 4.9 | — | `Uji.gs`: suite `ujiCourse()` — repro quiz mandiri → topik baru (18 uji) | 18 |
+| dok | — | `PERUBAHAN.md` dibuat | — |
