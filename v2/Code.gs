@@ -326,41 +326,62 @@ function resetPasswordMurid(token, userId, requestId) {
 
 function ringkasDashboard(token) {
   return _bungkus(token, 'apa_saja', function (sesi) {
-    if (sesi.role === 'guru') return _ringkasGuru();
+    if (sesi.role === 'guru') return _ringkasGuru(sesi);
     return _ringkasMurid(sesi);
   });
 }
 
-function _ringkasGuru() {
+/* Beranda ringkas ala §22D: 4 angka + "perlu tindakan". */
+function _ringkasGuru(sesi) {
   var murid = Db.bacaKolom('Users', ['user_id', 'role', 'status']);
   var kelas = Db.bacaKolom('Classes', ['class_id', 'status']);
-  var mapel = Db.bacaKolom('Subjects', ['subject_id', 'status']);
-  var topic = Db.bacaKolom('Topics', ['topic_id']);
-  var item  = Db.bacaKolom('Items', ['item_id']);
-  var reset = Db.bacaKolom('Permintaan_Reset', ['request_id', 'status']);
+  var ta    = Db.bacaKolom('Teaching_Assignments',
+              ['teaching_assignment_id', 'teacher_id', 'status']);
+  var api   = ApiKey.status(sesi);
+
+  /* perlu tindakan: antrean permintaan reset sandi (identitas murid). */
+  var petaU = {};
+  Db.bacaKolom('Users', ['user_id', 'nama', 'username']).forEach(function (u) {
+    petaU[u.user_id] = u;
+  });
+  var antre = Db.saring('Permintaan_Reset', { status: 'antre' })
+    .map(function (r) {
+      var u = petaU[r.user_id] || {};
+      return { request_id: r.request_id, user_id: r.user_id,
+               nama: u.nama || '(tidak dikenal)',
+               username: u.username || '',
+               dibuat_at: String(r.dibuat_at || '') };
+    })
+    .sort(function (a, b) {
+      return String(a.dibuat_at) < String(b.dibuat_at) ? 1 : -1;
+    });
 
   return {
     role: 'guru',
+    kelas_aktif: kelas.filter(function (k) { return k.status === 'aktif'; }).length,
+    course_aktif: ta.filter(function (t) {
+      return t.teacher_id === sesi.user_id && t.status === 'aktif'; }).length,
     murid_aktif: murid.filter(function (u) {
       return u.role === 'murid' && u.status === 'aktif'; }).length,
-    kelas_aktif: kelas.filter(function (k) { return k.status === 'aktif'; }).length,
-    mapel_aktif: mapel.filter(function (m) { return m.status === 'aktif'; }).length,
-    topik: topic.length,
-    item: item.length,
-    reset_antre: reset.filter(function (r) { return r.status === 'antre'; }).length
+    api_key: { jml: api.jml, maks: api.maks,
+               jml_siap: api.jml_siap, terpasang: api.terpasang },
+    perlu_tindakan: { jml: antre.length, daftar: antre.slice(0, 5) }
   };
 }
 
 function _ringkasMurid(sesi) {
   var enr = Db.bacaKolom('Enrollment', ['enroll_id', 'user_id', 'status']);
   var notif = Db.bacaKolom('Notifications', ['notif_id', 'user_id', 'dibaca']);
+  var saya = Db.cari('Users', 'user_id', sesi.user_id);
 
   return {
     role: 'murid',
     kelas_diikuti: enr.filter(function (e) {
       return e.user_id === sesi.user_id && e.status === 'aktif'; }).length,
     notif_baru: notif.filter(function (n) {
-      return n.user_id === sesi.user_id && n.dibaca === false; }).length
+      return n.user_id === sesi.user_id &&
+             (n.dibaca === false || n.dibaca === 'FALSE'); }).length,
+    biodata_kurang: saya ? !Util.biodataLengkap(saya) : false
   };
 }
 

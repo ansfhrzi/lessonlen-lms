@@ -158,6 +158,16 @@ berkas.
 - Uji: node `test/uji-apikey.js` **31 kasus**; editor `ujiApiKey()` 12 cek
   → `ujiSemua()` kini **95 cek**.
 
+### Tahap 3.5 — backend Beranda ringkas (2 Sep 2026) — BACKEND TAHAP 3 TUNTAS
+
+- `Code.gs` 🔴 wajib salin: `ringkasDashboard` guru dibentuk ulang ke
+  §22D — 4 angka (`kelas_aktif`, `course_aktif`, `murid_aktif`,
+  `api_key {jml, maks, jml_siap, terpasang}`) + **perlu tindakan**
+  (antrean permintaan reset + identitas murid, daftar maks 5, jml utuh);
+  murid + `biodata_kurang`.
+- Uji: node `test/uji-beranda.js` **18 kasus**; editor `ujiBeranda()` 8 cek
+  → `ujiSemua()` kini **103 cek**. `test/mock.js` +`bacaKolom` shim.
+
 ### Berkas yang harus ada di editor Apps Script (kondisi tahap 2)
 
 | Berkas | Isi | Status |
@@ -203,3 +213,4 @@ tidak ada — akan membuat error), `js_beranda.html`, `js_kelola.html`,
 | tahap 3.2 | (commit ini) | backend Kelola Kelas: `Kelas.gs` + 7 endpoint + 48 uji node + `ujiKelas()` | +48 node, +15 editor |
 | tahap 3.3 | (commit ini) | backend Kelola Course: `Course.gs` + 4 endpoint + 41 uji node + `ujiCourse()` | +41 node, +13 editor |
 | tahap 3.4 | (commit ini) | backend Status API Key: `ApiKey.gs` + 3 endpoint + 31 uji node + `ujiApiKey()` | +31 node, +12 editor |
+| tahap 3.5 | (commit ini) | backend Beranda ringkas (§22D) + 18 uji node + `ujiBeranda()` — **backend Tahap 3 selesai** | +18 node, +8 editor |

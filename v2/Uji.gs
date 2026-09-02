@@ -684,6 +684,67 @@ function ujiApiKey() {
   return _ujiSelesai('TAHAP 3.4');
 }
 
+/* ============================================================ SUITE 7 */
+
+/** Beranda ringkas (jalankan sendiri: ujiBeranda). */
+function ujiBeranda() {
+  _ujiMulai('TAHAP 3.5 — BERANDA RINGKAS');
+
+  /* --- prasyarat --- */
+  _ujiCek('BERKAS: endpoint ringkasDashboard ada — bila GAGAL: salin ulang Code.gs',
+          typeof ringkasDashboard === 'function');
+  _ujiCek('BERKAS: ApiKey.gs termuat — bila GAGAL: salin ApiKey.gs',
+          typeof ApiKey !== 'undefined');
+
+  _ujiSeed();
+  var sesiG = _ujiSesiGuru();
+  var S = __UJI.stamp;
+
+  /* --- kelas + course uji untuk hitungan --- */
+  var jmlKelasSebelum = Kelas.daftar(sesiG).length;
+  var k = Kelas.simpan(sesiG, { name: 'Uji B1 ' + S });
+  _ujiLacakKelas(k.class_id);
+  var c = Course.simpan(sesiG, { class_id: k.class_id, name: 'Mapel B ' + S });
+  _ujiLacakBaris('Teaching_Assignments', c.teaching_assignment_id);
+  _ujiLacakBaris('Subjects', c.subject_id);
+
+  var tokenG = Auth.login('guru', 'guru123').data.token;
+  var r = ringkasDashboard(tokenG);
+  _ujiCek('endpoint ringkasDashboard (guru) OK',
+          r.ok === true && r.data.role === 'guru', JSON.stringify(r));
+  var d = r.data;
+  _ujiCek('kelas_aktif bertambah 1',
+          d.kelas_aktif === jmlKelasSebelum + 1,
+          'sebelum=' + jmlKelasSebelum + ' kini=' + d.kelas_aktif);
+  _ujiCek('course_aktif terhitung & api_key.maks = 10',
+          d.course_aktif >= 1 && d.api_key && d.api_key.maks === 10,
+          JSON.stringify({ c: d.course_aktif, a: d.api_key }));
+
+  /* --- perlu tindakan: murid uji mengajukan reset --- */
+  var m = _ujiBuatMuridStump('bda', 'UjiBda1234');
+  Auth.login(m.username, m.password);   /* bangun jejak agar realistis */
+  ajukanReset(m.username);
+  var d2 = ringkasDashboard(tokenG).data;
+  var temuan = d2.perlu_tindakan.daftar.filter(function (x) {
+    return x.user_id === m.user_id; });
+  _ujiCek('permintaan reset murid uji masuk "perlu tindakan"',
+          d2.perlu_tindakan.jml >= 1 && temuan.length === 1 &&
+          temuan[0].username === m.username, JSON.stringify(d2.perlu_tindakan));
+
+  /* --- murid --- */
+  var tokM = Auth.login(m.username, m.password).data.token;
+  var rm = ringkasDashboard(tokM);
+  _ujiCek('endpoint utk murid OK (bentuk murid)',
+          rm.ok === true && rm.data.role === 'murid' &&
+          'kelas_diikuti' in rm.data && 'notif_baru' in rm.data &&
+          'biodata_kurang' in rm.data, JSON.stringify(rm));
+
+  var re = ringkasDashboard('token-sampah');
+  _ujiCek('sesi invalid ditolak', re.ok === false && re.error === 'SESI_INVALID');
+
+  return _ujiSelesai('TAHAP 3.5');
+}
+
 /* ============================================================ SEMUA */
 
 /** Jalankan seluruh suite. Fungsi inilah yang dijalankan dari editor. */
@@ -695,8 +756,9 @@ function ujiSemua() {
   var d = ujiKelas();
   var e = ujiCourse();
   var f = ujiApiKey();
-  var total = a.jml + b.jml + c.jml + d.jml + e.jml + f.jml;
-  var gagal = a.gagal + b.gagal + c.gagal + d.gagal + e.gagal + f.gagal;
+  var g = ujiBeranda();
+  var total = a.jml + b.jml + c.jml + d.jml + e.jml + f.jml + g.jml;
+  var gagal = a.gagal + b.gagal + c.gagal + d.gagal + e.gagal + f.gagal + g.gagal;
   Logger.log('');
   Logger.log('====================================================');
   Logger.log(' UJI SEMUA: ' + (total - gagal) + '/' + total + ' lulus' +

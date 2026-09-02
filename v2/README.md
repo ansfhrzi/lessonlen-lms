@@ -38,7 +38,7 @@ yang ada di akar repositori.
 | `index.html` + `css.html` | Cangkang UI |
 | `v_login.html`, `v_dashboard.html` | Layar masuk & dasbor guru/murid |
 | `js_core.html`, `js_auth.html` | Pembungkus `google.script.run`, token sesi, logika layar |
-| `test/` | Uji node: `uji-auth-gate0.js` (18) + `uji-murid.js` (65) + `uji-lupa-akses.js` (32) + `uji-kelas.js` (48) + `uji-course.js` (41) + `uji-apikey.js` (31) + `uji-ui.js` (audit statis fungsi klien; daftar berkas auto) |
+| `test/` | Uji node: `uji-auth-gate0.js` (18) + `uji-murid.js` (65) + `uji-lupa-akses.js` (32) + `uji-kelas.js` (48) + `uji-course.js` (41) + `uji-apikey.js` (31) + `uji-beranda.js` (18) + `uji-ui.js` (audit statis fungsi klien; daftar berkas auto) |
 
 ## Cara pasang (sekali saja)
 
@@ -96,6 +96,9 @@ di deployment `/exec` sungguhan:
 - ✅ Tahap 3.2 — backend Kelola Kelas (`Kelas.gs` + 7 endpoint + 48 uji)
 - ✅ Tahap 3.3 — backend Kelola Course (`Course.gs` + 4 endpoint + 41 uji)
 - ✅ Tahap 3.4 — backend Status API Key (`ApiKey.gs` + 3 endpoint + 31 uji)
+- ✅ Tahap 3.5 — backend Beranda ringkas (`ringkasDashboard` bentuk §22D:
+  kelas/course/murid + api_key + perlu tindakan antrean reset; murid +
+  biodata_kurang) — **backend Tahap 3 TUNTAS**
 
 - ⬜ Tahap 3.4 — backend Status API Key (Script Properties ≤10)
 - ⬜ Tahap 3.5 — backend Beranda ringkas

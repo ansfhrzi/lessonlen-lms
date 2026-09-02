@@ -104,7 +104,11 @@ global.Db = {
       })
     };
   },
-  header: (n) => HEAD[n] || []
+  header: (n) => HEAD[n] || [],
+  /* proyeksi kolom (Db.gs nyata punya versi ber-cache; mock cukup begini) */
+  bacaKolom: (n, kolom) => global.Db.baca(n).map(r => {
+    const o = {}; (kolom || []).forEach(k => { o[k] = r[k]; }); return o;
+  }),
 };
 
 global.__bukaKunci = (u) => { delete _cache['gagal_' + u]; };
