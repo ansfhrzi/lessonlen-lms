@@ -74,6 +74,23 @@ Backend menu **Kelola Murid** (alur §22D) — port setia perilaku v1:
   disalin ke editor).
 - Total uji node kini: gate0 18 + murid 65 = **83**, plus `uji-ui.js`.
 
+### Tahap 3.1b — Uji.gs (uji dari editor Apps Script)
+
+**BARU `Uji.gs`** 🔴 wajib salin (bersama berkas server). Dijalankan dari
+editor terhadap DB sungguhan — pasangan uji node:
+
+- `ujiSemua()` = `ujiGate0()` (21 cek: login seed, token, pesan seragam,
+  ganti sandi + `pwd_awal` kosong, kunci 5×/15 mnt, ajukan reset → antre →
+  reset guru → sandi sementara, nonaktif ditolak) + `ujiMurid()` (20 cek:
+  tambah/duplikat/daftar/detail/edit-sebagian/nonaktif-cabut-sesi/
+  pratinjau=impor/endpoint role).
+- Pra-cek berkas & skema dengan petunjuk perbaikan eksplisit
+  ("salin Murid.gs", "salin ulang Code.gs", "jalankan setupLengkap()").
+- Aman diulang: data uji berpenanda `uXXXXXX`, diakhiri pembersihan
+  otomatis (Users/Session/Permintaan_Reset/kunci cache); akun seed
+  tidak pernah diubah; akun seed dibuat otomatis bila DB kosong.
+- Terverifikasi: 41/41 lulus (mock harness lokal).
+
 ### Berkas yang harus ada di editor Apps Script (kondisi tahap 2)
 
 | Berkas | Isi | Status |
@@ -114,3 +131,4 @@ tidak ada — akan membuat error), `js_beranda.html`, `js_kelola.html`,
 | revisi keputusan | (commit ini) | sandi murid kembali model v1 (hash+salt + `pwd_awal`) — §22D diperbarui; **nol perubahan skema** | — |
 | desain | (commit ini) | prototipe tampilan interaktif `desain/tampilan-v2.html` — bahan kesepakatan UI Tahap 3 | — |
 | tahap 3.1 | (commit ini) | backend Kelola Murid: `Murid.gs` baru + 5 endpoint + 65 uji node | +65 |
+| tahap 3.1b | (commit ini) | `Uji.gs` — uji editor (`ujiGate0` + `ujiMurid`) | +41 |

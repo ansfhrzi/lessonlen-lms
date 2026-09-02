@@ -1,0 +1,346 @@
+/* ============================================================
+ *  LMS v2 — Uji.gs
+ *  Suite uji yang dijalankan DARI EDITOR Apps Script terhadap
+ *  database sungguhan — pasangan dari uji node di test/.
+ *
+ *  Cara pakai:
+ *    1. Salin berkas ini ke project Apps Script (bersama berkas
+ *       server lain: Util/Db/Auth/Murid/Code/Setup).
+ *    2. Pilih fungsi  ujiSemua  di atas lalu tekan ▶ Run
+ *       (atau satu suite: ujiGate0() / ujiMurid()).
+ *    3. Baca hasil di Execution log.
+ *
+ *  Aman dijalankan berulang di data nyata:
+ *    · seluruh data uji memakai penanda unik "uXXXXXX"
+ *    · diakhiri pembersihan otomatis (Users, Session,
+ *      Permintaan_Reset, kunci cache akun uji)
+ *    · akun seed (guru / siswa01) TIDAK pernah diubah
+ *    · jejak di Audit_Logs sengaja dibiarkan — itu fungsinya
+ * ============================================================ */
+
+var __UJI = { jml: 0, gagal: 0, stamp: '', ids: [], t0: 0 };
+
+/* ============================================================/helper */
+
+function _ujiMulai(judul) {
+  __UJI.jml = 0;
+  __UJI.gagal = 0;
+  __UJI.stamp = 'u' + Math.floor(100000 + Math.random() * 900000);
+  __UJI.ids = [];
+  __UJI.t0 = Date.now();
+  Logger.log('');
+  Logger.log('====================================================');
+  Logger.log(' ' + judul + '  (penanda data uji: ' + __UJI.stamp + ')');
+  Logger.log('====================================================');
+}
+
+function _ujiCek(nama, kondisi, info) {
+  __UJI.jml++;
+  if (kondisi) {
+    Logger.log('  OK  ' + nama);
+  } else {
+    __UJI.gagal++;
+    Logger.log('  GAGAL  ' + nama + (info ? ' → ' + info : ''));
+  }
+}
+
+/** Panggil fungsi modul yang bisa melempar error → jadi objek respons. */
+function _ujiCoba(fn) {
+  try { return fn(); }
+  catch (e) { return { error: (e && e.kode) || 'GALAT', pesan: e && e.message }; }
+}
+
+/** Catat user_id yang dibuat uji → disapu di akhir. */
+function _ujiLacak(userId) { __UJI.ids.push(String(userId)); }
+
+function _ujiSelesai(nama) {
+  _ujiBersihkan();
+  var lulus = __UJI.jml - __UJI.gagal;
+  Logger.log('----------------------------------------------------');
+  Logger.log(' ' + nama + ': ' + lulus + '/' + __UJI.jml + ' lulus' +
+             (__UJI.gagal ? ' — ' + __UJI.gagal + ' GAGAL ✘' : ' ✔') +
+             ' (' + Math.round((Date.now() - __UJI.t0) / 1000) + ' dtk)');
+  return { jml: __UJI.jml, gagal: __UJI.gagal };
+}
+
+/** Sapu seluruh jejak data uji milik stamp ini. */
+function _ujiBersihkan() {
+  var sisa = 0;
+  __UJI.ids.forEach(function (uid) {
+    try {
+      var u = Db.cari('Users', 'user_id', uid);
+      if (!u) return;
+      ['Session', 'Permintaan_Reset'].forEach(function (sh) {
+        var r = Db.saring(sh, { user_id: uid });
+        if (r.length) {
+          Db.hapusBanyak(sh, r.map(function (x) { return x._baris; }));
+        }
+      });
+      try { CacheService.getScriptCache().remove('gagal_' + u.username); } catch (e) {}
+      Db.hapus('Users', u._baris);
+    } catch (e) { sisa++; }
+  });
+  if (sisa) {
+    Logger.log('  !! ' + sisa + ' data uji gagal dibersihkan — cari penanda "' +
+               __UJI.stamp + '" lalu hapus manual.');
+  }
+}
+
+/** Sesi guru tiruan (id guru seed sebenarnya, agar audit jujur). */
+function _ujiSesiGuru() {
+  var guru = Db.cari('Users', 'username', 'guru');
+  return { user_id: guru.user_id, role: 'guru' };
+}
+
+/** Pastikan akun seed ada — dibuat bila DB masih kosong. */
+function _ujiSeed() {
+  function buat(username, password, role) {
+    var u = Db.cari('Users', 'username', username);
+    if (u) return u;
+    var salt = Util.buatSalt();
+    var baru = {
+      user_id: Util.buatId('USR'), username: username,
+      password_hash: Util.hashPassword(password, salt), salt: salt,
+      pwd_awal: '', nama: role === 'guru' ? 'Guru (seed)' : 'Murid (seed)',
+      role: role, rombel: '', email: '', nisn: '', no_wa: '',
+      status: 'aktif', harus_ganti_password: false, last_login: '',
+      created_at: Util.sekarang(), updated_at: Util.sekarang()
+    };
+    Db.tambah('Users', baru);
+    Logger.log('  (akun seed "' + username + '" tidak ada — dibuat otomatis)');
+    return Db.cari('Users', 'username', username);
+  }
+  buat('guru', 'guru123', 'guru');
+  buat('siswa01', 'siswa123', 'murid');
+}
+
+/** Buat satu akun murid uji langsung (tanpa modul Murid) → kembali user_id. */
+function _ujiBuatMuridStump(nama, password) {
+  var username = __UJI.stamp + '.' + nama;
+  var salt = Util.buatSalt();
+  var uid = Util.buatId('USR');
+  Db.tambah('Users', {
+    user_id: uid, username: username,
+    password_hash: Util.hashPassword(password, salt), salt: salt,
+    pwd_awal: password, nama: 'Uji ' + nama, role: 'murid',
+    rombel: '', email: '', nisn: '', no_wa: '',
+    status: 'aktif', harus_ganti_password: false, last_login: '',
+    created_at: Util.sekarang(), updated_at: Util.sekarang()
+  });
+  _ujiLacak(uid);
+  return { user_id: uid, username: username, password: password };
+}
+
+/* ============================================================ SUITE 1 */
+
+/** Gate 0 — auth & sesi (jalankan sendiri: ujiGate0). */
+function ujiGate0() {
+  _ujiMulai('GATE 0 — LOGIN, SESI, KUNCI, RESET');
+
+  /* --- prasyarat (pesan = petunjuk perbaikan) --- */
+  _ujiCek('SKEMA: kolom "password_hash" ada di sheet Users — bila GAGAL: jalankan setupLengkap()',
+          Db.header('Users').indexOf('password_hash') !== -1);
+  _ujiCek('BERKAS: Auth.gs & Util.gs termuat — bila GAGAL: salin ulang berkasnya',
+          typeof Auth !== 'undefined' && typeof Util !== 'undefined');
+
+  _ujiSeed();
+
+  /* --- login akun seed --- */
+  var rg = Auth.login('guru', 'guru123');
+  _ujiCek('login guru (seed) sukses', rg.ok === true, JSON.stringify(rg));
+  _ujiCek('role guru terbawa', rg.ok && rg.data.user.role === 'guru');
+
+  var rm = Auth.login('siswa01', 'siswa123');
+  _ujiCek('login murid (seed) sukses', rm.ok === true, JSON.stringify(rm));
+  _ujiCek('respons login memuat harus_ganti_password',
+          rm.ok && ('harus_ganti_password' in rm.data));
+
+  /* --- validasi token --- */
+  var tokenM = rm.ok ? rm.data.token : '';
+  _ujiCek('token murid valid → sesi role murid',
+          (Auth.validasiToken(tokenM) || {}).role === 'murid');
+  _ujiCek('token sampah ditolak', Auth.validasiToken('xxx-uji') === null);
+
+  /* --- pesan galat seragam (akun uji, bukan seed) --- */
+  var akun = _ujiBuatMuridStump('gate0', 'UjiGate0A1');
+  var a = Auth.login(akun.username, 'salah-satu');
+  var b = Auth.login(akun.username, 'salah-dua');
+  _ujiCek('pesan galat seragam (anti-enumerasi)',
+          a.ok === false && b.ok === false && a.pesan === b.pesan);
+
+  /* --- ganti sandi mandiri --- */
+  var sesiM = Auth.validasiToken(Auth.login(akun.username, akun.password).data.token);
+  var rgp = Auth.gantiPassword(sesiM, akun.password, 'UjiBaru123');
+  _ujiCek('ganti sandi mandiri sukses', rgp && rgp.berhasil === true,
+          JSON.stringify(rgp));
+  var uKini = Db.cari('Users', 'user_id', akun.user_id);
+  _ujiCek('pwd_awal dikosongkan setelah ganti sandi', uKini.pwd_awal === '');
+  _ujiCek('login dgn sandi baru sukses',
+          Auth.login(akun.username, 'UjiBaru123').ok === true);
+
+  /* --- kunci otomatis 5× gagal/15 menit (akun uji) --- */
+  for (var i = 0; i < 5; i++) Auth.login(akun.username, 'salah-ke' + i);
+  var terkunci = Auth.login(akun.username, 'UjiBaru123');   /* sandi BENAR */
+  _ujiCek('terkunci setelah 5× gagal — sandi benar pun ditolak',
+          terkunci && terkunci.error === 'AKUN_TERKUNCI', JSON.stringify(terkunci));
+  /* buka kunci — simulasi 15 menit berlalu */
+  try { CacheService.getScriptCache().remove('gagal_' + akun.username); } catch (e) {}
+
+  /* --- lupa sandi → reset oleh guru --- */
+  var rajukan = ajukanReset(akun.username);   /* endpoint publik Code.gs */
+  _ujiCek('ajukan reset diproses (respons selalu sama)',
+          rajukan && rajukan.ok === true && rajukan.data &&
+          rajukan.data.diterima === true, JSON.stringify(rajukan));
+  var antre = Db.saring('Permintaan_Reset', { user_id: akun.user_id })
+                .filter(function (r) { return r.status === 'antre'; });
+  _ujiCek('permintaan reset tercatat di sheet', antre.length >= 1);
+
+  var tokenG = Auth.login('guru', 'guru123').data.token;
+  var rlist = getPermintaanReset(tokenG);
+  _ujiCek('guru melihat antrean reset (endpoint role guru)',
+          rlist.ok === true, JSON.stringify(rlist));
+
+  var rreset = Auth.resetPasswordMurid(_ujiSesiGuru(), akun.user_id,
+                                       antre.length ? antre[0].request_id : '');
+  _ujiCek('guru reset sandi → sandi sementara dikembalikan',
+          rreset && !!rreset.password_sementara, JSON.stringify(rreset));
+  _ujiCek('login dgn sandi sementara sukses',
+          Auth.login(akun.username, rreset.password_sementara).ok === true);
+  var uKini2 = Db.cari('Users', 'user_id', akun.user_id);
+  _ujiCek('harus_ganti_password aktif setelah reset',
+          uKini2.harus_ganti_password === true ||
+          uKini2.harus_ganti_password === 'TRUE');
+  var reqKini = Db.cari('Permintaan_Reset', 'request_id',
+                        antre.length ? antre[0].request_id : '');
+  _ujiCek('permintaan reset berstatus "selesai"',
+          reqKini && reqKini.status === 'selesai');
+
+  /* --- nonaktif ditolak --- */
+  Db.perbarui('Users', uKini2._baris, { status: 'nonaktif' });
+  _ujiCek('akun nonaktif ditolak saat login',
+          Auth.login(akun.username, rreset.password_sementara).ok === false);
+
+  return _ujiSelesai('GATE 0');
+}
+
+/* ============================================================ SUITE 2 */
+
+/** Tahap 3.1 — Kelola Murid (jalankan sendiri: ujiMurid). */
+function ujiMurid() {
+  _ujiMulai('TAHAP 3.1 — KELOLA MURID');
+
+  /* --- prasyarat --- */
+  _ujiCek('BERKAS: Murid.gs termuat — bila GAGAL: salin Murid.gs',
+          typeof Murid !== 'undefined');
+  _ujiCek('BERKAS: endpoint murid* ada di Code.gs — bila GAGAL: salin ulang Code.gs',
+          typeof muridDaftar === 'function' && typeof muridSimpan === 'function');
+
+  _ujiSeed();
+  var sesiG = _ujiSesiGuru();
+  var jmlAwal = Db.baca('Users').length;
+  var S = __UJI.stamp;
+
+  /* --- tambah murid --- */
+  var r = Murid.simpan(sesiG, { nama: 'Murid Uji Satu',
+    username: S + '.satu', nisn: '0091234501', no_wa: '081234567890' });
+  _ujiCek('murid dibuat + password_sementara 8 karakter',
+          r.baru === true && (r.password_sementara || '').length === 8,
+          JSON.stringify(r));
+  _ujiLacak(r.user_id);
+  var u = Db.cari('Users', 'user_id', r.user_id);
+  _ujiCek('sandi tersimpan hash, pwd_awal terisi',
+          u.password_hash !== r.password_sementara && u.pwd_awal === r.password_sementara);
+  _ujiCek('no_wa dirapikan 62… & harus_ganti_password aktif',
+          u.no_wa === '6281234567890' && (u.harus_ganti_password === true ||
+          u.harus_ganti_password === 'TRUE'));
+
+  var rdup = _ujiCoba(function () {
+    return Murid.simpan(sesiG, { nama: 'Kembar', username: S + '.satu' });
+  });
+  _ujiCek('username duplikat ditolak (DUPLIKAT)', rdup.error === 'DUPLIKAT',
+          JSON.stringify(rdup));
+
+  /* --- daftar & detail --- */
+  var rl = Murid.daftar(sesiG, { cari: S });
+  _ujiCek('daftar + cari penanda uji', rl.length === 1 && rl[0].user_id === r.user_id,
+          'jml=' + rl.length);
+  _ujiCek('daftar tak membocorkan hash/salt',
+          rl[0].password_hash === undefined && rl[0].salt === undefined);
+  var rd = Murid.detail(sesiG, r.user_id);
+  _ujiCek('detail memuat pwd_awal & kelas[]',
+          rd.pwd_awal === r.password_sementara &&
+          Object.prototype.toString.call(rd.kelas) === '[object Array]');
+
+  /* --- edit sebagian + validasi --- */
+  Murid.simpan(sesiG, { user_id: r.user_id, no_wa: '081298765432' });
+  _ujiCek('edit sebagian no_wa → 62…',
+          Db.cari('Users', 'user_id', r.user_id).no_wa === '6281298765432');
+  var rn = _ujiCoba(function () {
+    return Murid.simpan(sesiG, { user_id: r.user_id, nisn: '12ab' });
+  });
+  _ujiCek('NISN tak sah ditolak', rn.error === 'VALIDASI_GAGAL');
+
+  /* --- nonaktif → sesi dicabut --- */
+  var tokM = Auth.login(u.username, r.password_sementara).data.token;
+  Murid.simpan(sesiG, { user_id: r.user_id, status: 'nonaktif' });
+  _ujiCek('sesi murid dicabut saat dinonaktifkan',
+          Auth.validasiToken(tokM) === null);
+  Murid.simpan(sesiG, { user_id: r.user_id, status: 'aktif' });
+
+  /* --- pratinjau & impor massal --- */
+  var teks = [
+    'Murid Uji Dua, XI TKJ 1, ' + S + '.dua, UjiSandi12',
+    'Murid Uji Tiga, XI TKJ 1, ' + S + '.tiga',
+    'Murid Uji Dua, XI TKJ 1, ' + S + '.dua, Lemah'
+  ].join('\n');
+  var rp = Murid.pratinjauImpor(sesiG, teks);
+  _ujiCek('pratinjau: 2 siap + 1 bermasalah (sandi lemah)',
+          rp.total === 3 && rp.siap.length === 2 && rp.masalah.length === 1,
+          JSON.stringify({ s: rp.siap.length, m: rp.masalah.length }));
+  _ujiCek('pratinjau tidak menulis ke DB',
+          Db.baca('Users').length === jmlAwal + 1);
+
+  var ri = Murid.impor(sesiG, teks);
+  _ujiCek('impor: 2 baru + 1 gagal (konsisten dgn pratinjau)',
+          ri.jml_baru === 2 && ri.jml_gagal === 1,
+          JSON.stringify({ b: ri.jml_baru, g: ri.jml_gagal }));
+  ri.hasil.forEach(function (x) { _ujiLacak(x.user_id); });
+  var dua = ri.hasil.filter(function (x) { return x.username === S + '.dua'; })[0];
+  _ujiCek('impor: sandi kustom guru dipakai & tak wajib ganti',
+          dua && dua.password === 'UjiSandi12' && dua.sandi_sendiri === true);
+  _ujiCek('impor: murid baru bisa login',
+          Auth.login(S + '.dua', 'UjiSandi12').ok === true);
+
+  /* --- endpoint --- */
+  var tokenG = Auth.login('guru', 'guru123').data.token;
+  var re1 = muridDaftar(tokenG, { cari: S });
+  _ujiCek('endpoint muridDaftar (guru) OK', re1.ok === true && re1.data.length >= 1,
+          JSON.stringify(re1));
+  var tokMurid = Auth.login(u.username, r.password_sementara);
+  var re2 = muridDaftar(tokMurid.ok ? tokMurid.data.token : '', {});
+  _ujiCek('endpoint muridDaftar ditolak utk role murid',
+          re2.ok === false && re2.error === 'AKSES_DITOLAK', JSON.stringify(re2));
+  var re3 = muridDetail('token-sampah', r.user_id);
+  _ujiCek('endpoint dgn sesi invalid ditolak',
+          re3.ok === false && re3.error === 'SESI_INVALID');
+
+  return _ujiSelesai('TAHAP 3.1');
+}
+
+/* ============================================================ SEMUA */
+
+/** Jalankan seluruh suite. Fungsi inilah yang dijalankan dari editor. */
+function ujiSemua() {
+  var t0 = Date.now();
+  var a = ujiGate0();
+  var b = ujiMurid();
+  var total = a.jml + b.jml;
+  var gagal = a.gagal + b.gagal;
+  Logger.log('');
+  Logger.log('====================================================');
+  Logger.log(' UJI SEMUA: ' + (total - gagal) + '/' + total + ' lulus' +
+             (gagal ? ' — ' + gagal + ' GAGAL ✘' : ' — SEMUA LULUS ✔') +
+             '  (' + Math.round((Date.now() - t0) / 1000) + ' dtk)');
+  Logger.log('====================================================');
+  return { jml: total, gagal: gagal };
+}

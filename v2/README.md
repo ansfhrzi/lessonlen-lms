@@ -31,6 +31,7 @@ yang ada di akar repositori.
 | `Util.gs` | Generator ID (sheet `Counters` + lock), hash kata sandi, sanitasi, audit log |
 | `Auth.gs` | Login, sesi, ganti/lupa/reset kata sandi (port v1) |
 | `Murid.gs` | **Tahap 3.1** — Kelola Murid: daftar/cari/filter, tambah/edit (sandi sementara), detail (+`pwd_awal`), impor massal + pratinjau (dedupe username) |
+| `Uji.gs` | **Uji dari editor Apps Script** ke DB nyata: `ujiSemua()` (atau `ujiGate0()` / `ujiMurid()`); data uji berpenanda `uXXXXXX` + pembersihan otomatis; akun seed tak diubah |
 | `index.html` + `css.html` | Cangkang UI |
 | `v_login.html`, `v_dashboard.html` | Layar masuk & dasbor guru/murid |
 | `js_core.html`, `js_auth.html` | Pembungkus `google.script.run`, token sesi, logika layar |

@@ -12,6 +12,8 @@ global.Utilities = {
 };
 
 const _cache = {};
+global.Logger = { log: () => {} };
+
 global.CacheService = {
   getScriptCache: () => ({
     get: (k) => (_cache[k] !== undefined ? _cache[k] : null),
