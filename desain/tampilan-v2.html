@@ -1,0 +1,879 @@
+<!DOCTYPE html>
+<html lang="id" data-tema="indigo">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Prototipe Tampilan — LessonLen LMS v2</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+/* ============================================================
+   SISTEM DESAIN — LessonLen LMS v2 (prototipe kesepakatan)
+   Satu kosakata komponen: kartu, tabel, badge, tombol, dialog,
+   toast. Tema diganti lewat data-tema pada <html>.
+   ============================================================ */
+:root{
+  --font:'Plus Jakarta Sans',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+  --radius:14px; --radius-kecil:10px;
+  --bayangan:0 1px 2px rgba(16,24,40,.05),0 1px 3px rgba(16,24,40,.06);
+  --bayangan-besar:0 12px 32px rgba(16,24,40,.14);
+}
+html[data-tema="indigo"]{
+  --primer:#4f46e5; --primer-tua:#4338ca; --primer-lembut:#eef2ff; --primer-teks:#3730a3;
+  --bg:#f4f5fa; --panel:#ffffff; --tepi:#e4e7ef;
+  --teks:#111827; --teks-lembut:#6b7280; --teks-pudar:#9ca3af;
+  --sukses:#059669; --sukses-lembut:#ecfdf5;
+  --bahaya:#dc2626; --bahaya-lembut:#fef2f2;
+  --peringatan:#b45309; --peringatan-lembut:#fffbeb;
+  --sidebar:#111a2e; --sidebar-teks:#c7cde3; --sidebar-aktif:#ffffff;
+}
+html[data-tema="biru"]{
+  --primer:#0284c7; --primer-tua:#0369a1; --primer-lembut:#e0f2fe; --primer-teks:#075985;
+  --bg:#f2f6fa; --panel:#ffffff; --tepi:#e2e8f0;
+  --teks:#0f172a; --teks-lembut:#64748b; --teks-pudar:#94a3b8;
+  --sukses:#059669; --sukses-lembut:#ecfdf5;
+  --bahaya:#dc2626; --bahaya-lembut:#fef2f2;
+  --peringatan:#b45309; --peringatan-lembut:#fffbeb;
+  --sidebar:#0c1a28; --sidebar-teks:#c2cfdd; --sidebar-aktif:#ffffff;
+}
+html[data-tema="hijau"]{
+  --primer:#059669; --primer-tua:#047857; --primer-lembut:#ecfdf5; --primer-teks:#065f46;
+  --bg:#f3f7f4; --panel:#ffffff; --tepi:#e3ebe5;
+  --teks:#111827; --teks-lembut:#6b7280; --teks-pudar:#9ca3af;
+  --sukses:#059669; --sukses-lembut:#ecfdf5;
+  --bahaya:#dc2626; --bahaya-lembut:#fef2f2;
+  --peringatan:#b45309; --peringatan-lembut:#fffbeb;
+  --sidebar:#0d211a; --sidebar-teks:#c4d8ce; --sidebar-aktif:#ffffff;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:var(--font);background:var(--bg);color:var(--teks);font-size:15px;line-height:1.5}
+b,strong{font-weight:700}
+button{font-family:inherit;cursor:pointer}
+input,select,textarea{font-family:inherit;font-size:14px;color:var(--teks)}
+svg{flex:none}
+
+/* ---------- cangkang aplikasi ---------- */
+.login-wrap{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px}
+.app{display:none;min-height:100vh}
+.app.tampil{display:block}
+.sidebar{position:fixed;inset:0 auto 0 0;width:242px;background:var(--sidebar);color:var(--sidebar-teks);
+  display:flex;flex-direction:column;padding:18px 14px;z-index:40;transition:transform .22s ease}
+.merek{display:flex;align-items:center;gap:10px;padding:4px 8px 16px;border-bottom:1px solid rgba(255,255,255,.09);margin-bottom:14px}
+.merek-logo{width:38px;height:38px;border-radius:11px;background:var(--primer);color:#fff;display:flex;
+  align-items:center;justify-content:center;font-weight:800;font-size:15px;letter-spacing:.5px}
+.merek-nama{font-weight:800;color:#fff;font-size:15px;line-height:1.2}
+.merek-nama small{display:block;font-weight:500;font-size:11px;color:var(--sidebar-teks)}
+.menu{display:flex;flex-direction:column;gap:3px;flex:1}
+.menu a{display:flex;align-items:center;gap:11px;padding:10px 12px;border-radius:10px;color:var(--sidebar-teks);
+  text-decoration:none;font-weight:600;font-size:14px;transition:background .15s}
+.menu a svg{width:19px;height:19px}
+.menu a:hover{background:rgba(255,255,255,.07)}
+.menu a.aktif{background:var(--primer);color:#fff}
+.menu-judul{font-size:10.5px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;
+  color:rgba(255,255,255,.38);padding:8px 12px 4px}
+.profil{border-top:1px solid rgba(255,255,255,.09);padding-top:12px;display:flex;align-items:center;gap:10px}
+.profil-avatar{width:36px;height:36px;border-radius:50%;background:var(--primer-lembut);color:var(--primer-tua);
+  display:flex;align-items:center;justify-content:center;font-weight:800;font-size:13px}
+.profil-nama{flex:1;min-width:0}
+.profil-nama b{display:block;color:#fff;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.profil-nama small{font-size:11px}
+.profil button{background:none;border:none;color:var(--sidebar-teks);padding:7px;border-radius:8px;display:flex}
+.profil button:hover{background:rgba(255,255,255,.1);color:#fff}
+
+.konten{margin-left:242px;min-height:100vh;display:flex;flex-direction:column}
+.topbar{display:none;position:sticky;top:0;z-index:30;background:var(--panel);border-bottom:1px solid var(--tepi);
+  padding:10px 14px;align-items:center;gap:10px}
+.topbar-judul{font-weight:800;font-size:15px;flex:1}
+.topbar button{background:none;border:1px solid var(--tepi);border-radius:9px;padding:8px;display:flex;color:var(--teks)}
+.strip-prototipe{background:var(--peringatan-lembut);color:var(--peringatan);font-size:12px;font-weight:600;
+  text-align:center;padding:5px 10px;border-bottom:1px solid var(--tepi)}
+.isi{flex:1;padding:26px 30px 60px;max-width:1160px;width:100%;margin:0 auto}
+.kaki{padding:14px 30px;color:var(--teks-pudar);font-size:12px;text-align:center}
+
+/* ---------- kepala layar ---------- */
+.kepala{display:flex;align-items:flex-start;gap:14px;margin-bottom:20px;flex-wrap:wrap}
+.kepala h1{font-size:21px;font-weight:800;letter-spacing:-.01em}
+.kepala p{color:var(--teks-lembut);font-size:13.5px;margin-top:2px}
+.kepala-aksi{margin-left:auto;display:flex;gap:9px;flex-wrap:wrap}
+.boleh-kembali{display:inline-flex;align-items:center;gap:6px;color:var(--teks-lembut);text-decoration:none;
+  font-weight:600;font-size:13px;margin-bottom:8px}
+.boleh-kembali:hover{color:var(--primer)}
+
+/* ---------- tombol ---------- */
+.btn{display:inline-flex;align-items:center;gap:7px;border-radius:10px;border:1px solid transparent;
+  font-weight:700;font-size:13.5px;padding:9px 15px;transition:filter .15s,background .15s}
+.btn svg{width:16px;height:16px}
+.btn-primer{background:var(--primer);color:#fff}
+.btn-primer:hover{background:var(--primer-tua)}
+.btn-pudar{background:var(--panel);border-color:var(--tepi);color:var(--teks)}
+.btn-pudar:hover{background:var(--bg)}
+.btn-bahaya{background:var(--bahaya);color:#fff}
+.btn-bahaya-hantu{background:var(--bahaya-lembut);color:var(--bahaya)}
+.btn-kecil{padding:6px 11px;font-size:12.5px;border-radius:8px}
+.btn-teks{background:none;border:none;color:var(--teks-lembut);padding:7px;border-radius:8px;display:inline-flex}
+.btn-teks:hover{background:var(--bg);color:var(--teks)}
+.btn-teks svg{width:17px;height:17px}
+.btn-teks.merah:hover{color:var(--bahaya);background:var(--bahaya-lembut)}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+
+/* ---------- kartu & kisi ---------- */
+.kartu{background:var(--panel);border:1px solid var(--tepi);border-radius:var(--radius);box-shadow:var(--bayangan)}
+.kartu-isi{padding:20px}
+.kisi-stat{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:14px;margin-bottom:22px}
+.stat{background:var(--panel);border:1px solid var(--tepi);border-radius:var(--radius);box-shadow:var(--bayangan);
+  padding:16px 18px;display:flex;gap:14px;align-items:center}
+.stat-ikon{width:44px;height:44px;border-radius:12px;background:var(--primer-lembut);color:var(--primer);
+  display:flex;align-items:center;justify-content:center}
+.stat-ikon svg{width:22px;height:22px}
+.stat b{font-size:22px;font-weight:800;display:block;line-height:1.1}
+.stat small{color:var(--teks-lembut);font-size:12.5px;font-weight:600}
+.kisi-kartu{display:grid;grid-template-columns:repeat(auto-fill,minmax(255px,1fr));gap:14px}
+.kartu-barang{background:var(--panel);border:1px solid var(--tepi);border-radius:var(--radius);
+  box-shadow:var(--bayangan);padding:18px;display:flex;flex-direction:column;gap:10px}
+.kartu-barang:hover{border-color:var(--primer)}
+.kartu-judul{font-weight:800;font-size:15.5px;letter-spacing:-.01em}
+.kartu-sub{color:var(--teks-lembut);font-size:13px}
+.kartu-kaki{display:flex;gap:8px;margin-top:auto;padding-top:6px}
+
+/* ---------- pintasan beranda ---------- */
+.pintasan{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px}
+.pintasan a{background:var(--panel);border:1px solid var(--tepi);border-radius:var(--radius);
+  box-shadow:var(--bayangan);padding:16px;text-decoration:none;color:var(--teks);display:flex;gap:12px;align-items:center}
+.pintasan a:hover{border-color:var(--primer)}
+.pintasan-ikon{width:40px;height:40px;border-radius:11px;background:var(--primer-lembut);color:var(--primer);
+  display:flex;align-items:center;justify-content:center}
+.pintasan-ikon svg{width:20px;height:20px}
+.pintasan b{display:block;font-size:14px}
+.pintasan small{color:var(--teks-lembut);font-size:12px}
+.judul-seksi{font-size:13px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;
+  color:var(--teks-lembut);margin:24px 0 10px}
+
+/* ---------- tabel ---------- */
+.tabel-kartu{overflow:hidden}
+.tabel-alat{display:flex;gap:10px;align-items:center;padding:14px 16px;border-bottom:1px solid var(--tepi);flex-wrap:wrap}
+.cari{display:flex;align-items:center;gap:8px;background:var(--bg);border:1px solid var(--tepi);
+  border-radius:10px;padding:8px 12px;flex:1;min-width:180px;max-width:340px;color:var(--teks-pudar)}
+.cari input{border:none;background:none;outline:none;flex:1}
+.cari svg{width:16px;height:16px}
+.tabel-gulir{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:14px}
+th{font-size:11.5px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--teks-lembut);
+  text-align:left;padding:10px 16px;border-bottom:1px solid var(--tepi);background:var(--bg);white-space:nowrap}
+td{padding:12px 16px;border-bottom:1px solid var(--tepi);vertical-align:middle}
+tr:last-child td{border-bottom:none}
+tbody tr:hover{background:var(--bg)}
+.sel-orang{display:flex;align-items:center;gap:11px}
+.avatar{width:34px;height:34px;border-radius:50%;background:var(--primer-lembut);color:var(--primer-tua);
+  display:flex;align-items:center;justify-content:center;font-weight:800;font-size:12px;flex:none}
+.sel-orang small{display:block;color:var(--teks-lembut)}
+.td-aksi{white-space:nowrap;text-align:right}
+.kosong{padding:36px;text-align:center;color:var(--teks-lembut)}
+.kosong b{display:block;color:var(--teks);margin-bottom:3px}
+
+/* ---------- badge ---------- */
+.badge{display:inline-flex;align-items:center;gap:5px;border-radius:999px;font-size:11.5px;font-weight:700;padding:3px 10px}
+.badge svg{width:11px;height:11px}
+.badge-aktif{background:var(--sukses-lembut);color:var(--sukses)}
+.badge-nonaktif{background:var(--bahaya-lembut);color:var(--bahaya)}
+.badge-info{background:var(--primer-lembut);color:var(--primer-teks)}
+.badge-tunggu{background:var(--peringatan-lembut);color:var(--peringatan)}
+
+/* ---------- form ---------- */
+.grup{margin-bottom:14px}
+.grup label{display:block;font-weight:700;font-size:13px;margin-bottom:6px}
+.grup label .wajib{color:var(--bahaya)}
+.isian{width:100%;border:1px solid var(--tepi);border-radius:10px;padding:9px 12px;outline:none;background:var(--panel)}
+.isian:focus{border-color:var(--primer);box-shadow:0 0 0 3px var(--primer-lembut)}
+.bantuan{font-size:12px;color:var(--teks-lembut);margin-top:5px}
+.baris-form{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+textarea.isian{resize:vertical;min-height:110px;font-family:ui-monospace,monospace;font-size:13px}
+
+/* ---------- dialog ---------- */
+dialog{border:none;border-radius:var(--radius);box-shadow:var(--bayangan-besar);padding:0;
+  width:min(480px,92vw);color:var(--teks)}
+dialog::backdrop{background:rgba(15,23,42,.45)}
+.dialog-isi{padding:22px}
+.dialog-isi h3{font-size:17px;font-weight:800;margin-bottom:4px}
+.dialog-isi>p.lembut{color:var(--teks-lembut);font-size:13px;margin-bottom:16px}
+.dialog-aksi{display:flex;justify-content:flex-end;gap:9px;margin-top:20px;padding-top:16px;border-top:1px solid var(--tepi)}
+.sukses-sandi{background:var(--sukses-lembut);border:1px dashed var(--sukses);border-radius:10px;
+  padding:14px;text-align:center;margin:10px 0}
+.sukses-sandi code{font-size:24px;font-weight:800;letter-spacing:.12em;color:var(--sukses);display:block;margin-bottom:8px}
+.sukses-sandi small{color:var(--teks-lembut)}
+.baris-salin{display:flex;gap:8px;justify-content:center}
+
+/* ---------- notifikasi (lonceng) ---------- */
+.lonceng-wadah{position:relative}
+.lonceng-panel{position:absolute;right:0;top:calc(100% + 8px);width:min(330px,88vw);background:var(--panel);
+  border:1px solid var(--tepi);border-radius:var(--radius);box-shadow:var(--bayangan-besar);z-index:60;display:none}
+.lonceng-panel.tampil{display:block}
+.lonceng-kepala{display:flex;align-items:center;justify-content:space-between;padding:13px 16px;border-bottom:1px solid var(--tepi);font-weight:800;font-size:14px}
+.lonceng-kepala button{background:none;border:none;color:var(--primer);font-weight:700;font-size:12.5px}
+.notif{display:flex;gap:11px;padding:13px 16px;border-bottom:1px solid var(--tepi);font-size:13px}
+.notif:last-child{border-bottom:none}
+.notif-dot{width:8px;height:8px;border-radius:50%;background:var(--primer);margin-top:6px;flex:none}
+.notif.baca .notif-dot{background:var(--tepi)}
+.notif small{color:var(--teks-pudar);display:block;margin-top:2px}
+.titik-merah{position:absolute;top:7px;right:7px;width:8px;height:8px;border-radius:50%;background:var(--bahaya);border:2px solid var(--panel)}
+
+/* ---------- api key ---------- */
+.slot-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;margin-bottom:18px}
+.slot{border:1.5px dashed var(--tepi);border-radius:var(--radius-kecil);padding:12px;text-align:center;color:var(--teks-pudar);font-size:12.5px;font-weight:600}
+.slot.penuh{border-style:solid;border-color:var(--tepi);background:var(--panel);color:var(--teks);box-shadow:var(--bayangan)}
+.slot .ikon-atas{font-size:18px;display:block;margin-bottom:4px}
+.slot small{display:block;color:var(--teks-lembut);font-weight:500;margin-top:2px}
+.daftar-key{display:flex;flex-direction:column}
+.baris-key{display:flex;align-items:center;gap:12px;padding:12px 16px;border-bottom:1px solid var(--tepi);font-size:13.5px}
+.baris-key:last-child{border-bottom:none}
+.baris-key code{background:var(--bg);border:1px solid var(--tepi);border-radius:7px;padding:2px 8px;font-size:12.5px}
+.baris-key .tumbuh{flex:1}
+
+/* ---------- placeholder rekap ---------- */
+.kosong-besar{padding:56px 24px;text-align:center}
+.kosong-besar .ikon{font-size:40px;margin-bottom:10px}
+.kosong-besar h3{font-size:17px;font-weight:800;margin-bottom:6px}
+.kosong-besar p{color:var(--teks-lembut);max-width:420px;margin:0 auto 16px;font-size:13.5px}
+
+/* ---------- toast ---------- */
+#toast-wadah{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);z-index:100;display:flex;flex-direction:column;gap:8px;align-items:center}
+.toast{background:#111827;color:#fff;border-radius:10px;padding:10px 18px;font-size:13.5px;font-weight:600;
+  box-shadow:var(--bayangan-besar);animation:muncul .2s ease}
+.toast.sukses{background:var(--sukses)} .toast.bahaya{background:var(--bahaya)}
+@keyframes muncul{from{opacity:0;transform:translateY(8px)}to{opacity:1}}
+
+/* ---------- alat prototipe ---------- */
+.alat-proto{position:fixed;bottom:18px;right:18px;z-index:90;display:flex;flex-direction:column;gap:8px;align-items:flex-end}
+.alat-proto button{border:1px solid var(--tepi);background:var(--panel);box-shadow:var(--bayangan-besar);
+  border-radius:999px;padding:9px 15px;font-size:12.5px;font-weight:700;color:var(--teks);display:flex;gap:6px;align-items:center}
+.peta-panel{position:fixed;bottom:64px;right:18px;z-index:90;background:var(--panel);border:1px solid var(--tepi);
+  border-radius:var(--radius);box-shadow:var(--bayangan-besar);padding:10px;display:none;flex-direction:column;gap:2px;width:230px}
+.peta-panel.tampil{display:flex}
+.peta-panel button{background:none;border:none;text-align:left;padding:8px 10px;border-radius:8px;font-size:13px;font-weight:600;color:var(--teks);box-shadow:none}
+.peta-panel button:hover{background:var(--primer-lembut);color:var(--primer-teks)}
+
+/* ---------- responsif ---------- */
+.overlay-samping{position:fixed;inset:0;background:rgba(15,23,42,.4);z-index:35;display:none}
+.overlay-samping.tampil{display:block}
+@media (max-width:900px){
+  .sidebar{transform:translateX(-100%)}
+  .sidebar.tampil{transform:none}
+  .konten{margin-left:0}
+  .topbar{display:flex}
+  .isi{padding:18px 14px 70px}
+  .kepala-aksi{margin-left:0;width:100%}
+  .baris-form{grid-template-columns:1fr}
+}
+@media print{.sidebar,.topbar,.alat-proto,.strip-prototipe{display:none}}
+</style>
+</head>
+<body>
+
+<!-- ================= LOGIN ================= -->
+<div class="login-wrap" id="layar-login">
+  <div class="kartu" style="width:min(400px,94vw)">
+    <div class="kartu-isi">
+      <div style="text-align:center;margin-bottom:20px">
+        <div class="merek-logo" style="margin:0 auto 12px;width:52px;height:52px;font-size:19px;border-radius:15px">LL</div>
+        <h2 style="font-size:19px;font-weight:800">LessonLen LMS</h2>
+        <p style="color:var(--teks-lembut);font-size:13px;margin-top:3px">Masuk untuk melanjutkan</p>
+      </div>
+      <div class="grup">
+        <label for="lg-user">Nama pengguna <span class="wajib">*</span></label>
+        <input class="isian" id="lg-user" placeholder="mis. budi.guru" autocomplete="off">
+      </div>
+      <div class="grup">
+        <label for="lg-sandi">Kata sandi <span class="wajib">*</span></label>
+        <input class="isian" id="lg-sandi" type="password" placeholder="••••••••">
+      </div>
+      <button class="btn btn-primer" style="width:100%;justify-content:center;padding:11px" onclick="masukDemo()">
+        Masuk
+      </button>
+      <p style="text-align:center;margin-top:14px;font-size:12.5px;color:var(--teks-lembut)">
+        Lupa kata sandi? <a href="#" onclick="toast('Alur v1: ajukan reset → guru mereset.','info');return false" style="color:var(--primer);font-weight:700">Ajukan reset</a>
+      </p>
+    </div>
+  </div>
+</div>
+
+<!-- ================= APLIKASI ================= -->
+<div class="app" id="aplikasi">
+  <div class="overlay-samping" id="overlay-samping" onclick="tutupSidebar()"></div>
+
+  <aside class="sidebar" id="sidebar">
+    <div class="merek">
+      <div class="merek-logo">LL</div>
+      <div class="merek-nama">LessonLen LMS<small>v2 — dashboard guru</small></div>
+    </div>
+    <nav class="menu">
+      <div class="menu-judul">Menu Utama</div>
+      <a href="#" data-rute="beranda" class="aktif" onclick="buka('beranda');return false">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V21h14V9.5"/></svg>
+        Beranda</a>
+      <a href="#" data-rute="kelas" onclick="buka('kelas');return false">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="14" rx="2"/><path d="M7 9h6M7 13h10"/><path d="M12 18v3"/></svg>
+        Kelola Kelas</a>
+      <a href="#" data-rute="course" onclick="buka('course');return false">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19V6a2 2 0 0 1 2-2h13v13H6a2 2 0 0 0-2 2Zm0 0a2 2 0 0 0 2 2h13"/><path d="M9 8h6"/></svg>
+        Kelola Course</a>
+      <a href="#" data-rute="murid" onclick="buka('murid');return false">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.8-3.2 3.4-5 6.5-5s5.7 1.8 6.5 5"/><path d="M17 8h5M19.5 5.5v5"/></svg>
+        Kelola Murid</a>
+      <a href="#" data-rute="rekap" onclick="buka('rekap');return false">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20V10M10 20V4M16 20v-7M21 20H3"/></svg>
+        Rekap Nilai</a>
+      <a href="#" data-rute="apikey" onclick="buka('apikey');return false">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="14" r="4"/><path d="M11 11 20 2M16 6l3 3M13 9l2 2"/></svg>
+        Status API Key</a>
+    </nav>
+    <div class="profil">
+      <div class="profil-avatar">PB</div>
+      <div class="profil-nama"><b>Budi Santoso, S.Kom</b><small>guru</small></div>
+      <button title="Keluar" onclick="keluarDemo()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="18" height="18"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="m16 17 5-5-5-5M21 12H9"/></svg></button>
+    </div>
+  </aside>
+
+  <div class="konten">
+    <div class="topbar">
+      <button onclick="bukaSidebar()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" width="19" height="19"><path d="M3 6h18M3 12h18M3 18h18"/></svg></button>
+      <div class="topbar-judul" id="topbar-judul">Beranda</div>
+      <div class="lonceng-wadah">
+        <button onclick="lonceng(event)" style="position:relative">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="19" height="19"><path d="M18 8a6 6 0 1 0-12 0c0 7-3 8-3 8h18s-3-1-3-8"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg>
+          <span class="titik-merah" id="lonceng-titik"></span>
+        </button>
+        <div class="lonceng-panel" id="lonceng-panel">
+          <div class="lonceng-kepala">Notifikasi <button onclick="tandaiBaca()">Tandai dibaca</button></div>
+          <div class="notif"><span class="notif-dot"></span><div><b>Rina Andini</b> enroll ke kelas <b>XI TKJ 1</b>.<small>2 menit lalu</small></div></div>
+          <div class="notif"><span class="notif-dot"></span><div>Permintaan reset sandi dari <b>dimas.wijaya</b>.<small>1 jam lalu</small></div></div>
+          <div class="notif baca"><span class="notif-dot"></span><div>Selamat datang di LessonLen LMS v2!<small>kemarin</small></div></div>
+        </div>
+      </div>
+    </div>
+    <div class="strip-prototipe">PROTOTIPE DESAIN — data dummy, belum terhubung server. Klik ⚙️ Layar (kanan bawah) untuk melompat antar layar.</div>
+
+    <main class="isi">
+
+      <!-- ============ BERANDA ============ -->
+      <section class="layar" id="layar-beranda">
+        <div class="kepala">
+          <div>
+            <h1>Selamat pagi, Pak Budi 👋</h1>
+            <p>Selasa, 2 September 2026 — semua sistem berjalan normal.</p>
+          </div>
+        </div>
+        <div class="kisi-stat">
+          <div class="stat"><div class="stat-ikon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="4" width="18" height="14" rx="2"/><path d="M7 9h6M7 13h10"/></svg></div><div><b>3</b><small>Kelas aktif</small></div></div>
+          <div class="stat"><div class="stat-ikon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 19V6a2 2 0 0 1 2-2h13v13H6a2 2 0 0 0-2 2Zm0 0a2 2 0 0 0 2 2h13"/></svg></div><div><b>3</b><small>Course</small></div></div>
+          <div class="stat"><div class="stat-ikon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.8-3.2 3.4-5 6.5-5s5.7 1.8 6.5 5"/><path d="M17 8h5M19.5 5.5v5"/></svg></div><div><b>42</b><small>Murid aktif</small></div></div>
+          <div class="stat"><div class="stat-ikon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="8" cy="14" r="4"/><path d="M11 11 20 2M16 6l3 3"/></svg></div><div><b>7/10</b><small>API key terpasang</small></div></div>
+        </div>
+
+        <div class="judul-seksi">Perlu tindakan</div>
+        <div class="kartu"><div class="kartu-isi" style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+          <span class="badge badge-tunggu">1 permintaan</span>
+          <div style="flex:1;min-width:200px"><b>dimas.wijaya</b> meminta reset kata sandi.
+            <div class="kartu-sub">Ajukan reset dari layar Kelola Murid.</div></div>
+          <button class="btn btn-pudar btn-kecil" onclick="buka('murid')">Lihat murid</button>
+        </div></div>
+
+        <div class="judul-seksi">Pintasan menu</div>
+        <div class="pintasan">
+          <a href="#" onclick="buka('kelas');return false"><div class="pintasan-ikon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="4" width="18" height="14" rx="2"/><path d="M7 9h6M7 13h10"/></svg></div><div><b>Kelola Kelas</b><small>Buat kelas & atur muridnya</small></div></a>
+          <a href="#" onclick="buka('course');return false"><div class="pintasan-ikon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 19V6a2 2 0 0 1 2-2h13v13H6a2 2 0 0 0-2 2Zm0 0a2 2 0 0 0 2 2h13"/></svg></div><div><b>Kelola Course</b><small>Gabungan kelas & mapel</small></div></a>
+          <a href="#" onclick="buka('murid');return false"><div class="pintasan-ikon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.8-3.2 3.4-5 6.5-5s5.7 1.8 6.5 5"/><path d="M17 8h5M19.5 5.5v5"/></svg></div><div><b>Kelola Murid</b><small>Tambah, impor, nonaktifkan</small></div></a>
+          <a href="#" onclick="buka('rekap');return false"><div class="pintasan-ikon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 20V10M10 20V4M16 20v-7M21 20H3"/></svg></div><div><b>Rekap Nilai</b><small>Per course + export</small></div></a>
+          <a href="#" onclick="buka('apikey');return false"><div class="pintasan-ikon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="8" cy="14" r="4"/><path d="M11 11 20 2M16 6l3 3"/></svg></div><div><b>Status API Key</b><small>Maks. 10 key Gemini</small></div></a>
+        </div>
+      </section>
+
+      <!-- ============ KELOLA MURID ============ -->
+      <section class="layar" id="layar-murid" style="display:none">
+        <div class="kepala">
+          <div><h1>Kelola Murid</h1><p>Semua murid terdaftar di sistem — termasuk yang belum masuk kelas.</p></div>
+          <div class="kepala-aksi">
+            <button class="btn btn-pudar" onclick="bukaDialog('dlg-impor')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 3v12m0 0 4-4m-4 4-4-4"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>Impor massal</button>
+            <button class="btn btn-primer" onclick="bukaDialog('dlg-murid')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>Tambah murid</button>
+          </div>
+        </div>
+        <div class="kartu tabel-kartu">
+          <div class="tabel-alat">
+            <div class="cari"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input placeholder="Cari nama / username / NISN…"></div>
+            <select class="isian" style="width:auto"><option>Semua status</option><option>Aktif</option><option>Nonaktif</option></select>
+          </div>
+          <div class="tabel-gulir">
+            <table>
+              <thead><tr><th>Murid</th><th>NISN</th><th>No WA</th><th>Status</th><th>Login terakhir</th><th></th></tr></thead>
+              <tbody>
+                <tr>
+                  <td><div class="sel-orang"><div class="avatar">RA</div><div><b>Rina Andini</b><small>rina.andini</small></div></div></td>
+                  <td>0091234501</td><td>6281234500001</td>
+                  <td><span class="badge badge-aktif">● Aktif</span></td><td>2 menit lalu</td>
+                  <td class="td-aksi"><button class="btn-teks" title="Detail & sandi" onclick="bukaDialog('dlg-detail')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></button><button class="btn-teks" title="Edit" onclick="bukaDialog('dlg-murid')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M17 3a2.8 2.8 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg></button><button class="btn-teks merah" title="Nonaktifkan" onclick="bukaDialog('dlg-nonaktif')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 2v8"/><path d="M6.3 6.3a8 8 0 1 0 11.4 0"/></svg></button></td>
+                </tr>
+                <tr>
+                  <td><div class="sel-orang"><div class="avatar">DW</div><div><b>Dimas Wijaya</b><small>dimas.wijaya</small></div></div></td>
+                  <td>0091234502</td><td>6281234500002</td>
+                  <td><span class="badge badge-aktif">● Aktif</span></td><td>1 jam lalu</td>
+                  <td class="td-aksi"><button class="btn-teks" title="Detail & sandi" onclick="bukaDialog('dlg-detail')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></button><button class="btn-teks" title="Edit" onclick="bukaDialog('dlg-murid')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M17 3a2.8 2.8 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg></button><button class="btn-teks merah" title="Nonaktifkan" onclick="bukaDialog('dlg-nonaktif')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 2v8"/><path d="M6.3 6.3a8 8 0 1 0 11.4 0"/></svg></button></td>
+                </tr>
+                <tr>
+                  <td><div class="sel-orang"><div class="avatar">SL</div><div><b>Siti Lestari</b><small>siti.lestari</small></div></div></td>
+                  <td>0091234503</td><td>6281234500003</td>
+                  <td><span class="badge badge-nonaktif">● Nonaktif</span></td><td>3 hari lalu</td>
+                  <td class="td-aksi"><button class="btn-teks" title="Detail & sandi" onclick="bukaDialog('dlg-detail')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></button><button class="btn-teks" title="Edit" onclick="bukaDialog('dlg-murid')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M17 3a2.8 2.8 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg></button><button class="btn-teks merah" title="Aktifkan" onclick="toast('Murid diaktifkan kembali.','sukses')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg></button></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <p class="bantuan" style="margin-top:10px">💡 Sandi sementara murid terlihat di dialog detail (ikon 👁) sampai murid menggantinya sendiri — perilaku sama seperti v1.</p>
+      </section>
+
+      <!-- ============ KELOLA KELAS ============ -->
+      <section class="layar" id="layar-kelas" style="display:none">
+        <div class="kepala">
+          <div><h1>Kelola Kelas</h1><p>Kelas = rombongan belajar. Murid di-enroll ke kelas, course memakai kelas ini.</p></div>
+          <div class="kepala-aksi">
+            <button class="btn btn-primer" onclick="bukaDialog('dlg-kelas')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>Buat kelas</button>
+          </div>
+        </div>
+        <div class="kisi-kartu">
+          <div class="kartu-barang">
+            <div><span class="badge badge-info">X</span>&nbsp; <span class="badge badge-info">TKJ</span></div>
+            <div class="kartu-judul">XI TKJ 1</div>
+            <div class="kartu-sub">32 murid · dipakai 2 course</div>
+            <div class="kartu-kaki">
+              <button class="btn btn-pudar btn-kecil" onclick="buka('kelas-detail')">Buka kelas</button>
+              <button class="btn-teks" title="Edit" onclick="bukaDialog('dlg-kelas')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M17 3a2.8 2.8 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg></button>
+            </div>
+          </div>
+          <div class="kartu-barang">
+            <div><span class="badge badge-info">X</span>&nbsp; <span class="badge badge-info">TKJ</span></div>
+            <div class="kartu-judul">XI TKJ 2</div>
+            <div class="kartu-sub">30 murid · belum dipakai course</div>
+            <div class="kartu-kaki">
+              <button class="btn btn-pudar btn-kecil" onclick="toast('Demo: layar detail kelas yang sama.','info')">Buka kelas</button>
+              <button class="btn-teks" title="Edit" onclick="bukaDialog('dlg-kelas')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M17 3a2.8 2.8 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg></button>
+            </div>
+          </div>
+          <div class="kartu-barang">
+            <div><span class="badge badge-info">XI</span>&nbsp; <span class="badge badge-info">RPL</span></div>
+            <div class="kartu-judul">X RPL 1</div>
+            <div class="kartu-sub">28 murid · dipakai 1 course</div>
+            <div class="kartu-kaki">
+              <button class="btn btn-pudar btn-kecil" onclick="toast('Demo: layar detail kelas yang sama.','info')">Buka kelas</button>
+              <button class="btn-teks" title="Edit" onclick="bukaDialog('dlg-kelas')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M17 3a2.8 2.8 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg></button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ DETAIL KELAS ============ -->
+      <section class="layar" id="layar-kelas-detail" style="display:none">
+        <a href="#" class="boleh-kembali" onclick="buka('kelas');return false">← Semua kelas</a>
+        <div class="kepala">
+          <div><h1>XI TKJ 1 <span class="badge badge-aktif" style="vertical-align:middle">Aktif</span></h1>
+            <p>32 murid terdaftar · dipakai course: XI TKJ 1 - PKPJ, XI TKJ 1 - Matematika</p></div>
+          <div class="kepala-aksi">
+            <button class="btn btn-pudar" onclick="bukaDialog('dlg-kelas')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M17 3a2.8 2.8 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>Edit kelas</button>
+            <button class="btn btn-primer" onclick="bukaDialog('dlg-enroll')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M19 8v6M22 11h-6"/></svg>Enroll murid</button>
+          </div>
+        </div>
+        <div class="kartu tabel-kartu">
+          <div class="tabel-alat">
+            <div class="cari"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input placeholder="Cari murid di kelas ini…"></div>
+            <span style="font-size:12.5px;color:var(--teks-lembut)">32 dari 32 murid</span>
+          </div>
+          <div class="tabel-gulir">
+            <table>
+              <thead><tr><th>Murid</th><th>NISN</th><th>Status</th><th>Sandi sementara</th><th></th></tr></thead>
+              <tbody>
+                <tr>
+                  <td><div class="sel-orang"><div class="avatar">RA</div><div><b>Rina Andini</b><small>rina.andini</small></div></div></td>
+                  <td>0091234501</td><td><span class="badge badge-aktif">● Aktif</span></td>
+                  <td><code style="font-weight:700">Xk4mP7qA</code> <span class="bantuan" style="display:inline">(belum diganti)</span></td>
+                  <td class="td-aksi"><button class="btn-teks" title="Detail" onclick="bukaDialog('dlg-detail')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></button><button class="btn-teks merah" title="Keluarkan dari kelas" onclick="bukaDialog('dlg-keluar')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="m16 17 5-5-5-5M21 12H9"/></svg></button></td>
+                </tr>
+                <tr>
+                  <td><div class="sel-orang"><div class="avatar">DW</div><div><b>Dimas Wijaya</b><small>dimas.wijaya</small></div></div></td>
+                  <td>0091234502</td><td><span class="badge badge-aktif">● Aktif</span></td>
+                  <td><span class="bantuan">✓ sudah diganti murid</span></td>
+                  <td class="td-aksi"><button class="btn-teks" title="Detail" onclick="bukaDialog('dlg-detail')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></button><button class="btn-teks merah" title="Keluarkan dari kelas" onclick="bukaDialog('dlg-keluar')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="m16 17 5-5-5-5M21 12H9"/></svg></button></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <p class="bantuan" style="margin-top:10px">Mengeluarkan murid hanya melepas dari kelas ini — akun murid tetap ada di Kelola Murid (perilaku v1).</p>
+      </section>
+
+      <!-- ============ KELOLA COURSE ============ -->
+      <section class="layar" id="layar-course" style="display:none">
+        <div class="kepala">
+          <div><h1>Kelola Course</h1><p>Course = kelas + mapel. Inilah "ruang belajar" murid — konten di dalamnya menyusul tahap berikutnya.</p></div>
+          <div class="kepala-aksi">
+            <button class="btn btn-primer" onclick="bukaDialog('dlg-course')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>Buat course</button>
+          </div>
+        </div>
+        <div class="kisi-kartu">
+          <div class="kartu-barang">
+            <div class="kartu-judul">XI TKJ 1 <span style="color:var(--teks-pudar)">-</span> PKPJ</div>
+            <div class="kartu-sub">Kelas: XI TKJ 1 · Mapel: PKPJ<br>32 murid · konten: belum ada</div>
+            <div class="kartu-kaki">
+              <button class="btn btn-pudar btn-kecil" onclick="toast('Konten course dirancang pada tahap berikutnya.','info')">Buka course</button>
+              <button class="btn-teks" title="Edit" onclick="bukaDialog('dlg-course')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M17 3a2.8 2.8 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg></button>
+              <button class="btn-teks merah" title="Hapus" onclick="bukaDialog('dlg-hapus-course')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 6h18M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg></button>
+            </div>
+          </div>
+          <div class="kartu-barang">
+            <div class="kartu-judul">XI TKJ 1 <span style="color:var(--teks-pudar)">-</span> Matematika</div>
+            <div class="kartu-sub">Kelas: XI TKJ 1 · Mapel: Matematika<br>32 murid · konten: belum ada</div>
+            <div class="kartu-kaki">
+              <button class="btn btn-pudar btn-kecil" onclick="toast('Konten course dirancang pada tahap berikutnya.','info')">Buka course</button>
+              <button class="btn-teks" title="Edit" onclick="bukaDialog('dlg-course')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M17 3a2.8 2.8 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg></button>
+              <button class="btn-teks merah" title="Hapus" onclick="bukaDialog('dlg-hapus-course')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 6h18M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg></button>
+            </div>
+          </div>
+          <div class="kartu-barang">
+            <div class="kartu-judul">XI TKJ 1 <span style="color:var(--teks-pudar)">-</span> PKN</div>
+            <div class="kartu-sub">Kelas: XI TKJ 1 · Mapel: PKN<br>32 murid · konten: belum ada</div>
+            <div class="kartu-kaki">
+              <button class="btn btn-pudar btn-kecil" onclick="toast('Konten course dirancang pada tahap berikutnya.','info')">Buka course</button>
+              <button class="btn-teks" title="Edit" onclick="bukaDialog('dlg-course')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M17 3a2.8 2.8 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg></button>
+              <button class="btn-teks merah" title="Hapus" onclick="bukaDialog('dlg-hapus-course')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 6h18M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg></button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ REKAP NILAI ============ -->
+      <section class="layar" id="layar-rekap" style="display:none">
+        <div class="kepala"><div><h1>Rekap Nilai</h1><p>Rekap nilai murid per course + export Excel.</p></div></div>
+        <div class="kartu"><div class="kosong-besar">
+          <div class="ikon">📊</div>
+          <h3>Rekap Nilai menyusul</h3>
+          <p>Menu ini baru bisa diisi setelah <b>quiz</b> dan <b>tugas</b> tersedia sebagai sumber nilai
+            (tahap konten course). Struktur rekap: baris = murid, kolom = penilaian di course, plus tombol
+            <b>Export Excel</b> ala v1.</p>
+          <div style="display:flex;gap:9px;justify-content:center;flex-wrap:wrap">
+            <button class="btn btn-pudar" disabled>Pilih course…</button>
+            <button class="btn btn-primer" disabled><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 3v12m0 0 4-4m-4 4-4-4"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>Export Excel</button>
+          </div>
+        </div></div>
+      </section>
+
+      <!-- ============ STATUS API KEY ============ -->
+      <section class="layar" id="layar-apikey" style="display:none">
+        <div class="kepala">
+          <div><h1>Status API Key</h1><p>Kunci Gemini untuk generator materi & soal (AI). Maksimal 10 key — persis mekanisme v1.</p></div>
+        </div>
+        <div class="judul-seksi" style="margin-top:0">Slot key</div>
+        <div class="slot-grid">
+          <div class="slot penuh"><span class="ikon-atas">🟢</span>Key 1<small>aktif · dipakai 12×</small></div>
+          <div class="slot penuh"><span class="ikon-atas">🟢</span>Key 2<small>aktif · dipakai 9×</small></div>
+          <div class="slot penuh"><span class="ikon-atas">⏳</span>Key 3<small>cooldown 38 dtk</small></div>
+          <div class="slot penuh"><span class="ikon-atas">🟢</span>Key 4<small>aktif · dipakai 7×</small></div>
+          <div class="slot penuh"><span class="ikon-atas">🔴</span>Key 5<small>rusak → dicoret</small></div>
+          <div class="slot penuh"><span class="ikon-atas">🟢</span>Key 6<small>aktif · dipakai 3×</small></div>
+          <div class="slot penuh"><span class="ikon-atas">🟢</span>Key 7<small>aktif · dipakai 0×</small></div>
+          <div class="slot">+ kosong</div>
+          <div class="slot">+ kosong</div>
+          <div class="slot">+ kosong</div>
+        </div>
+        <div class="kartu">
+          <div class="kartu-isi">
+            <div class="grup">
+              <label>Daftar API key <span class="wajib">*</span> <span style="color:var(--teks-lembut);font-weight:500">(menimpa seluruh daftar lama)</span></label>
+              <textarea class="isian" id="isi-key" rows="5" placeholder="AIza…&#10;AIza…&#10;(satu key per baris, maksimal 10)" oninput="hitungKey()"></textarea>
+              <div class="bantuan"><span id="hitung-key">0</span> key dimasukkan · key disimpan aman di Script Properties (tidak di spreadsheet, tidak pernah terkirim ke murid).</div>
+            </div>
+            <div style="display:flex;gap:9px;justify-content:flex-end">
+              <button class="btn btn-pudar" onclick="bersihKey()">Bersihkan</button>
+              <button class="btn btn-primer" onclick="simpanKey()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg>Simpan daftar key</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+    </main>
+    <div class="kaki">LessonLen LMS v2 · prototipe tampilan untuk kesepakatan — bukan aplikasi sungguhan</div>
+  </div>
+</div>
+
+<!-- ================= DIALOG-Dialog ================= -->
+<dialog id="dlg-murid">
+  <div class="dialog-isi">
+    <h3>Tambah Murid</h3>
+    <p class="lembut">Sandi sementara dibuat otomatis — tampil SEKALI setelah disimpan.</p>
+    <div class="baris-form">
+      <div class="grup"><label>Nama lengkap <span class="wajib">*</span></label><input class="isian" placeholder="mis. Rina Andini"></div>
+      <div class="grup"><label>Username <span class="wajib">*</span></label><input class="isian" placeholder="mis. rina.andini"></div>
+    </div>
+    <div class="baris-form">
+      <div class="grup"><label>NISN</label><input class="isian" placeholder="opsional"></div>
+      <div class="grup"><label>No WhatsApp</label><input class="isian" placeholder="08xxxxxxxxxx"></div>
+    </div>
+    <div class="dialog-aksi">
+      <button class="btn btn-pudar" onclick="tutupDialog('dlg-murid')">Batal</button>
+      <button class="btn btn-primer" onclick="tutupDialog('dlg-murid');bukaDialog('dlg-sandi')">Simpan</button>
+    </div>
+  </div>
+</dialog>
+
+<dialog id="dlg-sandi">
+  <div class="dialog-isi">
+    <h3>✅ Murid dibuat</h3>
+    <p class="lembut">Berikan sandi sementara ini ke murid. Setelah murid mengganti sandinya, sandi tidak terbaca lagi (reset bila perlu).</p>
+    <div class="sukses-sandi">
+      <code>Xk4mP7qA</code>
+      <small>rina.andini · sandi sementara</small>
+    </div>
+    <div class="baris-salin">
+      <button class="btn btn-pudar btn-kecil" onclick="toast('Sandi disalin.','sukses')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>Salin sandi</button>
+      <button class="btn btn-pudar btn-kecil" onclick="toast('Membuka WhatsApp (demo).','info')">Kirim via WhatsApp</button>
+      <button class="btn btn-primer btn-kecil" onclick="tutupDialog('dlg-sandi')">Selesai</button>
+    </div>
+  </div>
+</dialog>
+
+<dialog id="dlg-detail">
+  <div class="dialog-isi">
+    <h3>Detail Murid</h3>
+    <p class="lembut">rina.andini · Rina Andini</p>
+    <table style="font-size:13.5px">
+      <tbody>
+        <tr><td style="color:var(--teks-lembut);padding:7px 14px 7px 0">NISN</td><td style="padding:7px 0">0091234501</td></tr>
+        <tr><td style="color:var(--teks-lembut);padding:7px 14px 7px 0">No WA</td><td style="padding:7px 0">6281234500001</td></tr>
+        <tr><td style="color:var(--teks-lembut);padding:7px 14px 7px 0">Kelas</td><td style="padding:7px 0">XI TKJ 1</td></tr>
+        <tr><td style="color:var(--teks-lembut);padding:7px 14px 7px 0">Login terakhir</td><td style="padding:7px 0">2 menit lalu</td></tr>
+        <tr><td style="color:var(--teks-lembut);padding:7px 14px 7px 0">Sandi sementara</td><td style="padding:7px 0"><code style="font-weight:700">Xk4mP7qA</code> <span class="bantuan" style="display:inline">— terlihat sampai murid mengganti</span></td></tr>
+      </tbody>
+    </table>
+    <div class="dialog-aksi">
+      <button class="btn btn-pudar" onclick="tutupDialog('dlg-detail')">Tutup</button>
+      <button class="btn btn-bahaya-hantu" onclick="tutupDialog('dlg-detail');bukaDialog('dlg-reset')">Reset sandi</button>
+      <button class="btn btn-primer" onclick="tutupDialog('dlg-detail');bukaDialog('dlg-murid')">Edit</button>
+    </div>
+  </div>
+</dialog>
+
+<dialog id="dlg-reset">
+  <div class="dialog-isi">
+    <h3>Reset kata sandi</h3>
+    <p class="lembut">Sandi baru dibuat otomatis; murid diminta menggantinya saat login berikutnya.</p>
+    <div class="sukses-sandi">
+      <code>Bt9nR2wK</code>
+      <small>rina.andini · sandi sementara baru</small>
+    </div>
+    <div class="baris-salin">
+      <button class="btn btn-pudar btn-kecil" onclick="toast('Sandi disalin.','sukses')">Salin sandi</button>
+      <button class="btn btn-pudar btn-kecil" onclick="toast('Membuka WhatsApp (demo).','info')">Kirim via WhatsApp</button>
+      <button class="btn btn-primer btn-kecil" onclick="tutupDialog('dlg-reset');toast('Sandi direset.','sukses')">Selesai</button>
+    </div>
+  </div>
+</dialog>
+
+<dialog id="dlg-nonaktif">
+  <div class="dialog-isi">
+    <h3>Nonaktifkan murid?</h3>
+    <p class="lembut"><b>Rina Andini</b> tidak bisa login, tapi datanya & riwayatnya tetap ada. Bisa diaktifkan kembali kapan saja.</p>
+    <div class="dialog-aksi">
+      <button class="btn btn-pudar" onclick="tutupDialog('dlg-nonaktif')">Batal</button>
+      <button class="btn btn-bahaya" onclick="tutupDialog('dlg-nonaktif');toast('Murid dinonaktifkan.','sukses')">Ya, nonaktifkan</button>
+    </div>
+  </div>
+</dialog>
+
+<dialog id="dlg-kelas">
+  <div class="dialog-isi">
+    <h3>Buat Kelas</h3>
+    <p class="lembut">Contoh penamaan: XI TKJ 1, X RPL 2, XII MM 1.</p>
+    <div class="grup"><label>Nama kelas <span class="wajib">*</span></label><input class="isian" placeholder="mis. XI TKJ 1"></div>
+    <div class="dialog-aksi">
+      <button class="btn btn-pudar" onclick="tutupDialog('dlg-kelas')">Batal</button>
+      <button class="btn btn-primer" onclick="tutupDialog('dlg-kelas');toast('Kelas dibuat.','sukses')">Buat</button>
+    </div>
+  </div>
+</dialog>
+
+<dialog id="dlg-enroll">
+  <div class="dialog-isi">
+    <h3>Enroll murid ke XI TKJ 1</h3>
+    <p class="lembut">Pilih murid aktif yang belum terdaftar di kelas ini.</p>
+    <div style="max-height:250px;overflow:auto;border:1px solid var(--tepi);border-radius:10px;margin-bottom:6px">
+      <label style="display:flex;gap:10px;align-items:center;padding:10px 14px;border-bottom:1px solid var(--tepi);cursor:pointer"><input type="checkbox"><div style="flex:1"><b>Andi Pratama</b> <small style="color:var(--teks-lembut)">· andi.pratama</small></div></label>
+      <label style="display:flex;gap:10px;align-items:center;padding:10px 14px;border-bottom:1px solid var(--tepi);cursor:pointer"><input type="checkbox"><div style="flex:1"><b>Fajar Nugroho</b> <small style="color:var(--teks-lembut)">· fajar.nugroho</small></div></label>
+      <label style="display:flex;gap:10px;align-items:center;padding:10px 14px;cursor:pointer"><input type="checkbox"><div style="flex:1"><b>Gita Hapsari</b> <small style="color:var(--teks-lembut)">· gita.hapsari</small></div></label>
+    </div>
+    <p class="bantuan">Murid yang di-enroll menerima notifikasi (jika lonceng aktif) — proses v1: dedupe & reaktivasi otomatis.</p>
+    <div class="dialog-aksi">
+      <button class="btn btn-pudar" onclick="tutupDialog('dlg-enroll')">Batal</button>
+      <button class="btn btn-primer" onclick="tutupDialog('dlg-enroll');toast('Murid di-enroll ke kelas.','sukses')">Enroll</button>
+    </div>
+  </div>
+</dialog>
+
+<dialog id="dlg-keluar">
+  <div class="dialog-isi">
+    <h3>Keluarkan dari kelas?</h3>
+    <p class="lembut"><b>Rina Andini</b> akan dilepas dari <b>XI TKJ 1</b>. Akunnya tetap ada di Kelola Murid dan bisa di-enroll lagi.</p>
+    <div class="dialog-aksi">
+      <button class="btn btn-pudar" onclick="tutupDialog('dlg-keluar')">Batal</button>
+      <button class="btn btn-bahaya" onclick="tutupDialog('dlg-keluar');toast('Murid dikeluarkan dari kelas.','sukses')">Ya, keluarkan</button>
+    </div>
+  </div>
+</dialog>
+
+<dialog id="dlg-course">
+  <div class="dialog-isi">
+    <h3>Buat Course</h3>
+    <p class="lembut">Course = kelas + mapel. Nanti tampil sebagai “XI TKJ 1 - PKPJ”.</p>
+    <div class="grup"><label>Kelas <span class="wajib">*</span></label>
+      <select class="isian"><option>Pilih kelas…</option><option>XI TKJ 1</option><option>XI TKJ 2</option><option>X RPL 1</option></select></div>
+    <div class="grup"><label>Nama mapel <span class="wajib">*</span></label>
+      <input class="isian" list="daftar-mapel" placeholder="Tulis nama mapel…">
+      <datalist id="daftar-mapel"><option>PKPJ</option><option>Matematika</option><option>PKN</option><option>Basis Data</option><option>Jaringan Dasar</option></datalist>
+      <div class="bantuan">Boleh ketik bebas. Bila mapel sudah pernah dibuat, yang dipakai baris yang lama; bila belum, dibuat otomatis.</div>
+    </div>
+    <div class="dialog-aksi">
+      <button class="btn btn-pudar" onclick="tutupDialog('dlg-course')">Batal</button>
+      <button class="btn btn-primer" onclick="tutupDialog('dlg-course');toast('Course dibuat.','sukses')">Buat course</button>
+    </div>
+  </div>
+</dialog>
+
+<dialog id="dlg-hapus-course">
+  <div class="dialog-isi">
+    <h3>Hapus course?</h3>
+    <p class="lembut"><b>XI TKJ 1 - PKPJ</b> akan dihapus. Kelas & mapelnya tidak terhapus — hanya relasinya.</p>
+    <div class="dialog-aksi">
+      <button class="btn btn-pudar" onclick="tutupDialog('dlg-hapus-course')">Batal</button>
+      <button class="btn btn-bahaya" onclick="tutupDialog('dlg-hapus-course');toast('Course dihapus.','sukses')">Ya, hapus</button>
+    </div>
+  </div>
+</dialog>
+
+<dialog id="dlg-impor">
+  <div class="dialog-isi">
+    <h3>Impor Murid Massal</h3>
+    <p class="lembut">Tempel data dari Excel/WhatsApp: <code>nama; username; NISN; no WA</code> — satu murid per baris.</p>
+    <div class="grup">
+      <textarea class="isian" rows="5">Rara Aisyah; rara.aisyah; 0091234511; 081234500011
+Bayu Setiawan; bayu.setiawan; 0091234512; 081234500012
+Nadia Putri; nadia.putri; 0091234513; 081234500013</textarea>
+      <div class="bantuan">Pratinjau + peringatan duplikat username tampil sebelum disimpan — seperti v1.</div>
+    </div>
+    <div class="dialog-aksi">
+      <button class="btn btn-pudar" onclick="tutupDialog('dlg-impor')">Batal</button>
+      <button class="btn btn-primer" onclick="tutupDialog('dlg-impor');bukaDialog('dlg-impor-hasil')">Pratinjau</button>
+    </div>
+  </div>
+</dialog>
+
+<dialog id="dlg-impor-hasil">
+  <div class="dialog-isi">
+    <h3>Pratinjau impor</h3>
+    <p class="lembut">3 murid siap dibuat · 0 duplikat · sandi sementara dibuat otomatis untuk semua.</p>
+    <div style="border:1px solid var(--tepi);border-radius:10px;overflow:hidden;margin-bottom:4px">
+      <table style="font-size:13px">
+        <thead><tr><th>Nama</th><th>Username</th><th>Sandi</th></tr></thead>
+        <tbody>
+          <tr><td style="padding:8px 12px">Rara Aisyah</td><td style="padding:8px 12px">rara.aisyah</td><td style="padding:8px 12px"><code>Pq2mX8nR</code></td></tr>
+          <tr><td style="padding:8px 12px">Bayu Setiawan</td><td style="padding:8px 12px">bayu.setiawan</td><td style="padding:8px 12px"><code>Kr7tY3wB</code></td></tr>
+          <tr><td style="padding:8px 12px">Nadia Putri</td><td style="padding:8px 12px">nadia.putri</td><td style="padding:8px 12px"><code>Nw5sQ9mT</code></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="dialog-aksi">
+      <button class="btn btn-pudar" onclick="tutupDialog('dlg-impor-hasil')">Kembali</button>
+      <button class="btn btn-primer" onclick="tutupDialog('dlg-impor-hasil');toast('3 murid diimpor.','sukses')">Simpan semua</button>
+    </div>
+  </div>
+</dialog>
+
+<!-- ================= ALAT & JS ================= -->
+<div class="peta-panel" id="peta-panel">
+  <button onclick="buka('login-demo')">0 · Login</button>
+  <button onclick="buka('beranda')">1 · Beranda guru</button>
+  <button onclick="buka('kelas')">2a · Kelola Kelas</button>
+  <button onclick="buka('kelas-detail')">2b · Detail kelas (+enroll)</button>
+  <button onclick="buka('course')">3 · Kelola Course</button>
+  <button onclick="buka('murid')">4 · Kelola Murid</button>
+  <button onclick="buka('rekap')">5 · Rekap Nilai (placeholder)</button>
+  <button onclick="buka('apikey')">6 · Status API Key</button>
+</div>
+<div class="alat-proto">
+  <button onclick="gantiTema()">🎨 Tema: <b id="nama-tema">Indigo</b></button>
+  <button onclick="document.getElementById('peta-panel').classList.toggle('tampil')">⚙️ Layar</button>
+</div>
+<div id="toast-wadah"></div>
+
+<script>
+'use strict';
+var NAMA_LAYAR = { 'beranda':'Beranda', 'kelas':'Kelola Kelas', 'kelas-detail':'Detail Kelas',
+  'course':'Kelola Course', 'murid':'Kelola Murid', 'rekap':'Rekap Nilai', 'apikey':'Status API Key' };
+var TEMA = ['indigo','biru','hijau'], namaTema = { indigo:'Indigo', biru:'Biru', hijau:'Hijau' };
+
+function tampilShell(tampil) {
+  document.getElementById('layar-login').style.display = tampil ? 'none' : 'flex';
+  document.getElementById('aplikasi').classList.toggle('tampil', tampil);
+}
+function masukDemo() { tampilShell(true); buka('beranda'); toast('Masuk sebagai guru (demo).', 'sukses'); }
+function keluarDemo() { tampilShell(false); }
+function buka(rute) {
+  if (rute === 'login-demo') { tampilShell(false); document.getElementById('peta-panel').classList.remove('tampil'); return; }
+  document.querySelectorAll('.layar').forEach(function (l) { l.style.display = 'none'; });
+  var el = document.getElementById('layar-' + rute);
+  if (el) el.style.display = '';
+  document.querySelectorAll('.menu a').forEach(function (a) {
+    a.classList.toggle('aktif', a.getAttribute('data-rute') === rute);
+  });
+  document.getElementById('topbar-judul').textContent = NAMA_LAYAR[rute] || 'LessonLen LMS';
+  document.getElementById('peta-panel').classList.remove('tampil');
+  window.scrollTo(0, 0);
+}
+function bukaSidebar() { document.getElementById('sidebar').classList.add('tampil');
+  document.getElementById('overlay-samping').classList.add('tampil'); }
+function tutupSidebar() { document.getElementById('sidebar').classList.remove('tampil');
+  document.getElementById('overlay-samping').classList.remove('tampil'); }
+function bukaDialog(id) { document.getElementById(id).showModal(); }
+function tutupDialog(id) { document.getElementById(id).close(); }
+function toast(pesan, jenis) {
+  var w = document.getElementById('toast-wadah');
+  var t = document.createElement('div');
+  t.className = 'toast' + (jenis ? ' ' + jenis : '');
+  t.textContent = pesan;
+  w.appendChild(t);
+  setTimeout(function () { t.style.opacity = '0'; t.style.transition = 'opacity .3s'; }, 2600);
+  setTimeout(function () { t.remove(); }, 3000);
+}
+function lonceng(e) {
+  e.stopPropagation();
+  document.getElementById('lonceng-panel').classList.toggle('tampil');
+}
+function tandaiBaca() {
+  document.querySelectorAll('.notif').forEach(function (n) { n.classList.add('baca'); });
+  document.getElementById('lonceng-titik').style.display = 'none';
+  toast('Semua notifikasi ditandai dibaca.', 'sukses');
+}
+document.addEventListener('click', function (e) {
+  if (!e.target.closest('.lonceng-wadah'))
+    document.getElementById('lonceng-panel').classList.remove('tampil');
+});
+function gantiTema() {
+  var kini = document.documentElement.getAttribute('data-tema');
+  var berikut = TEMA[(TEMA.indexOf(kini) + 1) % TEMA.length];
+  document.documentElement.setAttribute('data-tema', berikut);
+  document.getElementById('nama-tema').textContent = namaTema[berikut];
+}
+function hitungKey() {
+  var v = document.getElementById('isi-key').value.split('\n')
+    .map(function (s) { return s.trim(); }).filter(Boolean);
+  document.getElementById('hitung-key').textContent = v.length;
+  if (v.length > 10) toast('Maksimal 10 key — sisanya diabaikan.', 'bahaya');
+}
+function bersihKey() { document.getElementById('isi-key').value = ''; hitungKey(); }
+function simpanKey() { bersihKey(); toast('Daftar key disimpan (demo).', 'sukses'); }
+</script>
+</body>
+</html>

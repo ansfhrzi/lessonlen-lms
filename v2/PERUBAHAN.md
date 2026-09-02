@@ -42,6 +42,17 @@ Rekap Nilai · Status API Key. Keputusan turunan yang menyentuh kode tahap 2:
 - 23 sheet: **tidak ada sheet baru yang ditambah/dihapus** selain kolom
   `Users` di atas.
 
+### Prototipe tampilan — `desain/tampilan-v2.html` (2 Sep 2026)
+
+Berkas **mockup interaktif** (HTML mandiri, data dummy) untuk KESEPAKATAN
+TAMPILAN sebelum Tahap 3 dibangun: login, beranda guru ringkas, Kelola
+Kelas + detail (+enroll/keluarkan + sandi sementara), Kelola Course
+(kartu "KELAS - MAPEL" + dialog buat), Kelola Murid (tabel + detail sandi
++ reset + impor massal + pratinjau), Rekap Nilai (placeholder), Status
+API Key (10 slot + status). Ada pengalih tema (Indigo/Biru/Hijau) dan
+peta layar. **Bukan berkas Apps Script** — tidak disalin ke editor;
+nanti dipecah menjadi partial sesuai hasil kesepakatan.
+
 ### Berkas yang harus ada di editor Apps Script (kondisi tahap 2)
 
 | Berkas | Isi | Status |
@@ -80,3 +91,4 @@ tidak ada — akan membuat error), `js_beranda.html`, `js_kelola.html`,
 | **rollback ke tahap 2** | `f1d10e2` | hapus seluruh UI/UX & fungsi tahap 3–4; pohon = `7cc93e9`; + `test/uji-ui.js` | gate0 18 ✔, UI ✔ |
 | keputusan alur | (commit ini) | §22D: 5 menu dashboard, sandi teks (`Users.password`), beranda ringkas, rekap menyusul — **dokumen saja** | — |
 | revisi keputusan | (commit ini) | sandi murid kembali model v1 (hash+salt + `pwd_awal`) — §22D diperbarui; **nol perubahan skema** | — |
+| desain | (commit ini) | prototipe tampilan interaktif `desain/tampilan-v2.html` — bahan kesepakatan UI Tahap 3 | — |
