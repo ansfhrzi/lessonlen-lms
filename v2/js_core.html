@@ -260,6 +260,8 @@ var Core = (function () {
     var judul = $('topbar-judul');
     if (judul) judul.textContent = JUDUL_RUTE[nama] || 'LessonLen';
     tutupSidebar();
+    var pm = $('profil-menu');
+    if (pm) pm.classList.remove('tampil');
     window.scrollTo(0, 0);
     RUTE[nama](params || {});
   }
@@ -320,6 +322,20 @@ var Core = (function () {
       a.style.display = a.dataset.role === peran ? '' : 'none';
     });
 
+    /* menu akun (profil): Biodata Saya (murid) + Keluar */
+    var bio = $('btn-menu-biodata');
+    if (bio) bio.style.display = peran === 'murid' ? '' : 'none';
+    var pa = $('profil-akun');
+    if (pa) pa.addEventListener('click', function (e) {
+      if (e.target.closest('#btn-keluar')) return;   /* keluar cepat */
+      var pm = $('profil-menu');
+      if (pm) pm.classList.toggle('tampil');
+    });
+    var pb = $('btn-menu-biodata');
+    if (pb) pb.addEventListener('click', function () { pergiKe('biodata'); });
+    var pk = $('btn-menu-keluar');
+    if (pk) pk.addEventListener('click', function () { Auth.keluar(); });
+
     document.querySelectorAll('#menu-utama a').forEach(function (a) {
       a.addEventListener('click', function (e) {
         e.preventDefault();
@@ -349,6 +365,10 @@ var Core = (function () {
       var panel = $('lonceng-panel');
       if (panel && !e.target.closest('.lonceng-wadah'))
         panel.classList.remove('tampil');
+      var pmenu = $('profil-menu');
+      if (pmenu && !e.target.closest('#profil-akun') &&
+          !e.target.closest('#profil-menu'))
+        pmenu.classList.remove('tampil');
     });
 
     /* layar melebar lagi (putar perangkat / ubah ukuran jendela):

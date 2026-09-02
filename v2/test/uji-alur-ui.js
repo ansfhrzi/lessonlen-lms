@@ -102,10 +102,17 @@ const tunggu = (ms) => new Promise(r => setTimeout(r, ms));
   d.getElementById('btn-masuk').click();
   await tunggu(700);
   cek('login guru → sidebar tampil', !!d.getElementById('sidebar'));
-  cek('guru: menu Biodata Saya tersembunyi', (() => {
-    const b = d.querySelector('#menu-utama a[data-rute="biodata"]');
-    return b && b.style.display === 'none';
+  cek('guru: nav tidak memuat Biodata Saya',
+      !d.querySelector('#menu-utama a[data-rute="biodata"]'));
+  d.getElementById('profil-akun').click();
+  await tunggu(200);
+  cek('guru: menu akun terbuka, Biodata tersembunyi, Keluar tampil', (() => {
+    const bio = d.getElementById('btn-menu-biodata');
+    const kel = d.getElementById('btn-menu-keluar');
+    return bio && bio.style.display === 'none' && kel;
   })());
+  d.getElementById('profil-akun').click();
+  await tunggu(150);
   cek('profil guru terisi', d.getElementById('profil-nama').textContent.includes('Ahmad'));
   cek('beranda: 4 kartu angka', d.querySelectorAll('.kisi-stat .stat').length === 4);
   cek('beranda: perlu tindakan tampil (2)', d.getElementById('layar').textContent.includes('2 permintaan reset'));
@@ -216,12 +223,19 @@ const tunggu = (ms) => new Promise(r => setTimeout(r, ms));
       return a && a.style.display === 'none';
     });
   })());
-  cek('murid: menu Biodata Saya tampil', (() => {
-    const a = d.querySelector('#menu-utama a[data-rute="biodata"]');
-    return a && a.style.display !== 'none';
-  })());
-  // biodata kurang → langsung diarahkan ke layar Biodata Saya
+  // biodata kurang → langsung diarahkan ke layar Biodata Saya saat boot
   cek('murid: biodata kurang → layar Biodata Saya otomatis',
+      d.getElementById('layar').textContent.includes('Biodata Saya') &&
+      !!d.getElementById('in-bio-email'));
+  d.getElementById('profil-akun').click();
+  await tunggu(200);
+  cek('murid: menu akun → Biodata Saya tampil', (() => {
+    const bio = d.getElementById('btn-menu-biodata');
+    return bio && bio.style.display !== 'none';
+  })());
+  d.getElementById('btn-menu-biodata').click();
+  await tunggu(400);
+  cek('murid: menu akun → layar Biodata Saya terbuka',
       d.getElementById('layar').textContent.includes('Biodata Saya') &&
       !!d.getElementById('in-bio-email'));
   d.getElementById('in-bio-email').value = 'rara@contoh.id';
@@ -233,8 +247,10 @@ const tunggu = (ms) => new Promise(r => setTimeout(r, ms));
       d.getElementById('layar').textContent.includes('Halo'));
   cek('murid: kartu "belum lengkap" hilang',
       !d.getElementById('layar').textContent.includes('belum lengkap'));
-  // buka lagi lewat menu → form TERISI dari getBiodata
-  d.querySelector('#menu-utama a[data-rute="biodata"]').click();
+  // buka lagi lewat menu akun → form TERISI dari getBiodata
+  d.getElementById('profil-akun').click();
+  await tunggu(200);
+  d.getElementById('btn-menu-biodata').click();
   await tunggu(500);
   cek('murid: biodata terbaca balik (email terisi)',
       d.getElementById('in-bio-email').value === 'rara@contoh.id' &&

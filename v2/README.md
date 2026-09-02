@@ -38,7 +38,7 @@ yang ada di akar repositori.
 | `index.html` + `css.html` | Cangkang UI; **scriptlet `<? ?>` hanya di index.html** (berkas include tak dievaluasi scriptlet); `css.html` = sistem desain (token tema `:root` hijau `#2F6B2B` — ganti tema cukup ubah variabel; responsif 4 breakpoint: 1024/900/700/380 — ponsel: sidebar off-canvas, dialog bottom-sheet) |
 | `v_login.html`, `v_dashboard.html` | Layar masuk + cangkang dasbor (sidebar/topbar/lonceng/toast) |
 | `js_core.html` | Pembungkus `google.script.run`, token sesi, router `Core.pergiKe`, dialog & toast global, lonceng notifikasi |
-| `js_auth.html` | Login, keluar, wajib ganti sandi, **lupa akses §5.5** (2 jalur mandiri + jalur guru; sandi sementara tampil sekali; gagal → pesan netral) + layar **Biodata Saya** (murid: lihat/edit) |
+| `js_auth.html` | Login, keluar, wajib ganti sandi, **lupa akses §5.5** (2 jalur mandiri + jalur guru; sandi sementara tampil sekali; gagal → pesan netral) + layar **Biodata Saya** (murid; dibuka dari **menu akun** di profil sidebar) |
 | `js_beranda.html` | **UI Tahap 3** — beranda §22D: guru (4 angka + perlu tindakan + **Course saya**) & murid (stat + **kartu Kelas Saya** dgn daftar mapel + pengingat biodata) |
 | `js_murid.html` | **UI Tahap 3** — Kelola Murid: daftar+cari/filter, tambah (dialog sandi + kirim WA), detail (+`pwd_awal`, reset), edit, nonaktif, impor massal + pratinjau |
 | `js_kelas.html` | **UI Tahap 3** — Kelola Kelas: kisi kartu, form buat/edit, detail (murid + tambah/keluarkan), arsip |
