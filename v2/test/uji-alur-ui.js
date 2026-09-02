@@ -242,15 +242,27 @@ const tunggu = (ms) => new Promise(r => setTimeout(r, ms));
       d.querySelectorAll('#wadah-kisi .kartu-barang').length === 4);
   d.querySelector('#wadah-kisi [data-buka]').click();
   await tunggu(500);
-  cek('course: detail terbuka dgn 4 item pilihan',
-      d.querySelectorAll('.item-course').length === 4 &&
+  cek('course: detail terbuka dgn 3 item (Topik/Quiz mandiri/Refleksi mandiri)',
+      d.querySelectorAll('.item-course').length === 3 &&
+      d.getElementById('layar').textContent.includes('Quiz mandiri') &&
+      d.getElementById('layar').textContent.includes('Refleksi mandiri') &&
       d.getElementById('jd-c').textContent !== '…' &&
       d.getElementById('jd-c-sub').textContent.includes('murid'));
-  d.querySelector('.item-course').click();
+  // buka Topik → 4 item di dalamnya
+  d.querySelector('.item-course[data-dalam="1"]').click();
+  await tunggu(500);
+  cek('topik: 4 item (Materi/LKPD/Quiz/Refleksi)',
+      d.querySelectorAll('#topik-detail ~ * .item-course, .kisi-item .item-course').length === 4 &&
+      d.getElementById('layar').textContent.includes('Isi topik') &&
+      d.getElementById('jd-t-sub').textContent.includes('Matematika'));
+  d.querySelector('.kisi-item .item-course').click();
   await tunggu(200);
-  cek('course: item → info "menyusul Tahap 4"',
+  cek('topik: item → info "menyusul Tahap 4"',
       d.getElementById('toast-wadah') &&
       d.getElementById('toast-wadah').textContent.includes('Tahap 4'));
+  d.getElementById('btn-kembali-t').click();
+  await tunggu(300);
+  cek('topik: kembali ke detail course', !!d.getElementById('course-detail'));
   d.getElementById('btn-kembali-c').click();
   await tunggu(300);
   cek('course: kembali ke kisi (4 kartu)',

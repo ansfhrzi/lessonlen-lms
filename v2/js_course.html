@@ -9,12 +9,20 @@
 
 var CourseLayar = (function () {
 
-  /* 4 item pilihan isi course — pola pertemuan v1 */
+  /* Isi course (laporan pemilik produk): Topik + Quiz mandiri +
+     Refleksi mandiri. DI DALAM Topik ada 4 item (pola v1). */
   var ITEM_COURSE = [
-    { ikon: '📖', nama: 'Materi', ket: 'Bahan bacaan pertemuan' },
+    { ikon: '🗂', nama: 'Topik', ket: 'Pokok bahasan/pertemuan — berisi materi & aktivitas',
+      dalam: true },
+    { ikon: '🧮', nama: 'Quiz mandiri', ket: 'Latihan soal mandiri murid' },
+    { ikon: '🪞', nama: 'Refleksi mandiri', ket: 'Refleksi belajar mandiri murid' }
+  ];
+
+  var ITEM_TOPIK = [
+    { ikon: '📖', nama: 'Materi', ket: 'Bahan bacaan topik ini' },
     { ikon: '📝', nama: 'LKPD', ket: 'Lembar kerja peserta didik' },
-    { ikon: '❓', nama: 'Quiz', ket: 'Soal latihan & ulangan' },
-    { ikon: '🪞', nama: 'Refleksi', ket: 'Cerita diri setelah belajar' }
+    { ikon: '❓', nama: 'Quiz', ket: 'Quiz atas topik ini' },
+    { ikon: '🪞', nama: 'Refleksi', ket: 'Refleksi atas topik ini' }
   ];
 
   function render() {
@@ -103,7 +111,8 @@ var CourseLayar = (function () {
       '<div class="judul-seksi">Isi course</div>' +
       '<div class="kisi-item">' +
         ITEM_COURSE.map(function (it) {
-          return '<button type="button" class="item-course" data-item="' +
+          return '<button type="button" class="item-course"' +
+            (it.dalam ? ' data-dalam="1"' : '') + ' data-item="' +
             Core.esc(it.nama) + '">' +
             '<span class="ikon">' + it.ikon + '</span>' +
             '<b>' + Core.esc(it.nama) + '</b>' +
@@ -131,7 +140,51 @@ var CourseLayar = (function () {
 
     Core.$('layar').querySelectorAll('.item-course').forEach(function (b) {
       b.addEventListener('click', function () {
+        if (b.dataset.dalam) {
+          Core.pergiKe('course_topik', { id: params.id });
+          return;
+        }
         /* konten per item menyusul pada Tahap 4 */
+        Core.toast('“' + b.dataset.item +
+          '” terbuka setelah Tahap 4 (konten course) aktif.');
+      });
+    });
+  }
+
+  /* ---------- isi Topik: 4 item (Materi/LKPD/Quiz/Refleksi) ---------- */
+
+  function renderTopik(params) {
+    Core.$('layar').innerHTML =
+      '<div class="kepala" id="topik-detail">' +
+        '<button class="btn-teks" id="btn-kembali-t">←</button>' +
+        '<div><h1>Topik</h1><p id="jd-t-sub">…</p></div>' +
+      '</div>' +
+      '<div class="judul-seksi">Isi topik</div>' +
+      '<div class="kisi-item">' +
+        ITEM_TOPIK.map(function (it) {
+          return '<button type="button" class="item-course" data-item="' +
+            Core.esc(it.nama) + '">' +
+            '<span class="ikon">' + it.ikon + '</span>' +
+            '<b>' + Core.esc(it.nama) + '</b>' +
+            '<small>' + Core.esc(it.ket) + '</small>' +
+            '</button>';
+        }).join('') +
+      '</div>' +
+      '<p class="bantuan mt-8">💡 Daftar topik per course (bernomor, bisa ' +
+      'diurut) beserta jadwal tayang dirancang pada Tahap 4.</p>';
+
+    Core.$('btn-kembali-t').addEventListener('click', function () {
+      Core.pergiKe('course_detail', { id: params.id });
+    });
+
+    Core.api('courseDetail', Core.ambilToken(), params.id).then(function (d) {
+      var sub = Core.$('jd-t-sub');
+      if (sub) sub.textContent =
+        (d.subject_name || 'Course') + ' · ' + (d.class_name || '—');
+    }).catch(function () {});
+
+    Core.$('layar').querySelectorAll('.item-course').forEach(function (b) {
+      b.addEventListener('click', function () {
         Core.toast('“' + b.dataset.item +
           '” terbuka setelah Tahap 4 (konten course) aktif.');
       });
@@ -220,6 +273,7 @@ var CourseLayar = (function () {
 
   Core.daftarRute('course', render);
   Core.daftarRute('course_detail', renderDetail);
-  return { render: render, renderDetail: renderDetail };
+  Core.daftarRute('course_topik', renderTopik);
+  return { render: render, renderDetail: renderDetail, renderTopik: renderTopik };
 })();
 </script>
