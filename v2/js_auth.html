@@ -167,6 +167,9 @@ var Dashboard = (function () {
     if (role === 'guru') {
       item.push({ id: 'kelas', teks: '🏫 Kelas' });
       item.push({ id: 'murid', teks: '👥 Murid' });
+      item.push({ id: 'mapel', teks: '📚 Mapel' });
+      item.push({ id: 'penugasan', teks: '🧑‍🏫 Penugasan' });
+      item.push({ id: 'topik', teks: '🧩 Topik & Materi' });
     } else {
       item.push({ id: 'kelas-saya', teks: '🏫 Kelas Saya' });
     }
@@ -185,6 +188,10 @@ var Dashboard = (function () {
     Core.tampilkanTampilan(id);
     if (id === 'kelas')        Kelola.bukaKelas();
     else if (id === 'murid')   Kelola.bukaMurid();
+    else if (id === 'mapel')   MapelUI.bukaMapel();
+    else if (id === 'penugasan') MapelUI.bukaPenugasan();
+    else if (id === 'topik')   MapelUI.bukaTopik();
+    else if (id === 'materi')  MapelUI.bukaMateri();
     else if (id === 'kelas-saya') Kelola.bukaKelasSaya();
     else if (id === 'notif')   muatNotif();
   }

@@ -1,4 +1,4 @@
-# LMS v2 — Fondasi (Tahap 1 + Gate 0)
+# LMS v2 — Fondasi + Kelola (Tahap 1–4 + Gate 0)
 
 Implementasi awal rancangan **v2.1** (`../DOKUMENTASI_RANCANGAN_LMS_GAS_v2.md`).
 Folder ini adalah **satu project Apps Script baru** — terpisah dari LessonLen v1
@@ -18,24 +18,26 @@ yang ada di akar repositori.
 
 | Berkas | Fungsi |
 |---|---|
-| `Code.gs` | `doGet`, `include`, pembungkus API `_bungkus`, endpoint auth + dasbor + kelas/murid/enrollment |
+| `Code.gs` | `doGet`, `include`, pembungkus API `_bungkus`, endpoint auth + dasbor + kelas/murid/enrollment + mapel/penugasan/topik/item |
 | `Setup.gs` | Skema **23 sheet**, `setupLengkap()`, seed, migrasi, `infoDatabase()` |
 | `Db.gs` | Lapisan akses Sheets: baca/tulis batch, cache, `LockService` |
 | `Util.gs` | Generator ID (sheet `Counters` + lock), hash kata sandi, sanitasi, audit log |
 | `Auth.gs` | Login, sesi, ganti/lupa/reset kata sandi (port v1) |
 | `Notif.gs` | Notifikasi in-app: `kirim`, `kirimKeKelas`, `daftar`, `tandaiDibaca` |
 | `Kelas.gs` | CRUD kelas, murid + impor massal, enrollment (enroll/reaktivasi/keluarkan), kelas saya, biodata murid |
+| `Mapel.gs` | CRUD mapel, penugasan mengajar (unik per kelas+guru+mapel, reaktivasi), topik (urut, draft/publish, hapus kosong saja), item (jenis materi/quiz/tugas/refleksi, konten disanitasi), bacaan murid (publish + terdaftar) |
 | `index.html` + `css.html` | Cangkang UI + gaya |
-| `v_login.html`, `v_dashboard.html` | Layar masuk & dasbor bernavigasi (Beranda/Kelas/Murid/Notifikasi) |
-| `js_core.html`, `js_auth.html`, `js_kelola.html` | Pembungkus `google.script.run`, token sesi, logika layar |
-| `test/` | Uji logika: Gate 0 (18 kasus) + Tahap 3 (42 kasus) |
+| `v_login.html`, `v_dashboard.html` | Layar masuk & dasbor bernavigasi (Beranda/Kelas/Murid/Mapel/Penugasan/Topik/Kelas Saya/Materi/Notifikasi) |
+| `js_core.html`, `js_auth.html`, `js_kelola.html`, `js_mapel.html` | Pembungkus `google.script.run`, token sesi, logika layar |
+| `test/` | Uji logika: Gate 0 (18) + Tahap 3 (42) + Tahap 4 (84) |
 
 ## Cara pasang (sekali saja)
 
 1. Buat **project Apps Script baru** (script.google.com → New project).
 2. Salin seluruh berkas folder ini ke project (nama file harus sama persis,
    tanpa awalan folder). Untuk berkas HTML, nama file di Apps Script adalah
-   `index`, `css`, `v_login`, `v_dashboard`, `js_core`, `js_auth`.
+   `index`, `css`, `v_login`, `v_dashboard`, `js_core`, `js_auth`,
+   `js_kelola`, `js_mapel`.
 3. Jalankan fungsi **`setupLengkap`** dari editor → izinkan akses.
    Spreadsheet `DB_LMS_V2` (23 sheet) dibuat otomatis dan `DB_ID`
    tersimpan di Script Properties.
@@ -84,7 +86,17 @@ di deployment `/exec` sungguhan:
   - Murid: layar Kelas Saya (kelas + mapel), lengkapi biodata sendiri
   - Enrollment mengikuti v1: dedupe, reaktivasi baris `keluar`,
     notifikasi `enroll_kelas`
-- ⬜ Tahap 4 — Subjects, Teaching_Assignments, Topics, Items
+- ✅ Tahap 4 — Mapel, penugasan, topik, item:
+  - Guru: CRUD mapel (pemilik = pembuat), penugasan mengajar
+    (unik `kelas+guru+mapel` aktif, reaktivasi baris nonaktif,
+    pengampu divalidasi server), topik (urutan otomatis + pindah
+    atas/bawah, draft/publish, hapus hanya bila kosong), item
+    (materi/quiz/tugas_individu/tugas_kelompok/refleksi, konten HTML
+    disanitasi `Util.sanitasi`, publish → notifikasi kelas)
+  - Murid: ketuk chip mapel di Kelas Saya → topik publish → isi
+    topik → baca materi (quiz/tugas/refleksi menunggu tahap
+    berikutnya); penugasan nonaktif & kelas arsip otomatis menutup
+    bacaan
 - ⬜ Tahap 5 — Quiz + soal + penilaian
 - ⬜ Tahap 6 — Tugas individu & kelompok
 - ⬜ Tahap 7 — Rekap nilai & progres
@@ -109,6 +121,31 @@ di deployment `/exec` sungguhan:
 | `kelasSaya(token)` | semua | kelas diikuti murid / diajar guru |
 | `simpanBiodataSaya(token, p)` | murid | lengkapi email + WA (+NISN opsional) |
 | `daftarNotifikasi(token)` / `notifTandaiDibaca` | semua | notifikasi in-app |
+
+### API Tahap 4 (semua lewat `_bungkus`, role diperiksa server-side)
+
+| Endpoint | Peran | Fungsi |
+|---|---|---|
+| `mapelDaftar(token)` | guru | daftar mapel + jumlah penugasan + pemilik |
+| `mapelSimpan(token, p)` | guru | buat/edit mapel (pemilik otomatis pembuat) |
+| `mapelUbahStatus(token, id, status)` | guru | aktif/nonaktif (soft delete) |
+| `guruDaftar(token)` | guru | guru aktif — pilihan pengampu |
+| `penugasanDaftar(token, filter)` | guru | daftar TA + nama kelas/mapel/guru, filter `class_id/subject_id/teacher_id/status/semua` |
+| `penugasanSimpan(token, p)` | guru | buat/edit TA; unik `kelas+guru+mapel` aktif; reaktivasi baris nonaktif; pengampu wajib guru aktif |
+| `penugasanUbahStatus(token, id, status)` | guru | aktif/nonaktif |
+| `topikDaftar(token, taId)` | guru | topik satu penugasan + jumlah item |
+| `topikSimpan(token, p)` | guru | buat/edit topik; `sort_order` otomatis |
+| `topikUbahStatus(token, id, status)` | guru | draft/publish |
+| `topikHapus(token, id)` | guru | hapus HANYA bila tanpa item |
+| `topikPindah(token, id, arah)` | guru | naik/turun (tukar `sort_order`) |
+| `itemDaftar(token, topicId)` | guru | item satu topik (tanpa konten) |
+| `itemSimpan(token, p)` | guru | buat/edit item; jenis divalidasi; konten disanitasi; `related_id`/penanda AI tidak diterima dari klien |
+| `itemUbahStatus(token, id, status)` | guru | draft/publish; publish → notif `pertemuan_baru` ke kelas |
+| `itemHapus(token, id)` | guru | ditolak bila item sudah tertaut |
+| `itemPindah(token, id, arah)` | guru | naik/turun dalam topik |
+| `topikKelasSaya(token, taId)` | murid | topik publish; wajib terdaftar aktif + TA & kelas aktif |
+| `bukaTopik(token, topicId)` | murid | isi topik — item publish tanpa konten |
+| `bacaMateri(token, itemId)` | murid | konten materi publish; jenis lain → `FITUR_BELUM_ADA` |
 
 ## Darurat
 

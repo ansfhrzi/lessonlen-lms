@@ -30,6 +30,8 @@ const HEAD = {
   Classes: ['class_id','name','academic_year','status','created_at','updated_at'],
   Subjects: ['subject_id','name','code','owner_teacher_id','status','created_at','updated_at'],
   Teaching_Assignments: ['teaching_assignment_id','class_id','teacher_id','subject_id','academic_year','status','created_at','updated_at'],
+  Topics: ['topic_id','teaching_assignment_id','title','description','status','sort_order','created_at','updated_at'],
+  Items: ['item_id','topic_id','type','title','description','content','status','related_id','sort_order','ai_source','ai_reviewed','created_at','updated_at'],
   Enrollment: ['enroll_id','class_id','user_id','tanggal_daftar','status'],
   Session: ['token','user_id','dibuat_at','expired_at'],
   Permintaan_Reset: ['request_id','user_id','input_user','status','dibuat_at','diproses_at'],
@@ -88,6 +90,10 @@ global.Db = {
     return o;
   }),
   cariCepat: (n, kol, val) => global.Db.cari(n, kol, val),
+  cariCepat2: (n, k1, v1, k2, v2) => {
+    const found = global.Db.baca(n).find(r => r[k1] === v1 && r[k2] === v2);
+    return found || null;
+  },
   /* untuk Util.buatId — tiru sheet Counters */
   sheet: (n) => {
     TABEL[n] = TABEL[n] || [];

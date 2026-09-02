@@ -595,6 +595,7 @@ var Kelas = (function () {
       var g = petaGuru[t.teacher_id];
       (mapelPerKelas[t.class_id] = mapelPerKelas[t.class_id] || [])
         .push({ subject_id: t.subject_id,
+                ta_id: t.teaching_assignment_id,
                 nama: s ? s.name : '(mapel dihapus)',
                 guru: g ? g.nama : '' });
     });

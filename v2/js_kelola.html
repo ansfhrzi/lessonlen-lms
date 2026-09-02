@@ -591,8 +591,14 @@ var Kelola = (function () {
               '<div><b class="kecil">MAPEL:</b> ';
           if (k.mapel && k.mapel.length) {
             k.mapel.forEach(function (s) {
-              html += '<span class="chip">' + Core.esc(s.nama) +
-                (s.guru ? ' · ' + Core.esc(s.guru) : '') + '</span>';
+              /* mapel dengan penugasan bisa dibuka → layar materi */
+              html += s.ta_id
+                ? '<span class="chip chip-tautan" data-ta="' +
+                  Core.esc(s.ta_id) + '" data-nama="' + Core.esc(s.nama) +
+                  '">' + Core.esc(s.nama) +
+                  (s.guru ? ' · ' + Core.esc(s.guru) : '') + '</span>'
+                : '<span class="chip">' + Core.esc(s.nama) +
+                  (s.guru ? ' · ' + Core.esc(s.guru) : '') + '</span>';
             });
           } else {
             html += '<span class="kecil">belum ada mapel</span>';
@@ -601,6 +607,11 @@ var Kelola = (function () {
         });
       }
       wadah.innerHTML = html;
+      wadah.querySelectorAll('[data-ta]').forEach(function (c) {
+        c.addEventListener('click', function () {
+          MapelUI.bukaMateri({ ta_id: c.dataset.ta, nama: c.dataset.nama });
+        });
+      });
     }).catch(function (e) {
       wadah.innerHTML = kosong('Gagal memuat: ' + e.message);
     });

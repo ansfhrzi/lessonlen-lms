@@ -231,6 +231,136 @@ function simpanBiodataSaya(token, p) {
 }
 
 /* ============================================================
+ *  API — MAPEL, PENUGASAN, TOPIK, ITEM (Tahap 4)
+ * ============================================================ */
+
+function mapelDaftar(token) {
+  return _bungkus(token, 'guru', function () {
+    return Mapel.daftar();
+  });
+}
+
+function mapelSimpan(token, p) {
+  return _bungkus(token, 'guru', function (sesi) {
+    return Mapel.simpan(sesi, p || {});
+  });
+}
+
+function mapelUbahStatus(token, subjectId, status) {
+  return _bungkus(token, 'guru', function (sesi) {
+    return Mapel.ubahStatus(sesi, subjectId, status);
+  });
+}
+
+/** Guru aktif — pilihan pengampu pada dialog penugasan. */
+function guruDaftar(token) {
+  return _bungkus(token, 'guru', function () {
+    return Mapel.guruAktif();
+  });
+}
+
+function penugasanDaftar(token, filter) {
+  return _bungkus(token, 'guru', function () {
+    return Mapel.penugasanDaftar(filter || {});
+  });
+}
+
+function penugasanSimpan(token, p) {
+  return _bungkus(token, 'guru', function (sesi) {
+    return Mapel.penugasanSimpan(sesi, p || {});
+  });
+}
+
+function penugasanUbahStatus(token, taId, status) {
+  return _bungkus(token, 'guru', function (sesi) {
+    return Mapel.penugasanUbahStatus(sesi, taId, status);
+  });
+}
+
+function topikDaftar(token, taId) {
+  return _bungkus(token, 'guru', function () {
+    return Mapel.topikDaftar(taId);
+  });
+}
+
+function topikSimpan(token, p) {
+  return _bungkus(token, 'guru', function (sesi) {
+    return Mapel.topikSimpan(sesi, p || {});
+  });
+}
+
+function topikUbahStatus(token, topicId, status) {
+  return _bungkus(token, 'guru', function (sesi) {
+    return Mapel.topikUbahStatus(sesi, topicId, status);
+  });
+}
+
+function topikHapus(token, topicId) {
+  return _bungkus(token, 'guru', function (sesi) {
+    return Mapel.topikHapus(sesi, topicId);
+  });
+}
+
+function topikPindah(token, topicId, arah) {
+  return _bungkus(token, 'guru', function (sesi) {
+    return Mapel.topikPindah(sesi, topicId, arah);
+  });
+}
+
+function itemDaftar(token, topicId) {
+  return _bungkus(token, 'guru', function () {
+    return Mapel.itemDaftar(topicId);
+  });
+}
+
+function itemSimpan(token, p) {
+  return _bungkus(token, 'guru', function (sesi) {
+    return Mapel.itemSimpan(sesi, p || {});
+  });
+}
+
+function itemUbahStatus(token, itemId, status) {
+  return _bungkus(token, 'guru', function (sesi) {
+    return Mapel.itemUbahStatus(sesi, itemId, status);
+  });
+}
+
+function itemHapus(token, itemId) {
+  return _bungkus(token, 'guru', function (sesi) {
+    return Mapel.itemHapus(sesi, itemId);
+  });
+}
+
+function itemPindah(token, itemId, arah) {
+  return _bungkus(token, 'guru', function (sesi) {
+    return Mapel.itemPindah(sesi, itemId, arah);
+  });
+}
+
+/* ---------- bacaan murid (publish + terdaftar saja) ---------- */
+
+/** Topik publish satu mapel di kelas yang diikuti murid. */
+function topikKelasSaya(token, taId) {
+  return _bungkus(token, 'murid', function (sesi) {
+    return Mapel.topikMurid(sesi, taId);
+  });
+}
+
+/** Isi topik — daftar item publish, tanpa konten. */
+function bukaTopik(token, topicId) {
+  return _bungkus(token, 'murid', function (sesi) {
+    return Mapel.topikBuka(sesi, topicId);
+  });
+}
+
+/** Baca materi (type 'materi' — quiz/tugas menyusul). */
+function bacaMateri(token, itemId) {
+  return _bungkus(token, 'murid', function (sesi) {
+    return Mapel.materiBaca(sesi, itemId);
+  });
+}
+
+/* ============================================================
  *  API — DASBOR (ringkasan awal per role)
  * ============================================================ */
 
