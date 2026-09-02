@@ -41,8 +41,8 @@ yang ada di akar repositori.
 | `js_auth.html` | Login, keluar, wajib ganti sandi, **lupa akses §5.5** (2 jalur mandiri + jalur guru; sandi sementara tampil sekali; gagal → pesan netral) + layar **Biodata Saya** (murid; dibuka dari **menu akun** di profil sidebar) |
 | `js_beranda.html` | **UI Tahap 3** — beranda §22D: guru (4 angka + perlu tindakan + **Course saya**) & murid (stat + **kartu Kelas Saya** dgn daftar mapel + pengingat biodata) |
 | `js_murid.html` | **UI Tahap 3** — Kelola Murid: daftar+cari/filter, tambah (dialog sandi + kirim WA), detail (+`pwd_awal`, reset), edit, nonaktif, impor massal + pratinjau |
-| `js_kelas.html` | **UI Tahap 3** — Kelola Kelas: kisi kartu, form buat/edit, detail (murid + tambah/keluarkan), arsip |
-| `js_course.html` | **UI Tahap 3** — Kelola Course: tabel, buat/edit (kelas + mapel), hapus = nonaktif |
+| `js_kelas.html` | **UI Tahap 3** — Kelola Kelas: **dropdown pilih kelas + tabel siswa** di bawahnya (aksi per kelas aktif setelah dipilih), form buat/edit, tambah murid (list+filter rombel), keluarkan |
+| `js_course.html` | **UI Tahap 3** — Kelola Course: **kartu course** (buat/edit/hapus) → dibuka: **4 item pilihan** (Materi/LKPD/Quiz/Refleksi — konten menyusul Tahap 4) |
 | `js_rekap.html` | **UI Tahap 3** — Rekap Nilai placeholder "menyusul" |
 | `js_apikey.html` | **UI Tahap 3** — Status API Key: 10 slot + status, timpa daftar, reset cooldown |
 | `test/` | Uji node: `uji-auth-gate0.js` (18) + `uji-murid.js` (65) + `uji-lupa-akses.js` (35) + `uji-kelas.js` (55) + `uji-course.js` (41) + `uji-apikey.js` (31) + `uji-beranda.js` (18) + `uji-ui.js` (audit statis fungsi klien; daftar berkas auto) + `uji-ui-extra.js` (audit id/endpoint/CSS/rute) + `uji-alur-ui.js` (opsional: alur klik di jsdom, dilewati bila jsdom/pratinjau tak ada) |

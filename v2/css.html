@@ -397,6 +397,24 @@ tbody tr:hover { background: var(--permukaan); }
                      background: var(--garis); margin-top: 6px; flex: none; }
 .notif-item.belum .titik { background: var(--peringatan); }
 
+/* ---------- kisi item course (4 pilihan: Materi/LKPD/Quiz/Refleksi)
+   gaya .kartu-kelas v1 ---------- */
+.kisi-item { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+             gap: 12px; }
+.item-course {
+  display: flex; flex-direction: column; gap: 4px; width: 100%; text-align: left;
+  background: var(--putih); border: 1px solid var(--garis);
+  border-radius: var(--radius); padding: 18px;
+  box-shadow: var(--bayang); cursor: pointer;
+  font-family: var(--font); color: var(--teks);
+  transition: box-shadow .15s, transform .08s, border-color .15s;
+}
+.item-course:hover { box-shadow: var(--bayang-mn); border-color: var(--hijau); }
+.item-course:active { transform: translateY(1px); }
+.item-course .ikon { font-size: 1.6rem; line-height: 1.2; }
+.item-course b { font-size: 1.02rem; }
+.item-course small { color: var(--teks-lembut); font-size: .8rem; }
+
 /* ---------- dialog pilih murid (daftar + filter rombel) ---------- */
 .pilih-alat { display: flex; gap: 10px; align-items: center;
               margin-bottom: 10px; flex-wrap: wrap; }

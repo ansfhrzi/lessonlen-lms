@@ -1,14 +1,21 @@
 <script>
 /* ============================================================
  *  LMS v2 — js_course.html
- *  Layar Kelola Course: tabel (course = kelas × mapel),
- *  buat/edit (pilih kelas + ketik mapel; auto-dedupe mapel),
- *  hapus (nonaktifkan).
+ *  Layar Kelola Course (bentuk laporan pemilik produk):
+ *  KARTU course (gaya kartu kelas dulu) — buat/edit/hapus.
+ *  Course dibuka → detail berisi 4 ITEM PILIHAN: Materi, LKPD,
+ *  Quiz, Refleksi (konten nyata menyusul Tahap 4).
  * ============================================================ */
 
 var CourseLayar = (function () {
 
-  var KELAS = [];
+  /* 4 item pilihan isi course — pola pertemuan v1 */
+  var ITEM_COURSE = [
+    { ikon: '📖', nama: 'Materi', ket: 'Bahan bacaan pertemuan' },
+    { ikon: '📝', nama: 'LKPD', ket: 'Lembar kerja peserta didik' },
+    { ikon: '❓', nama: 'Quiz', ket: 'Soal latihan & ulangan' },
+    { ikon: '🪞', nama: 'Refleksi', ket: 'Cerita diri setelah belajar' }
+  ];
 
   function render() {
     Core.$('layar').innerHTML =
@@ -17,51 +24,60 @@ var CourseLayar = (function () {
         '<div class="kepala-aksi">' +
           '<button class="btn" id="btn-tambah">＋ Buat course</button>' +
         '</div></div>' +
-      '<div class="kartu">' +
-        '<div class="tabel-gulir" id="wadah-tabel">' +
-          '<div class="pemuat"><span class="ikon">⏳</span>Memuat…</div>' +
-        '</div>' +
+      '<div id="wadah-kisi" class="kisi-kartu">' +
+        '<div class="pemuat"><span class="ikon">⏳</span>Memuat…</div>' +
       '</div>' +
-      '<p class="bantuan">💡 Mapel yang diketik sama akan dipakai bersama (tidak ' +
-      'dibuat ulang). Menghapus course = menonaktifkan; data nilainya tidak hilang.</p>';
+      '<p class="bantuan mt-8">💡 Mapel yang diketik sama akan dipakai bersama ' +
+      '(tidak dibuat ulang). Menghapus course = menonaktifkan; data nilainya ' +
+      'tidak hilang.</p>';
 
     Core.$('btn-tambah').addEventListener('click', function () { dialogForm(null); });
-    muatTabel();
+    muatKisi();
   }
 
-  function muatTabel() {
-    var wadah = Core.$('wadah-tabel');
+  /* ---------- kisi kartu course ---------- */
+
+  function muatKisi() {
+    var wadah = Core.$('wadah-kisi');
     Core.api('courseDaftar', Core.ambilToken()).then(function (daftar) {
+      if (!wadah) return;
       if (!daftar || !daftar.length) {
-        wadah.innerHTML = '<div class="kosong"><b>Belum ada course</b>' +
-          'Buat course pertama: pilih kelas, lalu ketik mata pelajarannya.</div>';
+        wadah.innerHTML = '<div class="kosong-besar"><span class="ikon">📚</span>' +
+          '<b>Belum ada course</b>Buat course pertama: pilih kelas, lalu ketik ' +
+          'mata pelajarannya.</div>';
         return;
       }
-      var html = '<table><thead><tr><th>Course</th><th>Kelas</th><th>TA</th>' +
-        '<th>Status</th><th>Murid</th><th></th></tr></thead><tbody>';
-      daftar.forEach(function (c) {
-        html += '<tr>' +
-          '<td><div class="sel-orang"><div class="avatar">📚</div><div><b>' +
-          Core.esc(c.subject_name) + '</b><small>course</small></div></div></td>' +
-          '<td>' + Core.esc(c.class_name) + '</td>' +
-          '<td class="kecil">' + Core.esc(c.academic_year || '—') + '</td>' +
-          '<td>' + (c.status === 'aktif'
-            ? '<span class="badge badge-aktif">● Aktif</span>'
-            : '<span class="badge badge-nonaktif">● Nonaktif</span>') + '</td>' +
-          '<td>' + c.jml_murid + '</td>' +
-          '<td class="td-aksi">' +
-            '<button class="btn-teks" data-edit="' + Core.esc(c.teaching_assignment_id) + '" title="Edit">✏️</button>' +
-            '<button class="btn-teks merah" data-hapus="' + Core.esc(c.teaching_assignment_id) +
-            '" data-nama="' + Core.esc(c.subject_name) + '" title="Hapus">🗑</button>' +
-          '</td></tr>';
-      });
-      html += '</tbody></table>';
-      wadah.innerHTML = html;
+      wadah.innerHTML = daftar.map(function (c) {
+        var aktif = c.status === 'aktif';
+        return '<div class="kartu-barang">' +
+          '<div class="kartu-judul"><span>📚 ' + Core.esc(c.subject_name) + '</span>' +
+            (aktif
+              ? '<span class="badge badge-aktif">● Aktif</span>'
+              : '<span class="badge badge-nonaktif">● Nonaktif</span>') + '</div>' +
+          '<div class="kartu-sub">' + Core.esc(c.class_name) +
+            (c.academic_year ? ' · ' + Core.esc(c.academic_year) : '') +
+            ' · 🧑‍🎓 ' + c.jml_murid + ' murid</div>' +
+          '<div class="kaki">' +
+            (aktif
+              ? '<button class="btn-teks kecil" data-buka="' +
+                Core.esc(c.teaching_assignment_id) + '">Buka →</button>'
+              : '<span class="kecil">nonaktif</span>') +
+            '<span style="margin-left:auto"></span>' +
+            '<button class="btn-teks kecil" data-edit="' +
+              Core.esc(c.teaching_assignment_id) + '">✏️ Edit</button>' +
+            '<button class="btn-teks kecil merah" data-hapus="' +
+              Core.esc(c.teaching_assignment_id) + '" data-nama="' +
+              Core.esc(c.subject_name) + '">🗑 Hapus</button>' +
+          '</div></div>';
+      }).join('');
 
-      wadah.querySelectorAll('[data-edit]').forEach(function (b) {
+      wadah.querySelectorAll('[data-buka]').forEach(function (b) {
         b.addEventListener('click', function () {
-          dialogForm(b.dataset.edit);
+          Core.pergiKe('course_detail', { id: b.dataset.buka });
         });
+      });
+      wadah.querySelectorAll('[data-edit]').forEach(function (b) {
+        b.addEventListener('click', function () { dialogForm(b.dataset.edit); });
       });
       wadah.querySelectorAll('[data-hapus]').forEach(function (b) {
         b.addEventListener('click', function () {
@@ -69,19 +85,68 @@ var CourseLayar = (function () {
         });
       });
     }).catch(function (err) {
-      wadah.innerHTML = '<div class="kosong"><b>Gagal memuat</b>' +
-        Core.esc(err.message) + '</div>';
+      wadah.innerHTML = '<div class="kosong-besar"><span class="ikon">⚠️</span>' +
+        '<b>Gagal memuat</b>' + Core.esc(err.message) + '</div>';
     });
   }
 
+  /* ---------- detail course: 4 item pilihan ---------- */
+
+  function renderDetail(params) {
+    Core.$('layar').innerHTML =
+      '<div class="kepala" id="course-detail">' +
+        '<button class="btn-teks" id="btn-kembali-c">←</button>' +
+        '<div><h1 id="jd-c">…</h1><p id="jd-c-sub"></p></div>' +
+        '<div class="kepala-aksi">' +
+          '<button class="btn btn-sekunder" id="btn-edit-c">✏️ Edit course</button>' +
+        '</div></div>' +
+      '<div class="judul-seksi">Isi course</div>' +
+      '<div class="kisi-item">' +
+        ITEM_COURSE.map(function (it) {
+          return '<button type="button" class="item-course" data-item="' +
+            Core.esc(it.nama) + '">' +
+            '<span class="ikon">' + it.ikon + '</span>' +
+            '<b>' + Core.esc(it.nama) + '</b>' +
+            '<small>' + Core.esc(it.ket) + '</small>' +
+            '</button>';
+        }).join('') +
+      '</div>';
+
+    Core.$('btn-kembali-c').addEventListener('click', function () {
+      Core.pergiKe('course');
+    });
+    Core.$('btn-edit-c').addEventListener('click', function () {
+      dialogForm(params.id);
+    });
+
+    Core.api('courseDetail', Core.ambilToken(), params.id).then(function (d) {
+      var jd = Core.$('jd-c');
+      if (jd) jd.textContent = d.subject_name || 'Course';
+      var sub = Core.$('jd-c-sub');
+      if (sub) sub.textContent =
+        (d.class_name || '—') +
+        (d.academic_year ? ' · ' + d.academic_year : '') +
+        ' · 🧑‍🎓 ' + (d.jml_murid || 0) + ' murid';
+    }).catch(function (err) { Core.toast(err.message, 'bahaya'); });
+
+    Core.$('layar').querySelectorAll('.item-course').forEach(function (b) {
+      b.addEventListener('click', function () {
+        /* konten per item menyusul pada Tahap 4 */
+        Core.toast('“' + b.dataset.item +
+          '” terbuka setelah Tahap 4 (konten course) aktif.');
+      });
+    });
+  }
+
+  /* ---------- buat / edit ---------- */
+
   function dialogForm(taId) {
     Core.api('kelasDaftar', Core.ambilToken()).then(function (kelas) {
-      KELAS = kelas || [];
       var html =
         '<div class="grup"><label>Kelas <span class="wajib">*</span></label>' +
         '<select class="isian" id="in-c-kelas">' +
         '<option value="">— pilih kelas —</option>' +
-        KELAS.map(function (k) {
+        (kelas || []).map(function (k) {
           return '<option value="' + Core.esc(k.class_id) + '">' +
             Core.esc(k.name) + '</option>';
         }).join('') +
@@ -127,7 +192,7 @@ var CourseLayar = (function () {
         Core.api('courseSimpan', Core.ambilToken(), p)
           .then(function () {
             Core.toast(taId ? 'Course diperbarui.' : 'Course dibuat.', 'sukses');
-            muatTabel();
+            muatKisi();
           })
           .catch(function (err) {
             Core.tampilkanPesanError(salah, err.message);
@@ -147,13 +212,14 @@ var CourseLayar = (function () {
         Core.api('courseHapus', Core.ambilToken(), taId)
           .then(function () {
             Core.toast('Course dihapus (dinonaktifkan).', 'sukses');
-            muatTabel();
+            muatKisi();
           })
           .catch(function (err) { Core.toast(err.message, 'bahaya'); });
       });
   }
 
   Core.daftarRute('course', render);
-  return { render: render };
+  Core.daftarRute('course_detail', renderDetail);
+  return { render: render, renderDetail: renderDetail };
 })();
 </script>

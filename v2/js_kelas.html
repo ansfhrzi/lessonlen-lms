@@ -1,12 +1,16 @@
 <script>
 /* ============================================================
  *  LMS v2 — js_kelas.html
- *  Layar Kelola Kelas: kisi kartu (nama, tahun ajaran,
- *  jml murid/course), form buat/edit, detail (tabel murid +
- *  tambah murid ke kelas + keluarkan + ekspor), arsip.
+ *  Layar Kelola Kelas (bentuk laporan pemilik produk):
+ *  DROPDOWN pilih kelas → di bawahnya TABEL daftar nama siswa.
+ *  Aksi per kelas (edit, tambah murid, ekspor) aktif setelah
+ *  kelas dipilih. Form buat/edit, dialog tambah murid
+ *  (daftar + filter rombel), keluarkan.
  * ============================================================ */
 
 var KelasLayar = (function () {
+
+  var KELAS_DIPILIH = '';
 
   function render() {
     Core.$('layar').innerHTML =
@@ -16,44 +20,147 @@ var KelasLayar = (function () {
           '<button class="btn btn-sekunder" id="btn-ekspor">📄 Ekspor Excel</button>' +
           '<button class="btn" id="btn-tambah">＋ Buat kelas</button>' +
         '</div></div>' +
-      '<div id="wadah-kisi" class="kisi-kartu">' +
-        '<div class="pemuat"><span class="ikon">⏳</span>Memuat…</div>' +
-      '</div>';
+      '<div class="kartu">' +
+        '<div class="tabel-alat">' +
+          '<select class="isian" id="sel-kelas" style="width:auto;min-height:44px">' +
+            '<option value="">— pilih kelas —</option></select>' +
+          '<button class="btn btn-sekunder btn-kecil" id="btn-edit-kelas" disabled>✏️ Edit kelas</button>' +
+          '<button class="btn btn-kecil" id="btn-enroll" disabled>＋ Tambah murid</button>' +
+          '<span class="kecil" id="info-kelas" style="margin-left:auto"></span>' +
+        '</div>' +
+        '<div class="tabel-gulir" id="wadah-tabel">' +
+          '<div class="kosong">Pilih kelas di atas untuk melihat daftar siswanya.</div>' +
+        '</div>' +
+      '</div>' +
+      '<p class="bantuan mt-8">💡 Klik 👁 pada siswa untuk detail/edit/reset sandi. ' +
+      'Keluarkan hanya melepas siswa dari kelas ini — akunnya tetap ada.</p>';
 
     Core.$('btn-tambah').addEventListener('click', function () { dialogForm(null); });
     Core.$('btn-ekspor').addEventListener('click', ekspor);
-    muatKisi();
+    Core.$('sel-kelas').addEventListener('change', function () {
+      if (this.value) pilih(this.value);
+      else {
+        KELAS_DIPILIH = '';
+        segarkanTombol();
+        Core.$('wadah-tabel').innerHTML =
+          '<div class="kosong">Pilih kelas di atas untuk melihat daftar siswanya.</div>';
+        Core.$('info-kelas').textContent = '';
+      }
+    });
+    Core.$('btn-edit-kelas').addEventListener('click', function () {
+      if (KELAS_DIPILIH) dialogForm(KELAS_DIPILIH);
+    });
+    Core.$('btn-enroll').addEventListener('click', function () {
+      if (KELAS_DIPILIH) dialogEnroll(KELAS_DIPILIH);
+    });
+
+    muatPilihan();
   }
 
-  /* ---------- kisi kartu ---------- */
+  function segarkanTombol() {
+    var ada = !!KELAS_DIPILIH;
+    Core.$('btn-edit-kelas').disabled = !ada;
+    Core.$('btn-enroll').disabled = !ada;
+  }
 
-  function muatKisi() {
-    var wadah = Core.$('wadah-kisi');
+  /* ---------- dropdown kelas ---------- */
+
+  function muatPilihan() {
     Core.api('kelasDaftar', Core.ambilToken()).then(function (daftar) {
-      if (!daftar || !daftar.length) {
-        wadah.innerHTML = '<div class="kosong-besar"><span class="ikon">🏫</span>' +
-          '<b>Belum ada kelas</b>Buat kelas pertama Anda, lalu masukkan murid ke dalamnya.</div>';
+      var sel = Core.$('sel-kelas');
+      if (!sel) return;
+      sel.innerHTML = '<option value="">— pilih kelas —</option>' +
+        (daftar || []).map(function (k) {
+          return '<option value="' + Core.esc(k.class_id) + '">' +
+            Core.esc(k.name) +
+            (k.academic_year ? ' · ' + Core.esc(k.academic_year) : '') +
+            ' — ' + k.jml_murid + ' siswa</option>';
+        }).join('');
+      if (KELAS_DIPILIH && (daftar || []).some(function (k) {
+            return k.class_id === KELAS_DIPILIH; })) {
+        sel.value = KELAS_DIPILIH;
+        segarkanTombol();
+      }
+    }).catch(function (err) { Core.toast(err.message, 'bahaya'); });
+  }
+
+  function pilih(classId) {
+    KELAS_DIPILIH = classId;
+    segarkanTombol();
+    muatDetail(classId);
+  }
+
+  /* ---------- tabel siswa kelas terpilih ---------- */
+
+  function muatDetail(classId) {
+    var wadah = Core.$('wadah-tabel');
+    wadah.innerHTML = '<div class="pemuat"><span class="ikon">⏳</span>Memuat…</div>';
+    Core.api('kelasDetail', Core.ambilToken(), classId).then(function (d) {
+      var info = Core.$('info-kelas');
+      if (info) info.textContent =
+        (d.name || '—') +
+        (d.academic_year ? ' · ' + d.academic_year : '') +
+        ' · ' + (d.murid || []).length + ' siswa terdaftar';
+
+      if (!d.murid || !d.murid.length) {
+        wadah.innerHTML = '<div class="kosong"><b>Belum ada siswa di kelas ini</b>' +
+          'Gunakan “＋ Tambah murid” untuk mendaftarkan murid yang sudah ada.</div>';
         return;
       }
-      wadah.innerHTML = daftar.map(function (k) {
-        return '<div class="kartu-barang" data-id="' + Core.esc(k.class_id) + '">' +
-          '<div class="kartu-judul"><span>' + Core.esc(k.name) + '</span>' +
-            '<span class="badge badge-info">' + Core.esc(k.academic_year || '—') + '</span></div>' +
-          '<div class="kartu-sub">🧑‍🎓 ' + k.jml_murid + ' murid · 📚 ' + k.jml_course + ' course</div>' +
-          '<div class="kaki">' +
-            '<button class="btn-teks kecil" data-buka="' + Core.esc(k.class_id) + '">Buka →</button>' +
-          '</div></div>';
-      }).join('');
+      var html = '<table><thead><tr>' +
+        '<th>Siswa</th><th>Status akun</th><th>Tanggal daftar</th><th></th>' +
+        '</tr></thead><tbody>';
+      d.murid.forEach(function (m) {
+        html += '<tr>' +
+          '<td><div class="sel-orang"><div class="avatar">' +
+            Core.esc(Core.inisial(m.nama)) + '</div><div><b>' + Core.esc(m.nama) +
+            '</b><small>' + Core.esc(m.username) + '</small></div></div></td>' +
+          '<td>' + (m.sudah_ganti
+            ? '<span class="badge badge-aktif">sandi diganti</span>'
+            : '<span class="badge badge-tunggu">masih sandi sementara</span>') + '</td>' +
+          '<td class="kecil">' + Core.esc(m.tanggal_daftar || '—') + '</td>' +
+          '<td class="td-aksi">' +
+            '<button class="btn-teks" data-detail="' + Core.esc(m.user_id) + '" title="Detail">👁</button>' +
+            '<button class="btn-teks merah" data-keluar="' + Core.esc(m.enroll_id) + '" title="Keluarkan">🚪</button>' +
+          '</td></tr>';
+      });
+      html += '</tbody></table>';
+      wadah.innerHTML = html;
 
-      wadah.querySelectorAll('[data-buka]').forEach(function (b) {
+      wadah.querySelectorAll('[data-detail]').forEach(function (b) {
         b.addEventListener('click', function () {
-          Core.pergiKe('kelas_detail', { id: b.dataset.buka });
+          MuridLayar.detail(b.dataset.detail);
+        });
+      });
+      wadah.querySelectorAll('[data-keluar]').forEach(function (b) {
+        b.addEventListener('click', function () {
+          keluarkan(b.dataset.keluar, d.murid.filter(function (x) {
+            return x.enroll_id === b.dataset.keluar;
+          })[0], classId);
         });
       });
     }).catch(function (err) {
-      wadah.innerHTML = '<div class="kosong-besar"><span class="ikon">⚠️</span>' +
-        '<b>Gagal memuat</b>' + Core.esc(err.message) + '</div>';
+      wadah.innerHTML = '<div class="kosong"><b>Gagal memuat</b>' +
+        Core.esc(err.message) + '</div>';
     });
+  }
+
+  function keluarkan(enrollId, m, classId) {
+    if (!m) return;
+    Core.konfirmasi('Keluarkan murid?',
+      m.nama + ' dilepas dari kelas ini. Akunnya tetap ada dan bisa ' +
+      'didaftarkan lagi di kelas mana pun.',
+      { labelYa: 'Ya, keluarkan', bahaya: true })
+      .then(function (ya) {
+        if (!ya) return;
+        Core.api('kelasKeluarkan', Core.ambilToken(), enrollId)
+          .then(function () {
+            Core.toast('Murid dikeluarkan dari kelas.', 'sukses');
+            muatDetail(classId);
+            muatPilihan();          /* jml siswa pada dropdown ikut segar */
+          })
+          .catch(function (err) { Core.toast(err.message, 'bahaya'); });
+      });
   }
 
   /* ---------- buat / edit ---------- */
@@ -88,109 +195,23 @@ var KelasLayar = (function () {
       if (classId) p.class_id = classId;
 
       Core.api('kelasSimpan', Core.ambilToken(), p)
-        .then(function () {
+        .then(function (hasil) {
           Core.toast(classId ? 'Kelas diperbarui.' : 'Kelas dibuat.', 'sukses');
-          if (classId) muatKisi(); else Core.pergiKe('kelas');
+          muatPilihan();
+          if (!classId && hasil && hasil.class_id) {
+            /* kelas baru → langsung dipilih agar bisa diisi murid */
+            KELAS_DIPILIH = hasil.class_id;
+            var sel = Core.$('sel-kelas');
+            if (sel) sel.value = hasil.class_id;
+            segarkanTombol();
+          }
+          muatDetail(KELAS_DIPILIH);
         })
         .catch(function (err) {
           Core.tampilkanPesanError(salah, err.message);
           dialogForm(classId);
         });
     });
-  }
-
-  /* ---------- detail kelas ---------- */
-
-  function renderDetail(params) {
-    Core.$('layar').innerHTML =
-      '<div class="kepala">' +
-        '<button class="btn-teks" id="btn-kembali">←</button>' +
-        '<div><h1 id="jd-nama">…</h1><p id="jd-sub"></p></div>' +
-        '<div class="kepala-aksi">' +
-          '<button class="btn btn-sekunder" id="btn-ekspor">📄 Ekspor Excel</button>' +
-          '<button class="btn" id="btn-enroll">＋ Tambah murid</button>' +
-        '</div></div>' +
-      '<div class="kartu"><div class="kartu-isi" id="wadah-detail">' +
-        '<div class="pemuat"><span class="ikon">⏳</span>Memuat…</div>' +
-      '</div></div>' +
-      '<p class="bantuan mt-8">💡 Klik 👁 pada murid untuk melihat detail, edit, ' +
-      'atau reset kata sandinya. Keluarkan hanya melepas murid dari kelas ini — ' +
-      'akunnya tetap ada.</p>';
-
-    Core.$('btn-kembali').addEventListener('click', function () { Core.pergiKe('kelas'); });
-    Core.$('btn-enroll').addEventListener('click', function () { dialogEnroll(params.id); });
-    Core.$('btn-ekspor').addEventListener('click', ekspor);
-    muatDetail(params.id);
-  }
-
-  function muatDetail(classId) {
-    var wadah = Core.$('wadah-detail');
-    Core.api('kelasDetail', Core.ambilToken(), classId).then(function (d) {
-      var jd = Core.$('jd-nama');
-      if (jd) jd.textContent = d.name || '—';
-      var sub = Core.$('jd-sub');
-      if (sub) sub.textContent =
-        (d.academic_year ? d.academic_year + ' · ' : '') +
-        (d.murid || []).length + ' murid terdaftar';
-
-      if (!d.murid || !d.murid.length) {
-        wadah.innerHTML = '<div class="kosong"><b>Belum ada murid di kelas ini</b>' +
-          'Gunakan “Tambah murid” untuk mendaftarkan murid yang sudah ada.</div>';
-        return;
-      }
-      var html = '<div class="tabel-gulir"><table><thead><tr>' +
-        '<th>Murid</th><th>Status akun</th><th>Tanggal daftar</th><th></th>' +
-        '</tr></thead><tbody>';
-      d.murid.forEach(function (m) {
-        html += '<tr>' +
-          '<td><div class="sel-orang"><div class="avatar">' +
-            Core.esc(Core.inisial(m.nama)) + '</div><div><b>' + Core.esc(m.nama) +
-            '</b><small>' + Core.esc(m.username) + '</small></div></div></td>' +
-          '<td>' + (m.sudah_ganti
-            ? '<span class="badge badge-aktif">sandi diganti</span>'
-            : '<span class="badge badge-tunggu">masih sandi sementara</span>') + '</td>' +
-          '<td class="kecil">' + Core.esc(m.tanggal_daftar || '—') + '</td>' +
-          '<td class="td-aksi">' +
-            '<button class="btn-teks" data-detail="' + Core.esc(m.user_id) + '" title="Detail">👁</button>' +
-            '<button class="btn-teks merah" data-keluar="' + Core.esc(m.enroll_id) + '" title="Keluarkan">🚪</button>' +
-          '</td></tr>';
-      });
-      html += '</tbody></table></div>';
-      wadah.innerHTML = html;
-
-      wadah.querySelectorAll('[data-detail]').forEach(function (b) {
-        b.addEventListener('click', function () {
-          MuridLayar.detail(b.dataset.detail);
-        });
-      });
-      wadah.querySelectorAll('[data-keluar]').forEach(function (b) {
-        b.addEventListener('click', function () {
-          keluarkan(b.dataset.keluar, d.murid.filter(function (x) {
-            return x.enroll_id === b.dataset.keluar;
-          })[0], classId);
-        });
-      });
-    }).catch(function (err) {
-      wadah.innerHTML = '<div class="kosong"><b>Gagal memuat</b>' +
-        Core.esc(err.message) + '</div>';
-    });
-  }
-
-  function keluarkan(enrollId, m, classId) {
-    if (!m) return;
-    Core.konfirmasi('Keluarkan murid?',
-      m.nama + ' dilepas dari kelas ini. Akunnya tetap ada dan bisa ' +
-      'didaftarkan lagi di kelas mana pun.',
-      { labelYa: 'Ya, keluarkan', bahaya: true })
-      .then(function (ya) {
-        if (!ya) return;
-        Core.api('kelasKeluarkan', Core.ambilToken(), enrollId)
-          .then(function () {
-            Core.toast('Murid dikeluarkan dari kelas.', 'sukses');
-            muatDetail(classId);
-          })
-          .catch(function (err) { Core.toast(err.message, 'bahaya'); });
-      });
   }
 
   /* ---------- enroll (tambah murid ke kelas) ---------- */
@@ -220,7 +241,6 @@ var KelasLayar = (function () {
 
       /* keadaan centang bertahan lintas penyaringan */
       var dipilih = {};   /* user_id → true */
-      var AKTIF = daftar;
 
       function barisPilih(m) {
         var lain = (m.kelas && m.kelas.length) ? ' · sudah di ' +
@@ -239,11 +259,11 @@ var KelasLayar = (function () {
         var wadah = Core.$('pilih-list');
         if (!wadah) return;
         var rombel = Core.$('sel-rombel') ? Core.$('sel-rombel').value : '';
-        AKTIF = rombel
+        var tampil = rombel
           ? daftar.filter(function (m) { return m.rombel === rombel; })
           : daftar;
-        wadah.innerHTML = AKTIF.length
-          ? AKTIF.map(barisPilih).join('')
+        wadah.innerHTML = tampil.length
+          ? tampil.map(barisPilih).join('')
           : '<div class="kosong">Tidak ada murid pada rombel ini.</div>';
         wadah.querySelectorAll('input[type="checkbox"]').forEach(function (cb) {
           cb.addEventListener('change', function () {
@@ -292,6 +312,7 @@ var KelasLayar = (function () {
             Core.toast('Ditambahkan ' + (hasil.ditambah || 0) +
               ' murid · diaktifkan ' + (hasil.diaktifkan || 0) + '.', 'sukses');
             muatDetail(classId);
+            muatPilihan();          /* jml siswa pada dropdown ikut segar */
           })
           .catch(function (err) {
             Core.tampilkanPesanError(Core.$('salah-enroll'), err.message);
@@ -309,7 +330,6 @@ var KelasLayar = (function () {
   }
 
   Core.daftarRute('kelas', render);
-  Core.daftarRute('kelas_detail', renderDetail);
-  return { render: render, renderDetail: renderDetail };
+  return { render: render };
 })();
 </script>

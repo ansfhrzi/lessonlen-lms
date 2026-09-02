@@ -266,7 +266,9 @@ MOCK = r"""
     courseDaftar: function () { return db.course; },
     courseDetail: function (t, id) {
       var c = db.course.filter(function (x) { return x.teaching_assignment_id === id; })[0] || {};
-      return { class_id: c.class_id, subject_name: c.subject_name };
+      return { class_id: c.class_id, class_name: c.class_name,
+               subject_name: c.subject_name, academic_year: c.academic_year,
+               status: c.status, jml_murid: c.jml_murid };
     },
     /* backend Course.simpan menerima { class_id, name } — mirror */
     courseSimpan: function (t, p) {

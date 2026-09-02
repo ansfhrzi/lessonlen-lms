@@ -159,14 +159,23 @@ const tunggu = (ms) => new Promise(r => setTimeout(r, ms));
   await tunggu(300);
   cek('murid: daftar bertambah jadi 7', d.querySelectorAll('#wadah-tabel tbody tr').length === 7);
 
-  // --- Kelola Kelas
+  // --- Kelola Kelas: DROPDOWN kelas + tabel siswa (permintaan) ---
   d.querySelector('#menu-utama a[data-rute="kelas"]').click();
   await tunggu(500);
-  cek('kelas: 3 kartu', d.querySelectorAll('#wadah-kisi .kartu-barang').length === 3);
-  d.querySelector('#wadah-kisi [data-buka]').click();
+  cek('kelas: dropdown terisi (3 kelas + opsi kosong)',
+      d.getElementById('sel-kelas') &&
+      d.getElementById('sel-kelas').options.length === 4);
+  cek('kelas: tombol aksi mati sebelum memilih',
+      d.getElementById('btn-enroll').disabled === true &&
+      d.getElementById('btn-edit-kelas').disabled === true);
+  cek('kelas: sebelum memilih → pesan "Pilih kelas"',
+      d.getElementById('wadah-tabel').textContent.includes('Pilih kelas'));
+  d.getElementById('sel-kelas').value = 'k1';
+  d.getElementById('sel-kelas').dispatchEvent(new w.Event('change'));
   await tunggu(500);
-  cek('kelas: detail terbuka (XI TKJ 1)', d.getElementById('jd-nama').textContent === 'XI TKJ 1');
-  cek('kelas: tabel murid kelas ada', d.querySelectorAll('#wadah-detail tbody tr').length >= 1);
+  cek('kelas: tabel siswa muncul setelah memilih (3 baris)',
+      d.querySelectorAll('#wadah-tabel tbody tr').length === 3 &&
+      d.getElementById('info-kelas').textContent.includes('XI TKJ 1'));
   // --- tambah murid ke kelas: LIST + FILTER ROMBEL (permintaan) ---
   d.getElementById('btn-enroll').click();
   await tunggu(500);
@@ -192,19 +201,31 @@ const tunggu = (ms) => new Promise(r => setTimeout(r, ms));
       d.getElementById('hitung-pilih').textContent.includes('1 dipilih'));
   d.querySelector('.kotak-dialog [data-aksi="ya"]').click();
   await tunggu(600);
-  cek('kelas: enroll sukses → dialog tertutup, detail dimuat ulang',
+  cek('kelas: enroll sukses → tabel siswa bertambah (4 baris)',
       !d.querySelector('.kotak-dialog') &&
-      d.getElementById('jd-sub') &&
-      d.getElementById('jd-sub').textContent.includes('murid terdaftar') &&
-      d.querySelectorAll('#wadah-detail tbody tr').length >= 4);
-  d.getElementById('btn-kembali').click();
-  await tunggu(300);
-  cek('kelas: kembali ke kisi', !!d.getElementById('wadah-kisi'));
+      d.querySelectorAll('#wadah-tabel tbody tr').length === 4 &&
+      d.getElementById('info-kelas').textContent.includes('4 siswa terdaftar'));
 
-  // --- Kelola Course
+  // --- Kelola Course: KARTU course + detail 4 item (permintaan) ---
   d.querySelector('#menu-utama a[data-rute="course"]').click();
   await tunggu(500);
-  cek('course: 4 baris', d.querySelectorAll('#wadah-tabel tbody tr').length === 4);
+  cek('course: kartu course tampil (4)',
+      d.querySelectorAll('#wadah-kisi .kartu-barang').length === 4);
+  d.querySelector('#wadah-kisi [data-buka]').click();
+  await tunggu(500);
+  cek('course: detail terbuka dgn 4 item pilihan',
+      d.querySelectorAll('.item-course').length === 4 &&
+      d.getElementById('jd-c').textContent !== '…' &&
+      d.getElementById('jd-c-sub').textContent.includes('murid'));
+  d.querySelector('.item-course').click();
+  await tunggu(200);
+  cek('course: item → info "menyusul Tahap 4"',
+      d.getElementById('toast-wadah') &&
+      d.getElementById('toast-wadah').textContent.includes('Tahap 4'));
+  d.getElementById('btn-kembali-c').click();
+  await tunggu(300);
+  cek('course: kembali ke kisi (4 kartu)',
+      d.querySelectorAll('#wadah-kisi .kartu-barang').length === 4);
   d.getElementById('btn-tambah').click();
   await tunggu(400);
   cek('course: dialog buat (pilih kelas)', d.getElementById('in-c-kelas').options.length >= 4);
@@ -212,7 +233,7 @@ const tunggu = (ms) => new Promise(r => setTimeout(r, ms));
   d.getElementById('in-c-mapel').value = 'Informatika';
   d.querySelector('.kotak-dialog [data-aksi="ya"]').click();
   await tunggu(500);
-  cek('course: jadi 5 baris', d.querySelectorAll('#wadah-tabel tbody tr').length === 5);
+  cek('course: jadi 5 kartu', d.querySelectorAll('#wadah-kisi .kartu-barang').length === 5);
 
   // --- Rekap placeholder
   d.querySelector('#menu-utama a[data-rute="rekap"]').click();
