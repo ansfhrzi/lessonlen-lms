@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Prototipe Tahap 4 — Kelola Topik &amp; Item</title>
+<style>
+/* Subset gaya v1 (identik v2/css.html) */
+:root{
+  --hijau:#7BC96F; --hijau-tua:#4E9A4A; --hijau-muda:#D9F2D4;
+  --permukaan:#F6FBF5; --sukses:#3FA34D; --peringatan:#E0A82E;
+  --bahaya:#D9534F; --terkunci:#B8C4B6; --teks:#233524;
+  --teks-lembut:#5A6B5B; --garis:#DDE7DC; --putih:#FFFFFF;
+  --radius:12px; --radius-sm:8px;
+  --bayang:0 1px 3px rgba(35,53,36,.08);
+  --bayang-mn:0 4px 12px rgba(35,53,36,.12);
+  --bayang-bs:0 8px 28px rgba(35,53,36,.16);
+  --font:'Plus Jakarta Sans',-apple-system,'Segoe UI',system-ui,sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:var(--font);background:var(--permukaan);color:var(--teks);
+     font-size:15px;line-height:1.6;-webkit-font-smoothing:antialiased}
+.wadah{max-width:920px;margin:0 auto;padding:22px 16px 60px}
+h1{font-size:1.35rem;font-weight:800;letter-spacing:-.02em}
+.lembut{color:var(--teks-lembut)}.kecil{font-size:.85rem}
+.kartu{background:var(--putih);border:1px solid var(--garis);
+       border-radius:var(--radius);box-shadow:var(--bayang)}
+.kartu .atas{padding:14px 16px;border-bottom:1px solid var(--garis);
+             display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.kartu .atas .ruang{margin-left:auto}
+.badge{display:inline-flex;align-items:center;gap:5px;border-radius:999px;
+       font-size:.72rem;font-weight:700;padding:2px 9px;white-space:nowrap;
+       background:var(--hijau-muda);color:var(--hijau-tua)}
+.badge.jadwal{background:#FBF0D8;color:#9A7414}
+.badge.draf{background:#ECF0EB;color:#74836F}
+.btn{display:inline-flex;align-items:center;gap:7px;min-height:40px;
+     padding:8px 14px;border:1px solid transparent;border-radius:var(--radius-sm);
+     background:var(--hijau);color:#fff;font-family:var(--font);
+     font-size:.9rem;font-weight:600;cursor:pointer}
+.btn:hover{background:var(--hijau-tua)}
+.btn.hantu{background:transparent;color:var(--hijau-tua);border-color:var(--garis)}
+.btn.hantu:hover{background:var(--hijau-muda)}
+.btn.teks{background:none;border:none;color:var(--teks-lembut);min-height:32px;
+          padding:5px 8px;font-weight:700;border-radius:7px;font-size:.82rem}
+.btn.teks:hover{background:var(--hijau-muda);color:var(--teks)}
+.btn.teks.merah:hover{background:#FBE3E2;color:var(--bahaya)}
+/* daftar susunan */
+.baris-susunan{display:flex;align-items:center;gap:12px;width:100%;
+  padding:12px 14px;border:0;border-bottom:1px solid var(--garis);
+  background:none;font-family:var(--font);color:var(--teks);text-align:left;
+  cursor:pointer;transition:background .12s}
+.baris-susunan:hover{background:var(--permukaan)}
+.baris-susunan:last-child{border-bottom:none}
+.baris-susunan.draf .judul,.baris-susunan.draf .meta{color:var(--terkunci)}
+.baris-susunan.draf{background:#FCFDFB}
+.baris-susunan.draf .nomor{background:#ECF0EB;color:#74836F}
+.nomor{flex:0 0 34px;height:34px;border-radius:50%;display:flex;align-items:center;
+       justify-content:center;font-weight:800;font-size:.92rem;
+       background:var(--hijau-muda);color:var(--hijau-tua)}
+.baris-susunan .ikon{font-size:1.25rem;flex:none;width:30px;text-align:center}
+.tengah{flex:1;min-width:0}
+.judul{font-weight:700;font-size:.95rem;white-space:nowrap;overflow:hidden;
+       text-overflow:ellipsis}
+.meta{font-size:.76rem;color:var(--teks-lembut)}
+ kontrol
+.kontrol{display:flex;gap:2px;flex:none}
+/* item di dalam topik: menjorok + garis putus (pola .item-ptm v1) */
+.isi-topik{list-style:none;margin:0;padding:0 0 6px 52px;
+           border-bottom:1px solid var(--garis);background:#FBFDF9}
+.isi-topik .baris-item{display:flex;align-items:center;gap:9px;width:100%;
+  padding:8px 10px;border:0;background:none;font-family:var(--font);
+  color:var(--teks);text-align:left;cursor:pointer;border-radius:7px}
+.isi-topik .baris-item:hover{background:var(--hijau-muda)}
+.isi-topik .baris-item.draf{color:var(--terkunci)}
+.isi-topik .baris-item.draf .judul{color:var(--terkunci)}
+/* dialog */
+.tirai{position:fixed;inset:0;background:rgba(35,53,36,.42);display:none;
+       align-items:center;justify-content:center;padding:20px;z-index:50}
+.tirai.tampil{display:flex}
+.kotak{background:var(--putih);border-radius:var(--radius);padding:22px;
+       width:100%;max-width:400px;box-shadow:var(--bayang-bs)}
+.kotak h3{margin-bottom:6px}
+.kotak .grup{margin:12px 0}
+.kotak label{display:block;font-size:.86rem;font-weight:600;margin-bottom:5px}
+.kotak input{width:100%;min-height:42px;padding:9px 12px;
+             border:1px solid var(--garis);border-radius:var(--radius-sm);
+             font-family:var(--font);font-size:.95rem}
+.kotak .aksi{display:flex;gap:8px;justify-content:flex-end;margin-top:16px}
+/* toast */
+#toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);
+       background:var(--teks);color:#fff;padding:11px 16px;border-radius:9px;
+       font-size:.88rem;box-shadow:var(--bayang-bs);opacity:0;
+       transition:opacity .2s;pointer-events:none;max-width:90vw;text-align:center}
+#toast.tampil{opacity:1}
+.petunjuk{margin-top:14px;font-size:.8rem;color:var(--teks-lembut)}
+</style>
+</head>
+<body>
+<div class="wadah">
+  <div style="margin-bottom:14px">
+    <span class="badge">PROTOTIPE — data contoh, klik-klik untuk mencoba</span>
+    <h1 style="margin-top:6px">Kelola Topik &amp; Item</h1>
+    <div class="lembut kecil">Matematika · XI TKJ 1 · 2026/2027 — <button class="btn teks" id="kembali">← kembali ke course</button></div>
+  </div>
+
+  <div class="kartu">
+    <div class="atas">
+      <b class="kecil">SUSUNAN COURSE</b>
+      <span class="kecil lembut">bernomor gabungan — §7.8b</span>
+      <span class="ruang"></span>
+      <button class="btn hantu" id="tmb-topik">＋ Topik</button>
+      <button class="btn hantu" id="tmb-quiz">＋ Quiz mandiri</button>
+      <button class="btn hantu" id="tmb-ref">＋ Refleksi mandiri</button>
+    </div>
+    <div id="daftar"></div>
+  </div>
+
+  <p class="petunjuk">
+    Aturan (§7.8b): baris baru SELALU masuk paling dasar · ▲▼ menukar posisi
+    tetangga lalu dinomori ulang 1..N (item di dalam topik pakai urutan
+    dalemnya sendiri) · 👁 terlihat / 🙈 draf · menyembunyikan item terjadwal
+    MEMBATALKAN jadwalnya · 🕐 terjadwal = terlihat murid tepat pada waktunya
+    (tanpa notifikasi) · notifikasi <i>pertemuan_baru</i> hanya saat 👁 publish
+    eksplisit.
+  </p>
+</div>
+
+<div class="tirai" id="tirai">
+  <div class="kotak">
+    <h3 id="dlg-judul">…</h3>
+    <div id="dlg-isi"></div>
+    <div class="aksi">
+      <button class="btn hantu" id="dlg-batal">Batal</button>
+      <button class="btn" id="dlg-ya">Simpan</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+'use strict';
+/* ===== data contoh ===== */
+var susunan = [
+  { jenis:'topik', judul:'Pecahan & pecahan desimal', terlihat:true, jadwal:null, buka:true,
+    item:[
+      { jenis:'materi',          judul:'Menyederhanakan pecahan', terlihat:true,  jadwal:null },
+      { jenis:'tugas_individu',  judul:'Latihan 12 soal',         terlihat:false, jadwal:null },
+      { jenis:'quiz',            judul:'Quiz pecahan',            terlihat:true,  jadwal:null }
+    ]},
+  { jenis:'quiz_mandiri',     judul:'Tryout operasi hitung',    terlihat:true,  jadwal:'2026-09-12T07:00', item:null },
+  { jenis:'topik',            judul:'Perbandingan',             terlihat:false, jadwal:null, buka:false, item:[] },
+  { jenis:'refleksi_mandiri', judul:'Refleksi mingguan #1',     terlihat:true,  jadwal:null, item:null }
+];
+
+var IKON = { topik:'🗂', quiz_mandiri:'🧮', refleksi_mandiri:'🪞',
+             materi:'📖', tugas_individu:'👤', tugas_kelompok:'👥',
+             quiz:'❓', refleksi:'🪞' };
+var NAMA = { quiz_mandiri:'Quiz mandiri', refleksi_mandiri:'Refleksi mandiri',
+             materi:'Materi', tugas_individu:'Tugas Individu',
+             tugas_kelompok:'Tugas Kelompok', quiz:'Quiz', refleksi:'Refleksi' };
+
+function fmtJadwal(v){
+  if (!v) return '';
+  var d = new Date(v);
+  return d.toLocaleDateString('id-ID', { day:'numeric', month:'short' }) +
+         ' ' + d.toLocaleTimeString('id-ID', { hour:'2-digit', minute:'2-digit' });
+}
+function badgeBaris(b){
+  if (b.jadwal) return '<span class="badge jadwal">🕐 ' + fmtJadwal(b.jadwal) + '</span>';
+  if (!b.terlihat) return '<span class="badge draf">🙈 draf</span>';
+  return '<span class="badge">👁 terlihat</span>';
+}
+function kontrolTingkat(b, di){
+  return '<span class="kontrol">' +
+    '<button class="btn teks" data-aksi="atas" data-di="' + di + '" title="Naik">▲</button>' +
+    '<button class="btn teks" data-aksi="bawah" data-di="' + di + '" title="Turun">▼</button>' +
+    '<button class="btn teks" data-aksi="lihat" data-di="' + di + '" title="Terlihat/draf">' +
+      (b.terlihat ? '👁' : '🙈') + '</button>' +
+    '<button class="btn teks" data-aksi="jadwal" data-di="' + di + '" title="Jadwal terbit">🕐</button>' +
+    '<button class="btn teks" data-aksi="edit" data-di="' + di + '" title="Edit judul">✏️</button>' +
+    '</span>';
+}
+
+function render(){
+  var wadah = document.getElementById('daftar');
+  var html = '';
+  susunan.forEach(function (b, i) {
+    var di = String(i);
+    if (b.jenis === 'topik') {
+      html +=
+        '<button class="baris-susunan' + (b.terlihat ? '' : ' draf') + '" data-buka="' + i + '">' +
+          '<span class="nomor">' + (i + 1) + '</span>' +
+          '<span class="ikon">' + (b.buka ? '📂' : '🗂') + '</span>' +
+          '<span class="tengah"><span class="judul">' + esc(b.judul) + '</span>' +
+            '<span class="meta">' + b.item.length + ' item · ' +
+            ringkasItem(b.item) + '</span></span>' +
+          badgeBaris(b) +
+          '<span class="kontrol">' +
+            '<button class="btn teks" data-aksi="atas" data-di="' + di + '" title="Naik">▲</button>' +
+            '<button class="btn teks" data-aksi="bawah" data-di="' + di + '" title="Turun">▼</button>' +
+            '<button class="btn teks" data-aksi="lihat" data-di="' + di + '" title="Terlihat/draf">' +
+              (b.terlihat ? '👁' : '🙈') + '</button>' +
+            '<button class="btn teks" data-aksi="jadwal" data-di="' + di + '" title="Jadwal terbit">🕐</button>' +
+            '<button class="btn teks" data-aksi="edit" data-di="' + di + '" title="Edit judul">✏️</button>' +
+          '</span>' +
+        '</button>';
+      if (b.buka) {
+        html += '<div class="isi-topik">';
+        if (!b.item.length) {
+          html += '<div class="baris-item lembut kecil" style="cursor:default">Belum ada item — konten diisi pada implementasi (Tahap 4).</div>';
+        }
+        b.item.forEach(function (it, j) {
+          html +=
+            '<button class="baris-item' + (it.terlihat ? '' : ' draf') + '" data-ikan="' + i + '" data-j="' + j + '">' +
+              '<span class="ikon" style="font-size:1rem">' + IKON[it.jenis] + '</span>' +
+              '<span class="tengah"><span class="judul" style="font-size:.88rem">' +
+                esc(it.judul) + '</span>' +
+                '<span class="meta">' + NAMA[it.jenis] +
+                (it.jadwal ? ' · 🕐 ' + fmtJadwal(it.jadwal) :
+                  (it.terlihat ? '' : ' · 🙈 draf')) + '</span></span>' +
+              '<span class="kontrol">' +
+                '<button class="btn teks" data-aksi="i-atas" data-ikan="' + i + '" data-j="' + j + '">▲</button>' +
+                '<button class="btn teks" data-aksi="i-bawah" data-ikan="' + i + '" data-j="' + j + '">▼</button>' +
+                '<button class="btn teks" data-aksi="i-lihat" data-ikan="' + i + '" data-j="' + j + '">' +
+                  (it.terlihat ? '👁' : '🙈') + '</button>' +
+                '<button class="btn teks" data-aksi="i-jadwal" data-ikan="' + i + '" data-j="' + j + '">🕐</button>' +
+                '<button class="btn teks" data-aksi="i-edit" data-ikan="' + i + '" data-j="' + j + '">✏️</button>' +
+              '</span>' +
+            '</button>';
+        });
+        html += '</div>';
+      }
+    } else {
+      html +=
+        '<button class="baris-susunan' + (b.terlihat ? '' : ' draf') + '" style="cursor:default">' +
+          '<span class="nomor">' + (i + 1) + '</span>' +
+          '<span class="ikon">' + IKON[b.jenis] + '</span>' +
+          '<span class="tengah"><span class="judul">' + esc(b.judul) + '</span>' +
+            '<span class="meta">' + NAMA[b.jenis] + '</span></span>' +
+          badgeBaris(b) +
+          kontrolTingkat(b, di) +
+        '</button>';
+    }
+  });
+  wadah.innerHTML = html;
+}
+
+function ringkasItem(item){
+  if (!item.length) return 'belum ada item';
+  return item.map(function (it) { return IKON[it.jenis]; }).join(' ');
+}
+function esc(t){
+  return String(t == null ? '' : t)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;');
+}
+function toast(pesan){
+  var t = document.getElementById('toast');
+  t.textContent = pesan;
+  t.classList.add('tampil');
+  clearTimeout(t._w);
+  t._w = setTimeout(function(){ t.classList.remove('tampil'); }, 2600);
+}
+
+/* ===== aksi ===== */
+function tukar(i, j){
+  var sementara = susunan[i]; susunan[i] = susunan[j]; susunan[j] = sementara;
+}
+document.getElementById('daftar').addEventListener('click', function (e) {
+  var b = e.target.closest('[data-aksi]');
+  if (!b) return;
+  e.stopPropagation();
+  var aksi = b.dataset.aksi;
+
+  /* buka/tutup topik (klik baris tanpa aksi) */
+  if (b.dataset.buka !== undefined && !aksi) {
+    susunan[Number(b.dataset.buka)].buka =
+      !susunan[Number(b.dataset.buka)].buka;
+    render(); return;
+  }
+
+  if (aksi === 'atas' || aksi === 'bawah') {
+    var i = Number(b.dataset.di), lawan = aksi === 'atas' ? i - 1 : i + 1;
+    if (lawan < 0 || lawan >= susunan.length) return;
+    tukar(i, lawan);
+    render(); toast('Urutan ditukar & dinomori ulang 1..' + susunan.length);
+    return;
+  }
+  if (aksi === 'lihat') {
+    var x = susunan[Number(b.dataset.di)];
+    x.terlihat = !x.terlihat;
+    if (!x.terlihat && x.jadwal) {
+      x.jadwal = null;
+      toast('🙈 draf — jadwal terbit DIBATALKAN (§7.8b)');
+    } else {
+      toast(x.terlihat
+        ? '👁 terlihat — notifikasi pertemuan_baru terkirim (publish eksplisit)'
+        : '🙈 draf — murid tidak melihat baris ini');
+    }
+    render(); return;
+  }
+  if (aksi === 'jadwal') { dialogJadwal(susunan[Number(b.dataset.di)]); return; }
+  if (aksi === 'edit')   { dialogEdit(susunan[Number(b.dataset.di)]); return; }
+
+  /* item dalam topik */
+  if (aksi.indexOf('i-') === 0) {
+    var t = susunan[Number(b.dataset.ikan)];
+    var j = Number(b.dataset.j);
+    if (aksi === 'i-atas' || aksi === 'i-bawah') {
+      var l = aksi === 'i-atas' ? j - 1 : j + 1;
+      if (l < 0 || l >= t.item.length) return;
+      var tmp = t.item[j]; t.item[j] = t.item[l]; t.item[l] = tmp;
+      render(); return;
+    }
+    if (aksi === 'i-lihat') {
+      var it = t.item[j];
+      it.terlihat = !it.terlihat;
+      if (!it.terlihat && it.jadwal) {
+        it.jadwal = null;
+        toast('🙈 draf — jadwal terbit DIBATALKAN (§7.8b)');
+      } else {
+        toast(it.terlihat ? '👁 terlihat' : '🙈 draf');
+      }
+      render(); return;
+    }
+    if (aksi === 'i-jadwal') { dialogJadwal(t.item[j]); return; }
+    if (aksi === 'i-edit')   { dialogEdit(t.item[j]); return; }
+  }
+});
+
+/* dialog serbaguna */
+function bukaDialog(judul, isiHtml, saatYa){
+  document.getElementById('dlg-judul').textContent = judul;
+  document.getElementById('dlg-isi').innerHTML = isiHtml;
+  document.getElementById('tirai').classList.add('tampil');
+  var ya = document.getElementById('dlg-ya');
+  var baru = ya.cloneNode(true);
+  ya.parentNode.replaceChild(baru, ya);
+  baru.addEventListener('click', function () {
+    if (saatYa() !== false) document.getElementById('tirai').classList.remove('tampil');
+  });
+}
+document.getElementById('dlg-batal').addEventListener('click', function () {
+  document.getElementById('tirai').classList.remove('tampil');
+});
+
+function dialogJadwal(b){
+  bukaDialog('🕐 Jadwal terbit',
+    '<div class="grup"><label>Terlihat murid TEPAT pada (§7.8b)</label>' +
+    '<input type="datetime-local" id="in-jadwal" value="' + (b.jadwal || '') + '">' +
+    '<div class="kecil lembut" style="margin-top:5px">Tanpa trigger waktu & tanpa ' +
+    'notifikasi — dievaluasi saat murid membuka.</div></div>',
+    function () {
+      var v = document.getElementById('in-jadwal').value;
+      b.jadwal = v || null;
+      if (b.jadwal) { b.terlihat = true; toast('Terjadwal — murid melihat tepat ' + fmtJadwal(b.jadwal)); }
+      else toast('Jadwal dikosongkan');
+      render();
+    });
+}
+function dialogEdit(b){
+  bukaDialog('✏️ Edit judul',
+    '<div class="grup"><label>Judul</label>' +
+    '<input id="in-judul" value="' + esc(b.judul) + '"></div>',
+    function () {
+      var v = document.getElementById('in-judul').value.trim();
+      if (!v) return false;
+      b.judul = v; render(); toast('Judul disimpan (prototipe)');
+    });
+}
+
+/* tambah baris — SELALU paling dasar (§7.8b) */
+document.getElementById('tmb-topik').addEventListener('click', function () {
+  susunan.push({ jenis:'topik', judul:'Topik baru', terlihat:false, jadwal:null, buka:true, item:[] });
+  render(); toast('Topik draf ditambahkan di PALING DASAR (§7.8b)');
+});
+document.getElementById('tmb-quiz').addEventListener('click', function () {
+  susunan.push({ jenis:'quiz_mandiri', judul:'Quiz mandiri baru', terlihat:false, jadwal:null, item:null });
+  render(); toast('Quiz mandiri (draf) masuk paling dasar');
+});
+document.getElementById('tmb-ref').addEventListener('click', function () {
+  susunan.push({ jenis:'refleksi_mandiri', judul:'Refleksi mandiri baru', terlihat:false, jadwal:null, item:null });
+  render(); toast('Refleksi mandiri (draf) masuk paling dasar');
+});
+document.getElementById('kembali').addEventListener('click', function () {
+  toast('← kembali ke detail course (di app)');
+});
+
+render();
+</script>
+</body>
+</html>
