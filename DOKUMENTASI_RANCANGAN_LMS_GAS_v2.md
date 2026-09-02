@@ -8,7 +8,7 @@
 
 > **KEPUTUSAN FINAL V2.1 (menggantikan bagian rancangan OAuth lama):**
 >
-> 1. **Login sama seperti LessonLen v1** — nama pengguna + kata sandi (tersimpan teks agar selalu terlihat guru — keputusan §22D; sesi token, kunci otomatis, reset oleh guru). Google OAuth/OpenID Connect **dihapus** dari rancangan.
+> 1. **Login sama seperti LessonLen v1** — nama pengguna + kata sandi (hash SHA-256 + salt, sesi token, kunci otomatis, reset oleh guru). Google OAuth/OpenID Connect **dihapus** dari rancangan.
 > 2. **Role tetap dua: `guru` (sekaligus admin) dan `murid`.** Tidak ada role admin terpisah.
 > 3. **Proses enrollment sama seperti v1** — sheet `Enrollment` (enroll_id, kelas_id, user_id, tanggal_daftar, status aktif/keluar), guru mendaftarkan murid, notifikasi `enroll_kelas`.
 > 4. **Sistem AI generate sama seperti v1** — Gemini dengan rotasi API key, hasil selalu **draf** yang wajib ditinjau guru. AI adalah bagian MVP inti, bukan Phase 2.
@@ -244,7 +244,7 @@ Mekanisme yang dipakai (port `Auth.gs` v1):
 
 ```text
 username + password
-→ sandi diverifikasi langsung terhadap kolom `password` (tersimpan teks — §22D)
+→ hash SHA-256 dengan salt per user
 → sesi token acak 32 karakter (TTL 12 jam)
 → token disimpan di sessionStorage browser, dikirim pada tiap google.script.run
 → server memvalidasi token → user → status aktif pada setiap request
@@ -258,7 +258,7 @@ username + password
 3. Pengguna memasukkan nama pengguna dan kata sandi.
 4. Server menormalkan username (lowercase, tanpa spasi).
 5. Server memeriksa kunci otomatis: 5× gagal dalam 15 menit → akun terkunci 15 menit.
-6. Server mencari user, membandingkan kolom `password` (teks — §22D).
+6. Server mencari user, membandingkan password_hash.
 7. Pesan galat SELALU sama untuk "user tak ada" maupun "sandi salah"
    agar tidak bisa dipakai menebak username valid.
 8. User nonaktif ditolak.
@@ -270,15 +270,12 @@ username + password
 
 ### 5.3 Keamanan kata sandi
 
-- **Kata sandi tersimpan sebagai teks** pada kolom `Users.password` —
-  keputusan pemilik produk 2026-09-02 (§22D) agar guru dapat melihat sandi
-  murid kapan pun. Menggantikan skema hash+salt v1.
-- Risiko diterima dan dikendalikan: Spreadsheet hanya dimiliki/diakses
-  guru; sandi tidak pernah dikirim ke klien milik murid; perubahan sandi
-  tetap tercatat di `Audit_Logs`.
+- Kata sandi TIDAK PERNAH disimpan plaintext maupun dikirim ke klien.
+- `password_hash` = SHA-256(`salt` + `password`); `salt` acak 16 karakter per user.
 - Kata sandi baru minimal 6 karakter, memuat huruf dan angka.
-- Kata sandi sementara 8 karakter tanpa karakter ambigu (0 O 1 I L);
-  karena tersimpan teks, guru tetap dapat melihatnya kembali kapan pun.
+- Kata sandi sementara 8 karakter tanpa karakter ambigu (0 O 1 I L),
+  disimpan pada `pwd_awal` sehingga tetap terlihat guru sampai murid
+  menggantinya sendiri (perilaku v1 — revisi §22D, 2026-09-02).
 - Batas percobaan gagal 5×/15 menit memakai CacheService.
 
 ### 5.4 Sesi aplikasi
@@ -302,7 +299,8 @@ Bila cache hilang, server jatuh ke sheet `Session` selama belum kedaluwarsa. Rol
 Field yang digunakan (sama seperti v1):
 
 - `username` — identitas login, normalized lowercase, unik.
-- `password` — verifikasi kata sandi; tersimpan teks & dapat dilihat guru (§22D).
+- `password_hash` + `salt` — verifikasi kata sandi.
+- `pwd_awal` — kata sandi sementara terakhir (untuk ditampilkan guru sampai diganti).
 - `harus_ganti_password` — paksa ganti kata sandi pada login berikutnya.
 - `status` — `aktif` atau `nonaktif`.
 - `nama`, `rombel`, `email`, `nisn`, `no_wa` — biodata (murid diminta melengkapi email + no WA).
@@ -479,7 +477,9 @@ Struktur sama seperti v1 (nama field mengikuti `Setup.gs` LessonLen).
 |---|---:|---|
 | `user_id` | ✅ | ID internal, misalnya `USR-0001` |
 | `username` | ✅ | Identitas login, unik, normalized lowercase |
-| `password` | ✅ | Kata sandi tersimpan **teks** — guru dapat melihatnya kapan pun (keputusan §22D, menggantikan `password_hash`+`salt`+`pwd_awal`) |
+| `password_hash` | ✅ | SHA-256(salt + password) |
+| `salt` | ✅ | Salt acak 16 karakter per user |
+| `pwd_awal` | ❌ | Kata sandi sementara terakhir (tampil bagi guru sampai diganti) |
 | `nama` | ✅ | Nama pengguna |
 | `role` | ✅ | `guru`, `murid` |
 | `rombel` | ❌ | Label rombongan belajar murid |
@@ -492,8 +492,7 @@ Struktur sama seperti v1 (nama field mengikuti `Setup.gs` LessonLen).
 | `created_at` | ✅ | Waktu dibuat |
 | `updated_at` | ✅ | Waktu diubah |
 
-Tidak ada `google_sub` — identitas login adalah `username` + `password`
-(teks — §22D). Kolom `salt` dan `pwd_awal` dihapus dari skema.
+Tidak ada `google_sub` — identitas login adalah `username` + `password_hash`.
 
 ### 7.3 `Classes`
 
@@ -1301,7 +1300,7 @@ WhatsApp ditunda dari MVP inti. Implementasi berikutnya memerlukan:
 Data yang disimpan mencakup nama, email, NISN, nomor telepon, progres, refleksi, dan nilai. Karena itu:
 
 - Spreadsheet database hanya dimiliki/diakses guru/pemilik.
-- Kata sandi disimpan sebagai teks (keputusan §22D, 2026-09-02 — guru dapat melihat sandi murid); Spreadsheet wajib tidak dibagikan. Kata sandi sementara tidak dikirim lewat email/WhatsApp otomatis.
+- Kata sandi hanya disimpan sebagai hash + salt; kata sandi sementara tidak dikirim lewat email/WhatsApp otomatis.
 - Token sesi tidak dituliskan permanen di URL.
 - Jangan menaruh secret API (mis. `GEMINI_KEYS`) di HTML atau JavaScript client.
 - Semua input pengguna divalidasi server-side.
@@ -1417,7 +1416,7 @@ Trigger harus idempotent dan tidak mengirim notifikasi yang sama berulang kali.
 
 ### Tahap 2 — Autentikasi dan authorization
 
-- Implementasi `Auth.gs` v1: login username+kata sandi (sandi tersimpan teks — §22D).
+- Implementasi `Auth.gs` v1: login username+kata sandi, hash+salt.
 - Implementasi kunci otomatis 5×/15 menit.
 - Implementasi `Session` + cache sesi.
 - Implementasi ganti/lupa/reset kata sandi.
@@ -1616,7 +1615,7 @@ Sebelum implementasi, Admin/developer harus menyetujui jawaban atas pertanyaan b
 18. Memperbaiki roadmap, testing, keamanan, backup, audit, dan operasional.
 19. (Adendum 2026-09, penerapan tahap 4.6–4.8 di folder `v2/`) Status `Topics`/`Items` menjadi `draft|publish|scheduled` + kolom `publish_at`; quiz/refleksi dapat mandiri tanpa topik via `Items.ta_id`; satu susunan course gabungan (`coursePindah`, renumber 1..N); murid menerima `urutan[]` campuran yang sama dengan guru. Lihat §7.8b.
 20. (Rollback 2026-09-02) Implementasi **tahap 3** (kelas/murid/enrollment + UI kelola) dan **tahap 4** (mapel/penugasan/topik/course/editor, port UI/UX gaya v1) dihapus dari folder `v2/` — UI/UX dinilai masih acak dan akan dibangun ulang dengan rancangan tampilan yang lebih matang. Kondisi kembali ke **tahap 2** (fondasi: skema 23 sheet, Auth lengkap, UI login + cangkang dasbor). Skema dan keputusan §7.7/§7.8/§7.8b TETAP menjadi acuan pembangunan ulang. Arsip kode tahap 3: commit `a63527b`; tahap 4: rentang `a63527b..c1c0157`.
-21. (Keputusan 2026-09-02, §22D) Alur dashboard guru: lima menu (Kelola Kelas, Kelola Course, Kelola Murid, Rekap Nilai, Status API Key); kata sandi murid disimpan teks agar selalu terlihat guru — menggantikan hash+salt pada §5.3/§7.2.
+21. (Keputusan 2026-09-02, §22D; direvisi hari itu juga) Alur dashboard guru: lima menu (Kelola Kelas, Kelola Course, Kelola Murid, Rekap Nilai, Status API Key). Kata sandi murid tetap model v1 — hash+salt, `pwd_awal` terlihat guru sampai murid mengganti; skema `Users` tidak berubah.
 19. Menetapkan database final menjadi 21 sheet dengan `Audit_Logs`.
 20. Membersihkan konsep arsitektur lama “1 project/spreadsheet per guru”.
 
@@ -1709,12 +1708,13 @@ Keputusan turunan:
 - **Beranda guru tetap ada** (ringkas): ringkasan jumlah + kartu pintasan
   ke lima menu. Notifikasi tidak menjadi menu — cukup ikon lonceng pada
   bilah atas.
-- **Kata sandi murid tersimpan sebagai teks** (`Users.password`),
-  menggantikan `password_hash` + `salt` + `pwd_awal` (dipatenkan pada
-  §5.3 dan §7.2). Konsekuensi diterima: siapa pun yang dapat membuka
-  Spreadsheet dapat membaca sandi; mitigasi wajib: Spreadsheet tidak
-  dibagikan. Alur lupa sandi/reset guru tidak berubah;
-  `harus_ganti_password` tetap.
+- **Kata sandi murid mengikuti v1 persis** (revisi hari itu juga,
+  mengembalikan keputusan awal "sandi teks"): hash SHA-256 + salt;
+  guru dapat melihat **`pwd_awal`** — sandi sementara terakhir — di
+  Kelola Murid/Kelas **sampai murid menggantinya sendiri**; setelah itu
+  guru perlu mereset sandi untuk melihatnya lagi. Skema `Users` persis
+  §7.2 — **tidak ada perubahan skema**. Alur lupa sandi/reset guru tidak
+  berubah; `harus_ganti_password` tetap.
 - **Tidak ada sheet baru** — 23 sheet tetap.
 
 ---

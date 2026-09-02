@@ -13,10 +13,8 @@ yang ada di akar repositori.
 
 ## Keputusan yang dipegang (v2.1)
 
-1. **Login sama seperti v1** — nama pengguna + kata sandi, sesi token TTL
-   12 jam, kunci otomatis 5× gagal/15 menit, reset oleh guru.
-   *(Revisi 2 Sep 2026, §22D: kata sandi tersimpan **teks** agar guru
-   selalu dapat melihat sandi murid — menggantikan SHA-256+salt.)*
+1. **Login sama seperti v1** — nama pengguna + kata sandi (SHA-256 + salt),
+   sesi token TTL 12 jam, kunci otomatis 5× gagal/15 menit, reset oleh guru.
 2. **Role dua saja** — `guru` (sekaligus admin) dan `murid`.
 3. **Proses enrollment sama seperti v1** — sheet `Enrollment`
    (aktif/keluar), guru mendaftarkan murid, notifikasi `enroll_kelas`.

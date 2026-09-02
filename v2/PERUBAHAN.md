@@ -29,11 +29,11 @@ rancangan tampilan yang lebih matang.
 Dashboard guru = **5 menu**: Kelola Kelas · Kelola Course · Kelola Murid ·
 Rekap Nilai · Status API Key. Keputusan turunan yang menyentuh kode tahap 2:
 
-- **Kata sandi murid tersimpan teks** (`Users.password`) — SATU-SATUNYA
-  perubahan skema: kolom `password_hash`, `salt`, `pwd_awal` ganti satu
-  kolom `password`. Menyentuh `Setup.gs` (skema), `Auth.gs`
-  (login/ganti/reset — tanpa hash), `Util.gs` (util hash tak terpakai lagi),
-  seed, dan uji gate0. Diterapkan saat Tahap 3 baru dimulai.
+- **Kata sandi murid = model v1 persis** (revisi hari itu juga):
+  hash SHA-256 + salt; guru melihat **`pwd_awal`** (sandi sementara
+  terakhir) sampai murid menggantinya — setelah itu perlu reset.
+  **TIDAK ADA perubahan skema** — `Setup.gs`/`Auth.gs`/`Util.gs`/uji
+  gate0 tidak tersentuh sama sekali.
 - **"Course" = istilah UI** untuk sheet `Teaching_Assignments`; mapel
   diketik bebas → auto-dedupe ke `Subjects`.
 - **Status API Key** = Script Properties (≤10 key, cooldown) — tanpa sheet.
@@ -79,3 +79,4 @@ tidak ada — akan membuat error), `js_beranda.html`, `js_kelola.html`,
 | tahap 4 → 4.9 | `8e443c0` → `c1c0157` | mapel/penugasan/topik/course/editor + port UI/UX v1 (riwayat per sub-tahap: `git log --oneline a63527b..c1c0157`) | hingga 113+18 |
 | **rollback ke tahap 2** | `f1d10e2` | hapus seluruh UI/UX & fungsi tahap 3–4; pohon = `7cc93e9`; + `test/uji-ui.js` | gate0 18 ✔, UI ✔ |
 | keputusan alur | (commit ini) | §22D: 5 menu dashboard, sandi teks (`Users.password`), beranda ringkas, rekap menyusul — **dokumen saja** | — |
+| revisi keputusan | (commit ini) | sandi murid kembali model v1 (hash+salt + `pwd_awal`) — §22D diperbarui; **nol perubahan skema** | — |
