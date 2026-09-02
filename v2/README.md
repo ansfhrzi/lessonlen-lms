@@ -69,6 +69,9 @@ yang ada di akar repositori.
 - `Items.ta_id` — penghubung item **mandiri** (quiz/refleksi tanpa topik)
   ke course; kosong untuk item bertopik.
 - `status` Topics & Items kini `draft | publish | scheduled`.
+- **Susunan course gabungan**: topik & item mandiri satu daftar bernomor
+  (sort_order bersama per course; topik/item baru selalu di dasar;
+  `coursePindah` menukar tetangga lalu menomori ulang 1..N).
   Terlihat murid = `publish`, atau `scheduled` dengan `publish_at <= now`
   (dievaluasi saat murid membuka — tanpa trigger waktu).
 - **Migrasi DB lama:** jalankan `migrasiStruktur()` sekali dari editor —
@@ -181,6 +184,7 @@ mencetak `OK <nama>` / `GAGAL <nama> → <info>`, diakhiri ringkasan
 | `topikUbahStatus(token, id, status, publishAt?)` | guru | view/hide: `publish` / `draft` (membatalkan jadwal) / `scheduled` (wajib `publishAt` — otomatis terlihat saat waktunya, tanpa notif) |
 | `topikHapus(token, id)` | guru | hapus HANYA bila tanpa item |
 | `topikPindah(token, id, arah)` | guru | naik/turun (tukar `sort_order`) |
+| `coursePindah(token, jenis, id, arah)` | guru | naik/turun dalam **satu susunan gabungan course** (topik + item mandiri berdampingan, bernomor 1..N lintas sheet; item bertopik ditolak) |
 | `itemDaftar(token, topicId)` | guru | item satu topik (tanpa konten) |
 | `getItemGuru(token, itemId)` | guru | detail penuh 1 item **termasuk konten** — untuk editor (baca-saja) |
 | `itemSimpan(token, p)` | guru | buat/edit item; jenis divalidasi; konten disanitasi; `related_id`/penanda AI tidak diterima dari klien |
