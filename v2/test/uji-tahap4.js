@@ -569,6 +569,42 @@ cek('topik baru di dasar course',
   JSON.stringify(urutAkhir));
 
 /* ============================================================
+ *  URUTAN MURID = CAMPURAN GURU (hanya yang terlihat)
+ * ============================================================ */
+console.log('\n--- URUTAN MURID = CAMPURAN GURU ---');
+const terlihatUrut = [];
+Db.baca('Topics').forEach(function (t) {
+  if (t.teaching_assignment_id !== TA) return;
+  if (Util.terlihatMurid(t.status, t.publish_at)) {
+    terlihatUrut.push({ jenis: 'topik', id: t.topic_id,
+                        urut: Number(t.sort_order) || 0 });
+  }
+});
+Db.baca('Items').forEach(function (i) {
+  if (i.ta_id !== TA) return;
+  if (Util.terlihatMurid(i.status, i.publish_at)) {
+    terlihatUrut.push({ jenis: 'item', id: i.item_id,
+                        urut: Number(i.sort_order) || 0 });
+  }
+});
+terlihatUrut.sort(function (a, b) { return a.urut - b.urut; });
+
+r = topikKelasSaya(TOKEN_B, TA);
+cek('urutan murid mengikuti campuran guru',
+  r.ok === true &&
+  JSON.stringify(r.data.urutan) ===
+  JSON.stringify(terlihatUrut.map(function (u) {
+    return { jenis: u.jenis, id: u.id }; })),
+  JSON.stringify({ dapat: r.data && r.data.urutan,
+                   harap: terlihatUrut }));
+cek('baris tersembunyi (draf) tidak ada di urutan murid',
+  r.data.urutan.every(function (u) {
+    return u.jenis === 'topik'
+      ? u.id !== TPC2
+      : u.id !== ITM_M;   /* keduanya berakhir draf */
+  }), JSON.stringify(r.data.urutan));
+
+/* ============================================================
  *  AUDIT & RAPIH
  * ============================================================ */
 console.log('\n--- AUDIT ---');

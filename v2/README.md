@@ -72,6 +72,7 @@ yang ada di akar repositori.
 - **Susunan course gabungan**: topik & item mandiri satu daftar bernomor
   (sort_order bersama per course; topik/item baru selalu di dasar;
   `coursePindah` menukar tetangga lalu menomori ulang 1..N).
+  Murid menerima `urutan[]` yang sama — hanya baris yang terlihat.
   Terlihat murid = `publish`, atau `scheduled` dengan `publish_at <= now`
   (dievaluasi saat murid membuka — tanpa trigger waktu).
 - **Migrasi DB lama:** jalankan `migrasiStruktur()` sekali dari editor —
@@ -191,7 +192,7 @@ mencetak `OK <nama>` / `GAGAL <nama> → <info>`, diakhiri ringkasan
 | `itemUbahStatus(token, id, status, publishAt?)` | guru | publish / draft / scheduled; publish → notif `pertemuan_baru` ke kelas; scheduled tanpa notif |
 | `itemHapus(token, id)` | guru | ditolak bila item sudah tertaut |
 | `itemPindah(token, id, arah)` | guru | naik/turun dalam topik |
-| `topikKelasSaya(token, taId)` | murid | topik terlihat **+ `item[]` per topik + `mandiri[]`** (quiz/refleksi tanpa topik; semua tanpa konten) — daftar isi ala v1, nomor menyambung di klien; wajib terdaftar aktif + TA & kelas aktif |
+| `topikKelasSaya(token, taId)` | murid | topik terlihat **+ `item[]` per topik + `mandiri[]` + `urutan[]`** (susunan campuran sama dengan guru, hanya baris terlihat; semua tanpa konten); wajib terdaftar aktif + TA & kelas aktif |
 | `bukaTopik(token, topicId)` | murid | isi satu topik — item publish tanpa konten |
 | `bacaMateri(token, itemId)` | murid | konten materi publish; jenis lain → `FITUR_BELUM_ADA` |
 

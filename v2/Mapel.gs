@@ -759,13 +759,25 @@ var Mapel = (function () {
                String(a.topic_id).localeCompare(String(b.topic_id));
       });
 
+    /* susunan campuran yang SAMA dengan layar guru — hanya baris
+       yang terlihat murid, mengikuti sort_order bersama course */
+    var petaT = {}, petaM = {};
+    topik.forEach(function (t) { petaT[t.topic_id] = t; });
+    mandiri.forEach(function (i) { petaM[i.item_id] = i; });
+    var urutan = _urutanCourse(taId)
+      .filter(function (b) {
+        return b.jenis === 'topik' ? !!petaT[b.id] : !!petaM[b.id];
+      })
+      .map(function (b) { return { jenis: b.jenis, id: b.id }; });
+
     return {
       kelas: { class_id: ctx.kelas.class_id, name: ctx.kelas.name },
       mapel: { subject_id: ctx.mapel.subject_id, name: ctx.mapel.name },
       guru: ctx.guru,
       academic_year: ctx.ta.academic_year || '',
       topik: topik,
-      mandiri: mandiri
+      mandiri: mandiri,
+      urutan: urutan
     };
   }
 

@@ -1374,6 +1374,12 @@ daftarRute('materi', function (bagian) {
       var jmlItem = data.topik.reduce(function (a, t) {
         return a + (t.jml_item || 0); }, 0);
 
+      /* peta cepat: susunan campuran (sama dengan layar guru) → data */
+      var petaT = {}, petaM = {};
+      (data.topik || []).forEach(function (t) { petaT[t.topic_id] = t; });
+      (data.mandiri || []).forEach(function (i) { petaM[i.item_id] = i; });
+      var urutan = data.urutan || [];
+
       var html =
         '<button class="tautan-balik" onclick="pergiKe(\'#/kelas-saya\')">← Kelas Saya</button>' +
         '<div class="kepala-halaman">' +
@@ -1384,37 +1390,39 @@ daftarRute('materi', function (bagian) {
             (data.academic_year ? esc(data.academic_year) + ' · ' : '') +
             '📅 ' + data.topik.length + ' topik · ' + jmlItem + ' item</p>' +
         '</div>' +
-        '<h2 class="mb-8">Daftar Isi</h2>';
-
-      if (!data.topik.length && !(data.mandiri || []).length) {
-        html += kosongkan('🧩', 'Belum ada topik yang diterbitkan',
-          'Materi akan muncul di sini setelah gurunya menerbitkannya.');
-      } else {
-        /* opsi C: quiz/refleksi mandiri ikut bernomor menyambung
-           setelah semua topik */
-        var awalMandiri = data.topik.length;
-        html += '<div class="kolom sela-kecil" id="daftar-isi-murid">' +
-          data.topik.map(function (t, idx) {
-            return barisTopikMurid(t, idx, data.topik.length);
-          }).join('') +
-          (data.mandiri || []).map(function (i, k) {
-            return barisMandiriMurid(i, awalMandiri + k);
-          }).join('') +
-          '</div>';
-      }
+        '<h2 class="mb-8">Daftar Isi</h2>' +
+        '<div class="kolom sela-kecil" id="daftar-isi-murid"></div>';
 
       isi.innerHTML = html;
+
+      /* murid melihat SATU daftar campuran bernomor sama persis
+         dengan layar course guru */
+      function renderDaftar() {
+        var w = $('#daftar-isi-murid', isi);
+        if (!urutan.length) {
+          w.innerHTML = kosongkan('🧩', 'Belum ada topik yang diterbitkan',
+            'Materi akan muncul di sini setelah gurunya menerbitkannya.');
+          return;
+        }
+        w.innerHTML = urutan.map(function (u, idx) {
+          if (u.jenis === 'topik' && petaT[u.id]) {
+            return barisTopikMurid(petaT[u.id], idx, urutan.length);
+          }
+          if (u.jenis === 'item' && petaM[u.id]) {
+            return barisMandiriMurid(petaM[u.id], idx);
+          }
+          return '';
+        }).join('');
+      }
+      renderDaftar();
 
       isi.onclick = function (e) {
         /* Lipat dulu — tombol panah menumpang di atas baris topik. */
         var lp = e.target.closest('[data-lipat]');
         if (lp) {
           LIPAT_MATERI[lp.dataset.lipat] = !terlipatMateri(
-            lp.dataset.lipat, lp.dataset.idx | 0, data.topik.length);
-          $('#daftar-isi-murid', isi).innerHTML =
-            data.topik.map(function (t, idx) {
-              return barisTopikMurid(t, idx, data.topik.length);
-            }).join('');
+            lp.dataset.lipat, lp.dataset.idx | 0, urutan.length);
+          renderDaftar();
           return;
         }
 
@@ -1434,11 +1442,8 @@ daftarRute('materi', function (bagian) {
         var b = e.target.closest('[data-topik]');
         if (b) {
           LIPAT_MATERI[b.dataset.topik] = !terlipatMateri(
-            b.dataset.topik, (b.dataset.idx | 0), data.topik.length);
-          $('#daftar-isi-murid', isi).innerHTML =
-            data.topik.map(function (t, idx) {
-              return barisTopikMurid(t, idx, data.topik.length);
-            }).join('');
+            b.dataset.topik, (b.dataset.idx | 0), urutan.length);
+          renderDaftar();
         }
       };
     })
