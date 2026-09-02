@@ -324,6 +324,13 @@ function topikPindah(token, topicId, arah) {
   });
 }
 
+/** Naik/turunkan dalam susunan gabungan course (topik + mandiri). */
+function coursePindah(token, jenis, id, arah) {
+  return _bungkus(token, 'guru', function (sesi) {
+    return Mapel.coursePindah(sesi, jenis, id, arah);
+  });
+}
+
 function itemDaftar(token, topicId) {
   return _bungkus(token, 'guru', function () {
     return Mapel.itemDaftar(topicId);

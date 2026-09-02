@@ -491,6 +491,84 @@ cek('batal jadwal topik → draf',
   Db.cari('Topics', 'topic_id', TPC2).publish_at === '');
 
 /* ============================================================
+ *  SUSUNAN COURSE GABUNGAN (topik + mandiri SATU daftar)
+ * ============================================================ */
+console.log('\n--- SUSUNAN COURSE GABUNGAN ---');
+function urutanCourse() {
+  const rows = [];
+  Db.baca('Topics').forEach(function (t) {
+    if (t.teaching_assignment_id !== TA) return;
+    rows.push({ jenis: 'topik', id: t.topic_id, urut: Number(t.sort_order) || 0 });
+  });
+  Db.baca('Items').forEach(function (i) {
+    if (i.ta_id !== TA) return;
+    rows.push({ jenis: 'item', id: i.item_id, urut: Number(i.sort_order) || 0 });
+  });
+  rows.sort(function (a, b) {
+    return a.urut - b.urut ||
+      (a.jenis === b.jenis ? String(a.id).localeCompare(String(b.id))
+                           : (a.jenis === 'topik' ? -1 : 1));
+  });
+  return rows.map(r => r.jenis + ':' + r.id);
+}
+
+/* kunci keadaan dasar yang deterministik — topik yang masih ada:
+   TPC2(1) TPC3(3) [ITM_M(4)] TPC1b(5) — mandiri menyelip
+   (TPC1 sudah terhapus oleh uji topikHapus di atas) */
+function pasangUrut(jenis, id, n) {
+  const baris = jenis === 'topik'
+    ? Db.cari('Topics', 'topic_id', id)
+    : Db.cari('Items', 'item_id', id);
+  Db.perbarui(jenis === 'topik' ? 'Topics' : 'Items', baris._baris,
+              { sort_order: n });
+}
+pasangUrut('topik', TPC2, 1);
+pasangUrut('topik', TPC3, 3);
+pasangUrut('item', ITM_M, 4);
+pasangUrut('topik', TPC1b, 5);
+
+const urut0 = urutanCourse();
+cek('dasar: mandiri menyelip di posisi 3',
+  urut0.join('|') === ['topik:' + TPC2, 'topik:' + TPC3,
+    'item:' + ITM_M, 'topik:' + TPC1b].join('|'),
+  JSON.stringify(urut0));
+
+r = coursePindah(TOKEN_G, 'item', ITM_M, 'atas');
+const urut1 = urutanCourse();
+cek('mandiri naik MELAMPAUI topik (satu daftar gabungan)',
+  r.ok === true && r.data.pindah === true &&
+  urut1.join('|') === ['topik:' + TPC2, 'item:' + ITM_M,
+    'topik:' + TPC3, 'topik:' + TPC1b].join('|'),
+  JSON.stringify(urut1));
+cek('renumber 1..N rapat lintas sheet',
+  urut1.every((k, i) => {
+    const c = k.indexOf(':');
+    const jenis = k.slice(0, c), id = k.slice(c + 1);
+    const baris = jenis === 'topik'
+      ? Db.cari('Topics', 'topic_id', id)
+      : Db.cari('Items', 'item_id', id);
+    return Number(baris.sort_order) === i + 1;
+  }), JSON.stringify(urut1));
+
+coursePindah(TOKEN_G, 'item', ITM_M, 'atas');   /* sekarang posisi 1 */
+r = coursePindah(TOKEN_G, 'item', ITM_M, 'atas');
+cek('naik di ujung atas → tetap + pesan',
+  r.ok === true && r.data.pindah === false && !!r.data.pesan,
+  JSON.stringify(r));
+
+r = coursePindah(TOKEN_G, 'item', ITM1, 'atas');
+cek('item bertopik ditolak coursePindah',
+  r.ok === false && r.error === 'VALIDASI_GAGAL');
+
+/* topik baru selalu mendarat di dasar susunan gabungan */
+r = topikSimpan(TOKEN_G, { teaching_assignment_id: TA, title: 'Bab Akhir' });
+const TPCakhir = r.data.topic_id;
+const urutAkhir = urutanCourse();
+cek('topik baru di dasar course',
+  urutAkhir[urutAkhir.length - 1] === 'topik:' + TPCakhir,
+  JSON.stringify(urutAkhir));
+
+/* ============================================================
  *  AUDIT & RAPIH
  * ============================================================ */
 console.log('\n--- AUDIT ---');
@@ -504,8 +582,8 @@ cek('audit: hapus_topik tercatat', log.some(x => x.indexOf('DELETE:hapus_topik')
 cek('audit: item_publish tercatat', log.some(x => x.indexOf('UPDATE:item_publish') === 0));
 
 r = penugasanDaftar(TOKEN_G, {});
-cek('sanity: penugasan aktif 1 dengan 3 topik',
-  r.data.length === 1 && r.data[0].jml_topik === 3, JSON.stringify(r.data));
+cek('sanity: penugasan aktif 1 dengan 4 topik (3 + Bab Akhir)',
+  r.data.length === 1 && r.data[0].jml_topik === 4, JSON.stringify(r.data));
 
 /* kartu course ala v1: draf & murid per penugasan */
 cek('penugasan membawa jml_draf yang benar',

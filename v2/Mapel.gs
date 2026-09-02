@@ -410,8 +410,7 @@ var Mapel = (function () {
       description: String(p.description || '').trim().slice(0, 1000),
       status: jadwal ? 'scheduled' : 'draft',
       publish_at: jadwal ? Util.formatTanggal(jadwal) : '',
-      sort_order: _urutBerikut('Topics', 'teaching_assignment_id',
-                               ta.teaching_assignment_id),
+      sort_order: _urutBerikutCourse(ta.teaching_assignment_id),
       created_at: Util.sekarang(),
       updated_at: Util.sekarang()
     };
@@ -620,7 +619,7 @@ var Mapel = (function () {
       related_id: '',
       sort_order: topik
         ? _urutBerikut('Items', 'topic_id', topik.topic_id)
-        : _urutBerikut('Items', 'ta_id', taId),
+        : _urutBerikutCourse(taId),
       ai_source: false,
       ai_reviewed: false,
       created_at: Util.sekarang(),
@@ -867,6 +866,99 @@ var Mapel = (function () {
     return Util.terlihatMurid(r.status, r.publish_at);
   }
 
+  /**
+   * Susunan gabungan satu course: topik + item mandiri berdampingan
+   * dalam SATU daftar bernomor (permintaan guru — mandiri bisa
+   * menyelip di antara topik). Basis: sort_order bersama; seri
+   * diselesaikan topik lebih dulu lalu id — deterministik.
+   */
+  function _urutanCourse(taId) {
+    var baris = [];
+    Db.saring('Topics', { teaching_assignment_id: taId })
+      .forEach(function (t) {
+        baris.push({ jenis: 'topik', id: t.topic_id,
+                     urut: Number(t.sort_order) || 0, _baris: t._baris });
+      });
+    Db.baca('Items').forEach(function (i) {
+      if (i.ta_id !== taId) return;
+      baris.push({ jenis: 'item', id: i.item_id,
+                   urut: Number(i.sort_order) || 0, _baris: i._baris });
+    });
+    baris.sort(function (a, b) {
+      return a.urut - b.urut ||
+        (a.jenis === b.jenis
+          ? String(a.id).localeCompare(String(b.id))
+          : (a.jenis === 'topik' ? -1 : 1));
+    });
+    return baris;
+  }
+
+  /** Nomor urut berikutnya di tingkat course (gabungan topik +
+      mandiri) — baris baru selalu mendarat di dasar daftar. */
+  function _urutBerikutCourse(taId) {
+    var maks = 0;
+    Db.bacaKolom('Topics', ['teaching_assignment_id', 'sort_order'])
+      .forEach(function (t) {
+        if (t.teaching_assignment_id !== taId) return;
+        var n = Number(t.sort_order) || 0;
+        if (n > maks) maks = n;
+      });
+    Db.bacaKolom('Items', ['ta_id', 'sort_order'])
+      .forEach(function (i) {
+        if (i.ta_id !== taId) return;
+        var n = Number(i.sort_order) || 0;
+        if (n > maks) maks = n;
+      });
+    return maks + 1;
+  }
+
+  /**
+   * Naik/turunkan baris dalam SUSUNAN GABUNGAN course (lintas topik
+   * dan item mandiri), lalu bernomor ulang 1..N ke kedua sheet.
+   */
+  function coursePindah(sesi, jenis, id, arah) {
+    var taId;
+    if (jenis === 'topik') {
+      var t = Db.cari('Topics', 'topic_id', id);
+      if (!t) throw _err('TIDAK_DITEMUKAN', 'Topik tidak ditemukan.');
+      taId = t.teaching_assignment_id;
+    } else {
+      var i = Db.cari('Items', 'item_id', id);
+      if (!i) throw _err('TIDAK_DITEMUKAN', 'Item tidak ditemukan.');
+      if (!i.ta_id) {
+        throw _err('VALIDASI_GAGAL',
+          'Item bertopik diurut di dalam topiknya, bukan di course.');
+      }
+      taId = i.ta_id;
+    }
+
+    var baris = _urutanCourse(taId);
+    var idx = -1;
+    for (var k = 0; k < baris.length; k++) {
+      if (baris[k].jenis === jenis && baris[k].id === id) { idx = k; break; }
+    }
+    if (idx === -1) throw _err('TIDAK_DITEMUKAN', 'Baris tidak ditemukan.');
+
+    var tukar = arah === 'atas' ? idx - 1 : idx + 1;
+    if (tukar < 0 || tukar >= baris.length) {
+      return { pindah: false, pesan: 'Baris sudah di posisi terujung.' };
+    }
+    var sementara = baris[idx];
+    baris[idx] = baris[tukar];
+    baris[tukar] = sementara;
+
+    for (var n = 0; n < baris.length; n++) {
+      if (baris[n].jenis === 'topik') {
+        Db.perbarui('Topics', baris[n]._baris, { sort_order: n + 1 });
+      } else {
+        Db.perbarui('Items', baris[n]._baris, { sort_order: n + 1 });
+      }
+    }
+    Util.catatLog(sesi.user_id, 'UPDATE',
+                  'urut_course ' + jenis + ' ' + id, 'ok', sesi.role);
+    return { pindah: true };
+  }
+
   function _namaMapel(v) {
     return String(v == null ? '' : v).trim().slice(0, 120);
   }
@@ -1027,7 +1119,7 @@ var Mapel = (function () {
     /* topik */
     topikDaftar: topikDaftar, topikSimpan: topikSimpan,
     topikUbahStatus: topikUbahStatus, topikHapus: topikHapus,
-    topikPindah: topikPindah,
+    topikPindah: topikPindah, coursePindah: coursePindah,
     /* item */
     itemDaftar: itemDaftar, itemSimpan: itemSimpan,
     itemUbahStatus: itemUbahStatus, itemHapus: itemHapus,

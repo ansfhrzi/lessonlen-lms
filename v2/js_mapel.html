@@ -445,57 +445,88 @@ function gambarTopik(wadah, taId) {
 
   callApi('topikDaftar', [State.token, taId], { diam: true })
     .then(function (hasil) {
+      var topik = hasil.topik || [];
+      var mand = hasil.mandiri || [];
+
       var html =
         '<div class="baris sela-kecil mb-12" style="flex-wrap:wrap">' +
           '<button class="btn btn-kecil" id="btn-topik-baru">+ Topik</button>' +
           '<button class="btn btn-hantu btn-kecil" id="btn-quiz-baru">+ Quiz</button>' +
           '<button class="btn btn-hantu btn-kecil" id="btn-refleksi-baru">+ Refleksi</button>' +
           '<span class="tumbuh"></span>' +
-          '<span class="kecil lembut">' + hasil.jml_topik + ' topik · ' +
-            (hasil.mandiri || []).length + ' mandiri</span>' +
+          '<span class="kecil lembut">' + topik.length + ' topik · ' +
+            mand.length + ' mandiri</span>' +
         '</div>';
 
-      if (!hasil.topik.length) {
-        html += kosongkan('🧩', 'Belum ada topik',
-          'Topik = bab / unit pembelajaran.');
+      /* SATU susunan gabungan: topik & mandiri berdampingan sesuai
+         sort_order bersama yang dirawat server (coursePindah). */
+      var gabung = [];
+      topik.forEach(function (t) {
+        gabung.push({ jenis: 'topik', d: t, urut: Number(t.sort_order) || 0 });
+      });
+      mand.forEach(function (i) {
+        gabung.push({ jenis: 'item', d: i, urut: Number(i.sort_order) || 0 });
+      });
+      gabung.sort(function (a, b) {
+        return a.urut - b.urut ||
+               (a.jenis === b.jenis ? 0 : (a.jenis === 'topik' ? -1 : 1));
+      });
+
+      if (!gabung.length) {
+        html += kosongkan('🧩', 'Course masih kosong',
+          'Mulai dengan + Topik, + Quiz, atau + Refleksi.');
       } else {
-        html += '<div class="kolom sela-kecil">' + hasil.topik.map(function (t, idx) {
+        html += '<div class="kolom sela-kecil">' + gabung.map(function (g, idx) {
+          var d = g.d;
+          var kunci = g.jenis + ':' +
+            (g.jenis === 'topik' ? d.topic_id : d.item_id);
+
           return '<div class="baris-pertemuan" style="cursor:default">' +
             '<span class="nomor-pertemuan">' + (idx + 1) + '</span>' +
-            '<div class="tumbuh" style="min-width:0" data-buka="' +
-              esc(t.topic_id) + '" title="Buka/tutup daftar item">' +
-              '<div><b>' + esc(t.title) + '</b> ' +
-                lencanaPublikasi(t.status, t.publish_at) + '</div>' +
+            (g.jenis === 'item' ? ikonTipe(d.type) : '') +
+            '<div class="tumbuh" style="min-width:0"' +
+              (g.jenis === 'topik'
+                ? ' data-panel="' + esc(d.topic_id) +
+                  '" title="Buka/tutup daftar item">' : '') + '>' +
+              '<div><b>' + esc(d.title) + '</b> ' +
+                lencanaPublikasi(d.status, d.publish_at) + '</div>' +
               '<div class="kecil lembut">' +
-                esc(t.description || 'Tanpa deskripsi') +
-                ' · ' + t.jml_item + ' item</div>' +
+                (g.jenis === 'topik'
+                  ? esc(d.description || 'Tanpa deskripsi') +
+                    ' · ' + d.jml_item + ' item'
+                  : esc((TIPE_ITEM[d.type] || {}).label || d.type) +
+                    (d.description ? ' · ' + esc(d.description) : '')) +
+              '</div>' +
             '</div>' +
             '<div class="baris sela-kecil" style="flex-wrap:nowrap">' +
-              '<button class="btn btn-hantu btn-kecil" data-isi="' +
-                esc(t.topic_id) + '">+ isi</button>' +
+              (g.jenis === 'topik'
+                ? '<button class="btn btn-hantu btn-kecil" data-isi="' +
+                  esc(d.topic_id) + '">+ isi</button>' : '') +
               '<button class="btn btn-teks btn-mini" data-atas="' +
-                esc(t.topic_id) + '" title="Naikkan">↑</button>' +
+                esc(kunci) + '" title="Naikkan">↑</button>' +
               '<button class="btn btn-teks btn-mini" data-bawah="' +
-                esc(t.topic_id) + '" title="Turunkan">↓</button>' +
+                esc(kunci) + '" title="Turunkan">↓</button>' +
               '<button class="btn btn-teks btn-mini" data-edit="' +
-                esc(t.topic_id) + '" title="Edit">✏️</button>' +
+                esc(kunci) + '" title="Edit">✏️</button>' +
               '<button class="btn btn-teks btn-mini" data-status="' +
-                esc(t.topic_id) + '" data-status-kini="' + esc(t.status) +
-                '" title="' + (t.status === 'publish'
-                  ? 'Sembunyikan dari murid'
-                  : 'Tampilkan ke murid') + '">' +
-                (t.status === 'publish' ? '🙈' : '👁') + '</button>' +
+                esc(kunci) + '" title="' +
+                (d.status === 'publish' ? 'Sembunyikan dari murid'
+                                        : 'Tampilkan ke murid') + '">' +
+                (d.status === 'publish' ? '🙈' : '👁') + '</button>' +
               '<button class="btn btn-teks btn-mini" data-jadwal="' +
-                esc(t.topic_id) + '" title="Jadwal terbit">⏰</button>' +
+                esc(kunci) + '" title="Jadwal terbit">⏰</button>' +
               '<button class="btn btn-teks btn-mini btn-bahaya-hantu" ' +
-                'data-hapus="' + esc(t.topic_id) + '" title="Hapus">🗑</button>' +
+                'data-hapus="' + esc(kunci) + '" title="Hapus">🗑</button>' +
             '</div>' +
-            '<div id="item-' + esc(t.topic_id) + '" class="sembunyi"></div>' +
+            (g.jenis === 'topik'
+              ? '<div id="item-' + esc(d.topic_id) + '" class="sembunyi"></div>'
+              : '') +
           '</div>';
         }).join('') + '</div>';
       }
       wadah.innerHTML = html;
 
+      /* ---------------- tombol kepala ---------------- */
       $('#btn-topik-baru', wadah).onclick = function () {
         dialogTopik({ teaching_assignment_id: taId },
                     function () { gambarTopik(wadah, taId); });
@@ -507,7 +538,43 @@ function gambarTopik(wadah, taId) {
         pergiKe('#/editor/' + taId + '/mandiri/baru/refleksi');
       };
 
-      /* + isi → pilih jenis item, langsung ke editor (alur guru) */
+      /* ---------------- bantu cari baris ---------------- */
+      function cari(kunci) {
+        var jenis = kunci.slice(0, kunci.indexOf(':'));
+        var id = kunci.slice(kunci.indexOf(':') + 1);
+        var d = null;
+        gabung.forEach(function (g) {
+          if (g.jenis === jenis &&
+              (jenis === 'topik' ? g.d.topic_id : g.d.item_id) === id) d = g.d;
+        });
+        return { jenis: jenis, id: id, d: d };
+      }
+      function pindah(kunci, arah) {
+        var c = cari(kunci);
+        callApi('coursePindah', [State.token, c.jenis, c.id, arah])
+          .then(function (r) {
+            if (r && r.pesan) toast(r.pesan, 'peringatan');
+            gambarTopik(wadah, taId);
+          })
+          .catch(function () {});
+      }
+
+      /* ---------------- handler per baris ---------------- */
+      /* klik judul topik = buka/tutup panel item topik */
+      $$('[data-panel]', wadah).forEach(function (el) {
+        el.onclick = function () {
+          var w = document.getElementById('item-' + el.dataset.panel);
+          if (!w) return;
+          if (w.classList.contains('sembunyi')) {
+            w.classList.remove('sembunyi');
+            gambarItem(w, el.dataset.panel, taId);
+          } else {
+            w.classList.add('sembunyi');
+          }
+        };
+      });
+
+      /* + isi → pilih jenis → editor dengan topik ini sebagai induk */
       $$('[data-isi]', wadah).forEach(function (b) {
         b.onclick = function () {
           dialogJenisItem(function (tipe) {
@@ -517,54 +584,45 @@ function gambarTopik(wadah, taId) {
         };
       });
 
-      /* klik area judul topik → buka/tutup panel item topik */
-      $$('[data-buka]', wadah).forEach(function (b) {
+      $$('[data-atas]', wadah).forEach(function (b) {
+        b.onclick = function () { pindah(b.dataset.atas, 'atas'); };
+      });
+      $$('[data-bawah]', wadah).forEach(function (b) {
+        b.onclick = function () { pindah(b.dataset.bawah, 'bawah'); };
+      });
+
+      $$('[data-edit]', wadah).forEach(function (b) {
         b.onclick = function () {
-          var w = document.getElementById('item-' + b.dataset.buka);
-          if (w.classList.contains('sembunyi')) {
-            w.classList.remove('sembunyi');
-            gambarItem(w, b.dataset.buka, taId);
+          var c = cari(b.dataset.edit);
+          if (c.jenis === 'topik') {
+            dialogTopik(c.d, function () { gambarTopik(wadah, taId); });
           } else {
-            w.classList.add('sembunyi');
+            pergiKe('#/editor/' + taId + '/mandiri/' + c.id);
           }
         };
       });
-      $$('[data-atas],[data-bawah]', wadah).forEach(function (b) {
-        b.onclick = function () {
-          var arah = b.dataset.atas ? 'atas' : 'bawah';
-          var id = b.dataset.atas || b.dataset.bawah;
-          callApi('topikPindah', [State.token, id, arah])
-            .then(function () { gambarTopik(wadah, taId); })
-            .catch(function () {});
-        };
-      });
-      $$('[data-edit]', wadah).forEach(function (b) {
-        b.onclick = function () {
-          var t = hasil.topik.filter(function (x) {
-            return x.topic_id === b.dataset.edit; })[0];
-          dialogTopik(t, function () { gambarTopik(wadah, taId); });
-        };
-      });
+
       $$('[data-status]', wadah).forEach(function (b) {
         b.onclick = function () {
-          var t = hasil.topik.filter(function (x) {
-            return x.topic_id === b.dataset.status; })[0];
+          var c = cari(b.dataset.status);
           togglePandangan(function (ke) {
-              return callApi('topikUbahStatus', [State.token, t.topic_id, ke]);
-            }, t.status,
-            function () {
-              gambarTopik(wadah, taId);
-            });
+              return c.jenis === 'topik'
+                ? callApi('topikUbahStatus', [State.token, c.id, ke])
+                : callApi('itemUbahStatus', [State.token, c.id, ke]);
+            }, c.d.status, function () { gambarTopik(wadah, taId); });
         };
       });
+
       $$('[data-jadwal]', wadah).forEach(function (b) {
         b.onclick = function () {
-          var t = hasil.topik.filter(function (x) {
-            return x.topic_id === b.dataset.jadwal; })[0];
+          var c = cari(b.dataset.jadwal);
           kelolaJadwal(function (ke, waktu) {
-              return callApi('topikUbahStatus',
-                             [State.token, t.topic_id, ke, waktu || '']);
-            }, t.status, t.publish_at,
+              return c.jenis === 'topik'
+                ? callApi('topikUbahStatus',
+                          [State.token, c.id, ke, waktu || ''])
+                : callApi('itemUbahStatus',
+                          [State.token, c.id, ke, waktu || '']);
+            }, c.d.status, c.d.publish_at,
             function () {
               toast('Jadwal tersimpan — murid melihat otomatis ' +
                     'saat waktunya.', 'sukses');
@@ -572,112 +630,21 @@ function gambarTopik(wadah, taId) {
             });
         };
       });
+
       $$('[data-hapus]', wadah).forEach(function (b) {
         b.onclick = function () {
-          konfirmasi('Hapus Topik',
-            'Hanya topik kosong yang boleh dihapus. Lanjut?',
+          var c = cari(b.dataset.hapus);
+          konfirmasi('Hapus ' + (c.jenis === 'topik' ? 'Topik' : 'Item'),
+            c.jenis === 'topik'
+              ? 'Hanya topik kosong yang boleh dihapus. Lanjut?'
+              : 'Hapus item mandiri ini?',
             { labelYa: 'Hapus', bahaya: true })
             .then(function (ya) {
               if (!ya) return;
-              callApi('topikHapus', [State.token, b.dataset.hapus])
+              callApi(c.jenis === 'topik' ? 'topikHapus' : 'itemHapus',
+                      [State.token, c.id])
                 .then(function () {
-                  toast('Topik dihapus.', 'sukses');
-                  gambarTopik(wadah, taId);
-                })
-                .catch(function () {});
-            });
-        };
-      });
-
-      /* ------- quiz & refleksi MANDIRI (tanpa topik) ------- */
-      var mand = hasil.mandiri || [];
-      var bagian = '<h3 class="mt-16 mb-8">Quiz & Refleksi Mandiri</h3>' +
-        '<p class="kecil lembut mb-8">Berdiri langsung di course, di luar ' +
-        'topik — tampil setelah semua topik di daftar isi murid.</p>';
-      if (!mand.length) {
-        bagian += kosongkan('🎯', 'Belum ada item mandiri',
-          'Gunakan tombol + Quiz atau + Refleksi di atas.');
-      } else {
-        bagian += '<div class="kolom sela-kecil">' + mand.map(function (i) {
-          var t = TIPE_ITEM[i.type] || { label: i.type };
-          return '<div class="baris-item' +
-            (i.status === 'draft' ? ' draf' : '') + '">' +
-            ikonTipe(i.type) +
-            '<div class="tumbuh" style="min-width:0">' +
-              '<div><b>' + esc(i.title) + '</b> ' +
-                lencanaPublikasi(i.status, i.publish_at) + '</div>' +
-              '<div class="kecil lembut">' + esc(t.label) +
-                (i.description ? ' · ' + esc(i.description) : '') + '</div>' +
-            '</div>' +
-            '<div class="baris sela-kecil" style="flex-wrap:nowrap">' +
-              '<button class="btn btn-teks btn-mini" data-m-atas="' +
-                esc(i.item_id) + '" title="Naikkan">↑</button>' +
-              '<button class="btn btn-teks btn-mini" data-m-bawah="' +
-                esc(i.item_id) + '" title="Turunkan">↓</button>' +
-              '<button class="btn btn-teks btn-mini" data-m-edit="' +
-                esc(i.item_id) + '" title="Buka editor">✏️</button>' +
-              '<button class="btn btn-teks btn-mini" data-m-status="' +
-                esc(i.item_id) + '" data-status-kini="' + esc(i.status) +
-                '" title="' + (i.status === 'publish'
-                  ? 'Sembunyikan dari murid' : 'Tampilkan ke murid') + '">' +
-                (i.status === 'publish' ? '🙈' : '👁') + '</button>' +
-              '<button class="btn btn-teks btn-mini" data-m-jadwal="' +
-                esc(i.item_id) + '" title="Jadwal terbit">⏰</button>' +
-              '<button class="btn btn-teks btn-mini btn-bahaya-hantu" ' +
-                'data-m-hapus="' + esc(i.item_id) + '" title="Hapus">🗑</button>' +
-            '</div>' +
-          '</div>';
-        }).join('') + '</div>';
-      }
-      wadah.insertAdjacentHTML('beforeend', bagian);
-
-      $$('[data-m-edit]', wadah).forEach(function (b) {
-        b.onclick = function () {
-          pergiKe('#/editor/' + taId + '/mandiri/' + b.dataset.mEdit);
-        };
-      });
-      $$('[data-m-status]', wadah).forEach(function (b) {
-        b.onclick = function () {
-          var i = mand.filter(function (x) {
-            return x.item_id === b.dataset.mStatus; })[0];
-          togglePandangan(function (ke) {
-              return callApi('itemUbahStatus', [State.token, i.item_id, ke]);
-            }, i.status, function () { gambarTopik(wadah, taId); });
-        };
-      });
-      $$('[data-m-jadwal]', wadah).forEach(function (b) {
-        b.onclick = function () {
-          var i = mand.filter(function (x) {
-            return x.item_id === b.dataset.mJadwal; })[0];
-          kelolaJadwal(function (ke, waktu) {
-              return callApi('itemUbahStatus',
-                             [State.token, i.item_id, ke, waktu || '']);
-            }, i.status, i.publish_at,
-            function () {
-              toast('Jadwal tersimpan — murid melihat otomatis ' +
-                    'saat waktunya.', 'sukses');
-              gambarTopik(wadah, taId);
-            });
-        };
-      });
-      $$('[data-m-atas],[data-m-bawah]', wadah).forEach(function (b) {
-        b.onclick = function () {
-          var arah = b.dataset.mAtas ? 'atas' : 'bawah';
-          var id = b.dataset.mAtas || b.dataset.mBawah;
-          callApi('itemPindah', [State.token, id, arah])
-            .then(function () { gambarTopik(wadah, taId); })
-            .catch(function () {});
-        };
-      });
-      $$('[data-m-hapus]', wadah).forEach(function (b) {
-        b.onclick = function () {
-          konfirmasi('Hapus Item', 'Hapus item mandiri ini?',
-            { labelYa: 'Hapus', bahaya: true })
-            .then(function (ya) {
-              if (!ya) return;
-              callApi('itemHapus', [State.token, b.dataset.mHapus])
-                .then(function () {
-                  toast('Item dihapus.', 'sukses');
+                  toast('Dihapus.', 'sukses');
                   gambarTopik(wadah, taId);
                 })
                 .catch(function () {});
@@ -688,42 +655,6 @@ function gambarTopik(wadah, taId) {
     .catch(function () {
       wadah.innerHTML = kosongkan('⚠️', 'Gagal memuat', 'Periksa koneksi Anda.');
     });
-}
-
-function dialogTopik(t, sesudah) {
-  dialog({
-    judul: t.topic_id ? '✏️ Edit Topik' : '🧩 Topik Baru',
-    html:
-      '<div class="grup"><label for="d-tp-judul">Judul <span class="wajib">*</span></label>' +
-        '<input class="isian" id="d-tp-judul" value="' + esc(t.title || '') +
-        '" placeholder="mis. Bab 1 — Pengenalan"></div>' +
-      '<div class="grup"><label for="d-tp-desk">Deskripsi</label>' +
-        '<textarea class="isian" id="d-tp-desk" rows="3" ' +
-        'placeholder="Deskripsi singkat (opsional)">' +
-        esc(t.description || '') + '</textarea></div>',
-    lebar: 'sedang',
-    labelYa: t.topic_id ? 'Simpan' : 'Buat'
-  }).then(function (ya) {
-    if (!ya) return;
-    var p = {
-      title: document.getElementById('d-tp-judul').value,
-      description: document.getElementById('d-tp-desk').value
-    };
-    if (t.topic_id) p.topic_id = t.topic_id;
-    else p.teaching_assignment_id = t.teaching_assignment_id;
-
-    tampilkanMuat(true, 'Menyimpan topik…');
-    callApi('topikSimpan', [State.token, p])
-      .then(function () {
-        tampilkanMuat(false);
-        toast('Topik tersimpan.', 'sukses');
-        if (sesudah) sesudah();
-      })
-      .catch(function (res) {
-        tampilkanMuat(false);
-        toast((res && res.pesan) || 'Gagal menyimpan.', 'bahaya');
-      });
-  });
 }
 
 /** Dialog pilih jenis item baru → resolve('materi'|'quiz'|…). */
