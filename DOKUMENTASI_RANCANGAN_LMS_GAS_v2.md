@@ -563,27 +563,64 @@ Struktur ini mendukung:
 | `teaching_assignment_id` | ✅ | Relasi guru-kelas-mapel |
 | `title` | ✅ | Judul topic |
 | `description` | ❌ | Deskripsi topic |
-| `status` | ✅ | `open`, `closed` |
+| `status` | ✅ | `draft`, `publish`, `scheduled` (adendum 2026-09) |
+| `publish_at` | ❌ | Jadwal terbit — wajib bila `scheduled` (adendum 2026-09) |
+| `sort_order` | ✅ | Urutan dalam susunan course gabungan (adendum 2026-09) |
 | `created_at` | ✅ | Waktu dibuat |
 | `updated_at` | ✅ | Waktu diubah |
 
-`teacher_id`, `class_id`, dan `subject_id` dapat diperoleh melalui `Teaching_Assignments`. Jika didenormalisasi untuk performa, nilainya harus diisi dan divalidasi server-side.
+`teacher_id`, `class_id`, dan `subject_id` dapat diperoleh melalui `Teaching_Assignments`. Jika didenormalisasi untuk performa, nilainya harus diisi dan divalidasi server-side. Lihat juga **§7.8b** (adendum alur course 2026-09).
 
 ### 7.8 `Items`
 
 | Field | Required | Keterangan |
 |---|---:|---|
 | `item_id` | ✅ | ID item |
-| `topic_id` | ✅ | Topic induk |
+| `topic_id` | ⚠️ kondisional | Topic induk — **wajib** untuk semua jenis KECUALI quiz/refleksi mandiri (adendum 2026-09) |
+| `ta_id` | ⚠️ kondisional | Course (Teaching Assignment) — **wajib khusus item mandiri** (quiz/refleksi tanpa topik); kosong untuk item bertopik (adendum 2026-09) |
 | `type` | ✅ | `materi`, `tugas_individu`, `tugas_kelompok`, `quiz`, `refleksi` |
 | `title` | ✅ | Judul item |
 | `description` | ❌ | Deskripsi/instruksi |
-| `status` | ✅ | `open`, `closed` |
+| `status` | ✅ | `draft`, `publish`, `scheduled` (adendum 2026-09) |
+| `publish_at` | ❌ | Jadwal terbit — wajib bila `scheduled` (adendum 2026-09) |
 | `related_id` | ❌ | ID quiz/tugas/refleksi |
+| `sort_order` | ✅ | Urutan: dalam topik (item bertopik) atau susunan course gabungan (item mandiri) |
 | `created_at` | ✅ | Waktu dibuat |
 | `updated_at` | ✅ | Waktu diubah |
 
-`related_id` adalah polymorphic relation sehingga validasinya wajib dilakukan oleh server berdasarkan `type`. Jika sistem membesar, gunakan field FK terpisah atau satu tabel aktivitas terpadu.
+`related_id` adalah polymorphic relation sehingga validasinya wajib dilakukan oleh server berdasarkan `type`. Jika sistem membesar, gunakan field FK terpisah atau satu tabel aktivitas terpadu. Lihat juga **§7.8b** (adendum alur course 2026-09).
+
+### 7.8b Alur course: item mandiri, jadwal terbit, susunan gabungan (ADENDUM 2026-09)
+
+Keputusan yang disetujui pemilik proyek saat porting UI/UX v1 → v2
+(diimplementasikan pada commit tahap 4.6–4.8 `v2/`):
+
+1. **Quiz & refleksi mandiri.** Sesuai alur v1, quiz/refleksi dapat
+   berdiri LANGSUNG di course tanpa topik (materi & tugas tetap wajib
+   bertopik). Item mandiri menulis `ta_id` dan membiarkan `topic_id`
+   kosong; server menolak jenis lain yang mencoba mandiri.
+2. **View/hide.** Istilah untuk guru: 👁 *terlihat* / 🙈 *draf* —
+   padatan langsung `publish` / `draft`. Menyembunyikan item yang
+   terjadwal sekaligus membatalkan jadwalnya (`publish_at` dikosongkan).
+3. **Jadwal terbit (`scheduled` + `publish_at`).** Item/topik otomatis
+   terlihat murid TEPAT pada waktunya — dievaluasi saat murid membuka
+   (lazy, `Util.terlihatMurid`), TANPA trigger waktu Apps Script dan
+   TANPA notifikasi. Notifikasi `pertemuan_baru` hanya untuk publish
+   eksplisit (seketika), seperti semula.
+4. **Satu susunan course gabungan.** Topik dan item mandiri berbagi
+   satu daftar bernomor per course (`sort_order` bersama; baris baru
+   selalu di dasar). `coursePindah(token, jenis, id, arah)` menukar
+   baris dengan tetangganya lintas sheet lalu menomori ulang 1..N.
+   Item bertopik diurut di dalam topiknya (`itemPindah`), bukan di
+   tingkat course.
+5. **Murid melihat urutan campuran yang sama** dengan guru:
+   `topikKelasSaya` mengembalikan `topik[]`, `mandiri[]`, `item[]`
+   per topik (semua tanpa konten) plus `urutan[]` — susunan gabungan
+   yang difilter hanya baris yang terlihat saat itu. Draf dan
+   terjadwal-pra-waktu tidak pernah bocor ke murid.
+6. **Migrasi.** DB lama menyesuaikan lewat `migrasiStruktur()`
+   (menambah kolom `Topics.publish_at`, `Items.publish_at`,
+   `Items.ta_id`; data lama utuh).
 
 ### 7.9 `Progress`
 
@@ -1574,6 +1611,7 @@ Sebelum implementasi, Admin/developer harus menyetujui jawaban atas pertanyaan b
 16. Menambahkan batas `google.script.run`, asynchronous call, retry, dan idempotency.
 17. Menunda WhatsApp dan otomatisasi copy file kompleks dari MVP inti.
 18. Memperbaiki roadmap, testing, keamanan, backup, audit, dan operasional.
+19. (Adendum 2026-09, penerapan tahap 4.6–4.8 di folder `v2/`) Status `Topics`/`Items` menjadi `draft|publish|scheduled` + kolom `publish_at`; quiz/refleksi dapat mandiri tanpa topik via `Items.ta_id`; satu susunan course gabungan (`coursePindah`, renumber 1..N); murid menerima `urutan[]` campuran yang sama dengan guru. Lihat §7.8b.
 19. Menetapkan database final menjadi 21 sheet dengan `Audit_Logs`.
 20. Membersihkan konsep arsitektur lama “1 project/spreadsheet per guru”.
 
