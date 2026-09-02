@@ -1,34 +1,44 @@
 <script>
 /* ============================================================
  *  LMS v2 — js_course.html
- *  Layar Kelola Course (bentuk laporan pemilik produk):
- *  KARTU course (gaya kartu kelas dulu) — buat/edit/hapus.
- *  Course dibuka → detail berisi 4 ITEM PILIHAN: Materi, LKPD,
- *  Quiz, Refleksi (konten nyata menyusul Tahap 4).
+ *  Kelola Course:
+ *   · kisi KARTU course (buat/edit/hapus) — seperti kartu kelas;
+ *   · course dibuka → layar KELOLA TOPIK & ITEM (Tahap 4 poin 1,
+ *     §7.8b): SATU susunan bernomor gabungan berisi Topik +
+ *     Quiz mandiri + Refleksi mandiri; tombol ＋ = BUKA FORM
+ *     (pola "+ Pertemuan" v1); ▲▼ tukar+renumber; 👁/🙈;
+ *     🕐 jadwal terbit; ✏️ ubah; 🗑 hapus dgn konfirmasi.
+ *  Logika server: Topik.gs (endpoint course*Basis di Code.gs).
  * ============================================================ */
 
 var CourseLayar = (function () {
 
-  /* Isi course (laporan pemilik produk): Topik + Quiz mandiri +
-     Refleksi mandiri. DI DALAM Topik ada 4 item (pola v1). */
-  var ITEM_COURSE = [
-    { ikon: '🗂', nama: 'Topik', ket: 'Pokok bahasan/pertemuan — berisi materi & aktivitas',
-      dalam: true },
-    { ikon: '🧮', nama: 'Quiz mandiri', ket: 'Latihan soal mandiri murid' },
-    { ikon: '🪞', nama: 'Refleksi mandiri', ket: 'Refleksi belajar mandiri murid' }
-  ];
+  /* ---------- konstanta jenis (§7.8/§7.8b) ---------- */
+
+  var IKON_BARIS = { topik: '🗂', quiz_mandiri: '🧮', refleksi_mandiri: '🪞' };
+  var NAMA_BARIS = { topik: 'Topik', quiz_mandiri: 'Quiz mandiri',
+                     refleksi_mandiri: 'Refleksi mandiri' };
 
   /* 5 jenis item dalam topik — persis enum §7.8 Items.type:
      materi, tugas_individu, tugas_kelompok, quiz, refleksi.
      (Materi & tugas WAJIB bertopik; quiz/refleksi boleh mandiri
      di course — §7.8b poin 1.) */
-  var ITEM_TOPIK = [
-    { ikon: '📖', nama: 'Materi', ket: 'Bahan bacaan topik ini' },
-    { ikon: '👤', nama: 'Tugas Individu', ket: 'Dikerjakan sendiri, dinilai guru' },
-    { ikon: '👥', nama: 'Tugas Kelompok', ket: 'Dikerjakan berkelompok' },
-    { ikon: '❓', nama: 'Quiz', ket: 'Quiz atas topik ini' },
-    { ikon: '🪞', nama: 'Refleksi', ket: 'Refleksi atas topik ini' }
+  var JENIS_ITEM = [
+    { v: 'materi',          ikon: '📖', nama: 'Materi' },
+    { v: 'tugas_individu',  ikon: '👤', nama: 'Tugas Individu' },
+    { v: 'tugas_kelompok',  ikon: '👥', nama: 'Tugas Kelompok' },
+    { v: 'quiz',            ikon: '❓', nama: 'Quiz' },
+    { v: 'refleksi',        ikon: '🪞', nama: 'Refleksi' }
   ];
+  var IKON_ITEM = {}, NAMA_ITEM = {};
+  JENIS_ITEM.forEach(function (j) { IKON_ITEM[j.v] = j.ikon; NAMA_ITEM[j.v] = j.nama; });
+
+  /* ---------- state layar detail ---------- */
+
+  var TA_ID = '';        /* course yang sedang dibuka */
+  var DATA = [];         /* salinan baris terakhir (prefill dialog) */
+  var TERBUKA = {};      /* topicId → isi topik terbuka? */
+  var PERTAMA = true;    /* buka topik pertama saat layar baru dibuka */
 
   function render() {
     Core.$('layar').innerHTML =
@@ -103,9 +113,15 @@ var CourseLayar = (function () {
     });
   }
 
-  /* ---------- detail course: 4 item pilihan ---------- */
+  /* ============================================================
+     DETAIL COURSE = KELOLA TOPIK & ITEM (susunan gabungan §7.8b)
+     ============================================================ */
 
   function renderDetail(params) {
+    TA_ID = params.id;
+    DATA = [];
+    PERTAMA = true;
+
     Core.$('layar').innerHTML =
       '<div class="kepala" id="course-detail">' +
         '<button class="btn-teks" id="btn-kembali-c">←</button>' +
@@ -113,92 +129,491 @@ var CourseLayar = (function () {
         '<div class="kepala-aksi">' +
           '<button class="btn btn-sekunder" id="btn-edit-c">✏️ Edit course</button>' +
         '</div></div>' +
-      '<div class="judul-seksi">Isi course</div>' +
-      '<div class="kisi-item">' +
-        ITEM_COURSE.map(function (it) {
-          return '<button type="button" class="item-course"' +
-            (it.dalam ? ' data-dalam="1"' : '') + ' data-item="' +
-            Core.esc(it.nama) + '">' +
-            '<span class="ikon">' + it.ikon + '</span>' +
-            '<b>' + Core.esc(it.nama) + '</b>' +
-            '<small>' + Core.esc(it.ket) + '</small>' +
-            '</button>';
-        }).join('') +
-      '</div>';
+      '<div class="judul-seksi">Susunan course <small class="kecil">' +
+        '(bernomor gabungan — topik &amp; mandiri, §7.8b)</small></div>' +
+      '<div style="display:flex;gap:8px;flex-wrap:wrap;margin:2px 0 10px">' +
+        '<button class="btn btn-sekunder btn-kecil" id="btn-buat-topik">＋ Topik</button>' +
+        '<button class="btn btn-sekunder btn-kecil" id="btn-buat-quiz">＋ Quiz mandiri</button>' +
+        '<button class="btn btn-sekunder btn-kecil" id="btn-buat-ref">＋ Refleksi mandiri</button>' +
+      '</div>' +
+      '<div id="wadah-susunan" class="kartu daftar-susunan">' +
+        '<div class="pemuat"><span class="ikon">⏳</span>Memuat…</div>' +
+      '</div>' +
+      '<p class="bantuan mt-8">💡 ＋ = buat (membuka form), SELALU masuk ' +
+      'paling dasar · ▲▼ menukar tetangga lalu dinomori ulang · 👁/🙈 ' +
+      'terlihat/draf (menyembunyikan yang terjadwal membatalkan jadwalnya) · ' +
+      '🕐 terlihat murid tepat pada waktunya, tanpa notifikasi · publish ' +
+      'eksplisit mengirim notifikasi <i>pertemuan_baru</i> · item di dalam ' +
+      'topik memakai urutan dalemnya sendiri.</p>';
 
     Core.$('btn-kembali-c').addEventListener('click', function () {
       Core.pergiKe('course');
     });
     Core.$('btn-edit-c').addEventListener('click', function () {
-      dialogForm(params.id);
+      dialogForm(TA_ID);
+    });
+    Core.$('btn-buat-topik').addEventListener('click', function () {
+      dialogBuatBaris('topik');
+    });
+    Core.$('btn-buat-quiz').addEventListener('click', function () {
+      dialogBuatBaris('quiz_mandiri');
+    });
+    Core.$('btn-buat-ref').addEventListener('click', function () {
+      dialogBuatBaris('refleksi_mandiri');
     });
 
-    Core.api('courseDetail', Core.ambilToken(), params.id).then(function (d) {
+    var wadah = Core.$('wadah-susunan');
+    wadah.addEventListener('click', function (e) {
+      var tombol = e.target.closest('[data-aksi]');
+
+      /* ＋ Item: tombol di dalam blok isi topik (di luar baris data) */
+      if (tombol && tombol.dataset.aksi === 'tambah-item') {
+        var blok = tombol.closest('.isi-topik');
+        if (blok) dialogBuatItem(blok.dataset.topik);
+        return;
+      }
+
+      var barisEl = e.target.closest('[data-tipe]');
+      if (!barisEl) return;
+      var aksi = tombol ? tombol.dataset.aksi : '';
+      var tipe = barisEl.dataset.tipe;          /* topik | mandiri | item */
+      var id = barisEl.dataset.id;
+      var isi = barisEl.closest('.isi-topik');
+      var topikId = tipe === 'item' ? (isi ? isi.dataset.topik : '') : id;
+
+      if (!aksi) {
+        /* klik area baris topik (bukan tombol) = buka/tutup */
+        if (tipe === 'topik') {
+          TERBUKA[id] = !TERBUKA[id];
+          muatSusunan();
+        }
+        return;
+      }
+
+      var b = cariData(id);
+      if (!b) return;
+      if (tipe === 'item') {
+        aksiItem(aksi, topikId, b);
+      } else {
+        aksiBaris(aksi, tipe, b);
+      }
+    });
+
+    muatSusunan();
+  }
+
+  function cariData(id) {
+    for (var i = 0; i < DATA.length; i++) {
+      if (DATA[i].id === id) return DATA[i];
+      if (DATA[i].item) {
+        for (var j = 0; j < DATA[i].item.length; j++) {
+          if (DATA[i].item[j].id === id) return DATA[i].item[j];
+        }
+      }
+    }
+    return null;
+  }
+
+  function muatSusunan() {
+    var wadah = Core.$('wadah-susunan');
+    if (!wadah || !TA_ID) return;
+    Core.api('courseSusunan', Core.ambilToken(), TA_ID).then(function (d) {
+      if (!wadah || !d) return;
       var jd = Core.$('jd-c');
-      if (jd) jd.textContent = d.subject_name || 'Course';
+      if (jd) jd.textContent = d.course.subject_name || 'Course';
       var sub = Core.$('jd-c-sub');
       if (sub) sub.textContent =
-        (d.class_name || '—') +
-        (d.academic_year ? ' · ' + d.academic_year : '') +
-        ' · 🧑‍🎓 ' + (d.jml_murid || 0) + ' murid';
-    }).catch(function (err) { Core.toast(err.message, 'bahaya'); });
+        (d.course.class_name || '—') +
+        (d.course.academic_year ? ' · ' + d.course.academic_year : '') +
+        ' · 🧑‍🎓 ' + (d.course.jml_murid || 0) + ' murid';
 
-    Core.$('layar').querySelectorAll('.item-course').forEach(function (b) {
-      b.addEventListener('click', function () {
-        if (b.dataset.dalam) {
-          Core.pergiKe('course_topik', { id: params.id });
+      DATA = d.baris || [];
+      if (PERTAMA) {
+        for (var i = 0; i < DATA.length; i++) {
+          if (DATA[i].tipe === 'topik') { TERBUKA[DATA[i].id] = true; break; }
+        }
+        PERTAMA = false;
+      }
+      if (!DATA.length) {
+        wadah.innerHTML = '<div class="kosong-besar"><span class="ikon">🗂</span>' +
+          '<b>Course masih kosong</b>Buat Topik, Quiz mandiri, atau ' +
+          'Refleksi mandiri lewat tombol di atas.</div>';
+        return;
+      }
+      wadah.innerHTML = DATA.map(barisSusunanHtml).join('');
+    }).catch(function (err) {
+      wadah.innerHTML = '<div class="kosong-besar"><span class="ikon">⚠️</span>' +
+        '<b>Gagal memuat</b>' + Core.esc(err.message) + '</div>';
+    });
+  }
+
+  function badgeStatus(b) {
+    if (b.status === 'scheduled') {
+      return '<span class="badge badge-jadwal">🕐 ' + Core.esc(fmtJadwal(b.publish_at)) + '</span>';
+    }
+    if (b.status === 'draft') return '<span class="badge badge-draf">🙈 draf</span>';
+    return '<span class="badge badge-aktif">👁 terlihat</span>';
+  }
+
+  function fmtJadwal(v) {
+    if (!v) return '';
+    var d = new Date(String(v).replace(' ', 'T'));
+    if (isNaN(d.getTime())) return String(v);
+    return d.toLocaleDateString('id-ID', { day: 'numeric', month: 'short' }) +
+      ' ' + ('0' + d.getHours()).slice(-2) + '.' + ('0' + d.getMinutes()).slice(-2);
+  }
+
+  function barisSusunanHtml(b) {
+    var terbuka = b.tipe === 'topik' && TERBUKA[b.id];
+    var meta;
+    if (b.tipe === 'topik') {
+      meta = b.item.length
+        ? b.item.length + ' item · ' + b.item.map(function (it) {
+            return IKON_ITEM[it.jenis] || '•';
+          }).join(' ')
+        : 'belum ada item';
+    } else {
+      meta = NAMA_BARIS[b.jenis];
+    }
+    var html =
+      '<div class="baris-susunan' + (b.status === 'draft' ? ' draf' : '') +
+        (b.tipe === 'topik' ? ' buka-toggle' : '') +
+        '" data-tipe="' + b.tipe + '" data-id="' + Core.esc(b.id) + '">' +
+        '<span class="nomor-sus">' + b.urutan + '</span>' +
+        '<span class="ikon-sus">' +
+          (b.tipe === 'topik' ? (terbuka ? '📂' : '🗂') : IKON_BARIS[b.jenis]) + '</span>' +
+        '<span class="sus-tengah"><span class="sus-judul">' + Core.esc(b.judul) + '</span>' +
+          '<span class="sus-meta">' + meta + '</span></span>' +
+        badgeStatus(b) +
+        '<button class="btn-teks kecil" data-aksi="atas" title="Naik" ' +
+          (b.urutan <= 1 ? 'disabled' : '') + '>▲</button>' +
+        '<button class="btn-teks kecil" data-aksi="bawah" title="Turun" ' +
+          (b.urutan >= DATA.length ? 'disabled' : '') + '>▼</button>' +
+        '<button class="btn-teks kecil" data-aksi="status" title="Terlihat/draf">' +
+          (b.status === 'draft' ? '🙈' : '👁') + '</button>' +
+        '<button class="btn-teks kecil" data-aksi="jadwal" title="Jadwal terbit">🕐</button>' +
+        '<button class="btn-teks kecil" data-aksi="ubah" title="Ubah">✏️</button>' +
+        '<button class="btn-teks kecil merah" data-aksi="hapus" title="Hapus">🗑</button>' +
+      '</div>';
+    if (terbuka) html += isiTopikHtml(b);
+    return html;
+  }
+
+  function isiTopikHtml(b) {
+    var html = '<div class="isi-topik" data-topik="' + Core.esc(b.id) + '">';
+    if (!b.item.length) {
+      html += '<div class="baris-item-sus kosong-item">Belum ada item — buat lewat ＋ Item.</div>';
+    }
+    html += b.item.map(function (it) {
+      return '<div class="baris-item-sus' + (it.status === 'draft' ? ' draf' : '') +
+        '" data-tipe="item" data-id="' + Core.esc(it.id) + '">' +
+        '<span class="ikon-sus kecil">' + (IKON_ITEM[it.jenis] || '•') + '</span>' +
+        '<span class="sus-tengah"><span class="sus-judul">' + Core.esc(it.judul) + '</span>' +
+          '<span class="sus-meta">' + Core.esc(NAMA_ITEM[it.jenis] || it.jenis) +
+          (it.status === 'scheduled' ? ' · 🕐 ' + Core.esc(fmtJadwal(it.publish_at)) :
+            (it.status === 'draft' ? ' · 🙈 draf' : '')) + '</span></span>' +
+        '<button class="btn-teks kecil" data-aksi="atas" title="Naik">▲</button>' +
+        '<button class="btn-teks kecil" data-aksi="bawah" title="Turun">▼</button>' +
+        '<button class="btn-teks kecil" data-aksi="status" title="Terlihat/draf">' +
+          (it.status === 'draft' ? '🙈' : '👁') + '</button>' +
+        '<button class="btn-teks kecil" data-aksi="jadwal" title="Jadwal terbit">🕐</button>' +
+        '<button class="btn-teks kecil" data-aksi="ubah" title="Ubah">✏️</button>' +
+        '<button class="btn-teks kecil merah" data-aksi="hapus" title="Hapus">🗑</button>' +
+        '</div>';
+    }).join('');
+    html += '<button class="btn btn-sekunder btn-kecil" data-aksi="tambah-item" ' +
+      'style="margin:2px 0 6px 10px">＋ Item</button>' +
+      '</div>';
+    return html;
+  }
+
+  /* ---------- aksi baris & item ---------- */
+
+  function aksiBaris(aksi, tipe, b) {
+    if (aksi === 'atas' || aksi === 'bawah') {
+      Core.api('coursePindahBaris', Core.ambilToken(), tipe, b.id, aksi)
+        .then(muatSusunan)
+        .catch(function (err) { Core.toast(err.message, 'bahaya'); });
+      return;
+    }
+    if (aksi === 'status') {
+      /* arah toggle: draf→terlihat; publish/scheduled→draf */
+      var baru = b.status === 'draft' ? 'publish' : 'draft';
+      Core.api('courseStatusBaris', Core.ambilToken(), tipe, b.id, baru)
+        .then(function () {
+          Core.toast(baru === 'publish'
+            ? '👁 terlihat — notifikasi pertemuan_baru terkirim (publish eksplisit).'
+            : (b.status === 'scheduled'
+              ? '🙈 draf — jadwal terbit DIBATALKAN.'
+              : '🙈 draf — murid tidak melihat baris ini.'), 'sukses');
+          muatSusunan();
+        })
+        .catch(function (err) { Core.toast(err.message, 'bahaya'); });
+      return;
+    }
+    if (aksi === 'jadwal') { dialogJadwal('baris', tipe, b); return; }
+    if (aksi === 'ubah')   { dialogUbahBaris(tipe, b); return; }
+    if (aksi === 'hapus')  { konfirmasiHapusBaris(tipe, b); return; }
+  }
+
+  function aksiItem(aksi, topikId, it) {
+    if (aksi === 'tambah-item') { dialogBuatItem(topikId); return; }
+    if (aksi === 'atas' || aksi === 'bawah') {
+      Core.api('coursePindahItem', Core.ambilToken(), topikId, it.id, aksi)
+        .then(muatSusunan)
+        .catch(function (err) { Core.toast(err.message, 'bahaya'); });
+      return;
+    }
+    if (aksi === 'status') {
+      /* arah toggle: draf→terlihat; publish/scheduled→draf */
+      var baru = it.status === 'draft' ? 'publish' : 'draft';
+      Core.api('courseStatusItem', Core.ambilToken(), it.id, baru)
+        .then(function () {
+          Core.toast(baru === 'publish'
+            ? '👁 terlihat — notifikasi pertemuan_baru terkirim (publish eksplisit).'
+            : (it.status === 'scheduled'
+              ? '🙈 draf — jadwal terbit DIBATALKAN.'
+              : '🙈 draf — murid tidak melihat item ini.'), 'sukses');
+          muatSusunan();
+        })
+        .catch(function (err) { Core.toast(err.message, 'bahaya'); });
+      return;
+    }
+    if (aksi === 'jadwal') { dialogJadwal('item', '', it); return; }
+    if (aksi === 'ubah')   { dialogUbahItem(it); return; }
+    if (aksi === 'hapus')  { konfirmasiHapusItem(it); return; }
+  }
+
+  /* ---------- form: buat / ubah / jadwal / hapus ---------- */
+
+  var FORM_STATUS =
+    '<div class="grup"><label>Status</label>' +
+    '<select class="isian" id="in-s-status">' +
+      '<option value="draft">🙈 Draf — belum terlihat murid</option>' +
+      '<option value="publish">👁 Terlihat — dapat diakses murid</option>' +
+    '</select></div>';
+
+  function formUmum(judulDlg, jenisTerkunciHtml, judulNilai, deskNilai, statusNilai, labelYa, bantuan) {
+    return Core.dialog({
+      judul: judulDlg,
+      html: jenisTerkunciHtml +
+        '<div class="grup"><label>Judul <span class="wajib">*</span></label>' +
+        '<input class="isian" id="in-s-judul" value="' + Core.esc(judulNilai || '') + '"></div>' +
+        '<div class="grup"><label>Deskripsi</label>' +
+        '<textarea class="isian" id="in-s-desk" rows="2">' + Core.esc(deskNilai || '') +
+        '</textarea></div>' +
+        FORM_STATUS + (bantuan ? '<span class="bantuan">' + bantuan + '</span>' : ''),
+      labelYa: labelYa || 'Simpan',
+      saatBuka: function (tirai) {
+        if (statusNilai) {
+          var sel = tirai.querySelector('#in-s-status');
+          if (sel) sel.value = statusNilai === 'publish' ? 'publish' : 'draft';
+        }
+      }
+    });
+  }
+
+  /** ＋ Topik / ＋ Quiz mandiri / ＋ Refleksi mandiri = BUAT (form). */
+  function dialogBuatBaris(jenisBaris) {
+    formUmum('Buat ' + NAMA_BARIS[jenisBaris],
+      '<div class="grup"><label>Jenis</label>' +
+      '<input class="isian" value="' + IKON_BARIS[jenisBaris] + ' ' +
+        NAMA_BARIS[jenisBaris] + '" disabled>' +
+      '<span class="bantuan">Jenis tidak dapat diubah setelah dibuat.</span></div>',
+      '', '', 'draft', 'Buat',
+      'Baris baru SELALU masuk paling dasar (§7.8b). Jadwal terbit bisa ' +
+      'diatur lewat 🕐 setelah dibuat.')
+      .then(function (ya) {
+        if (!ya) return;
+        var p = { jenis_baris: jenisBaris, judul: Core.$('in-s-judul').value,
+                  deskripsi: Core.$('in-s-desk').value,
+                  status: Core.$('in-s-status').value };
+        if (!p.judul.trim()) {
+          Core.toast('Judul wajib diisi.', 'peringatan');
+          dialogBuatBaris(jenisBaris);
           return;
         }
-        /* konten per item menyusul pada Tahap 4 */
-        Core.toast('“' + b.dataset.item +
-          '” terbuka setelah Tahap 4 (konten course) aktif.');
+        Core.api('courseBuatBaris', Core.ambilToken(), TA_ID, p)
+          .then(function () {
+            Core.toast(NAMA_BARIS[jenisBaris] + ' dibuat di paling dasar.', 'sukses');
+            muatSusunan();
+          })
+          .catch(function (err) {
+            Core.toast(err.message, 'bahaya');
+            dialogBuatBaris(jenisBaris);
+          });
       });
+  }
+
+  /** ＋ Item dalam topik: form dgn pilihan jenis (5 jenis §7.8). */
+  function dialogBuatItem(topicId) {
+    Core.dialog({
+      judul: 'Buat Item',
+      html:
+        '<div class="grup"><label>Jenis <span class="wajib">*</span></label>' +
+        '<select class="isian" id="in-s-jenis">' +
+        JENIS_ITEM.map(function (j) {
+          return '<option value="' + j.v + '">' + j.ikon + ' ' + j.nama + '</option>';
+        }).join('') + '</select>' +
+        '<span class="bantuan">Materi &amp; tugas wajib bertopik; quiz &amp; ' +
+        'refleksi bisa mandiri (dibuat dari tombol ＋ di atas).</span></div>' +
+        '<div class="grup"><label>Judul <span class="wajib">*</span></label>' +
+        '<input class="isian" id="in-s-judul"></div>' +
+        '<div class="grup"><label>Deskripsi</label>' +
+        '<textarea class="isian" id="in-s-desk" rows="2"></textarea></div>' +
+        FORM_STATUS,
+      labelYa: 'Buat'
+    }).then(function (ya) {
+      if (!ya) return;
+      var p = { type: Core.$('in-s-jenis').value, judul: Core.$('in-s-judul').value,
+                deskripsi: Core.$('in-s-desk').value,
+                status: Core.$('in-s-status').value };
+      if (!p.judul.trim()) {
+        Core.toast('Judul wajib diisi.', 'peringatan');
+        dialogBuatItem(topicId);
+        return;
+      }
+      Core.api('courseBuatItem', Core.ambilToken(), topicId, p)
+        .then(function () {
+          Core.toast(NAMA_ITEM[p.type] + ' dibuat dalam topik.', 'sukses');
+          muatSusunan();
+        })
+        .catch(function (err) {
+          Core.toast(err.message, 'bahaya');
+          dialogBuatItem(topicId);
+        });
     });
   }
 
-  /* ---------- isi Topik: 4 item (Materi/LKPD/Quiz/Refleksi) ---------- */
-
-  function renderTopik(params) {
-    Core.$('layar').innerHTML =
-      '<div class="kepala" id="topik-detail">' +
-        '<button class="btn-teks" id="btn-kembali-t">←</button>' +
-        '<div><h1>Topik</h1><p id="jd-t-sub">…</p></div>' +
-      '</div>' +
-      '<div class="judul-seksi">Isi topik</div>' +
-      '<div class="kisi-item">' +
-        ITEM_TOPIK.map(function (it) {
-          return '<button type="button" class="item-course" data-item="' +
-            Core.esc(it.nama) + '">' +
-            '<span class="ikon">' + it.ikon + '</span>' +
-            '<b>' + Core.esc(it.nama) + '</b>' +
-            '<small>' + Core.esc(it.ket) + '</small>' +
-            '</button>';
-        }).join('') +
-      '</div>' +
-      '<p class="bantuan mt-8">💡 Sesuai §7.8/§7.8b: materi &amp; tugas wajib ' +
-      'bertopik; quiz/refleksi boleh mandiri di course. Daftar topik ' +
-      'bernomor (↑↓), view/hide 👁/🙈, dan jadwal tayang dirancang ' +
-      'pada Tahap 4.</p>';
-
-    Core.$('btn-kembali-t').addEventListener('click', function () {
-      Core.pergiKe('course_detail', { id: params.id });
-    });
-
-    Core.api('courseDetail', Core.ambilToken(), params.id).then(function (d) {
-      var sub = Core.$('jd-t-sub');
-      if (sub) sub.textContent =
-        (d.subject_name || 'Course') + ' · ' + (d.class_name || '—');
-    }).catch(function () {});
-
-    Core.$('layar').querySelectorAll('.item-course').forEach(function (b) {
-      b.addEventListener('click', function () {
-        Core.toast('“' + b.dataset.item +
-          '” terbuka setelah Tahap 4 (konten course) aktif.');
+  function dialogUbahBaris(tipe, b) {
+    formUmum('Ubah — ' + NAMA_BARIS[b.jenis],
+      '<div class="grup"><label>Jenis</label>' +
+      '<input class="isian" value="' + IKON_BARIS[b.jenis] + ' ' +
+        NAMA_BARIS[b.jenis] + '" disabled>' +
+      '<span class="bantuan">Jenis tidak dapat diubah setelah dibuat.</span></div>',
+      b.judul, b.deskripsi,
+      b.status === 'publish' ? 'publish' : 'draft', 'Simpan',
+      b.status === 'scheduled'
+        ? 'Baris ini terjadwal (' + fmtJadwal(b.publish_at) + ') — ubah lewat 🕐.'
+        : '')
+      .then(function (ya) {
+        if (!ya) return;
+        var p = { judul: Core.$('in-s-judul').value,
+                  deskripsi: Core.$('in-s-desk').value,
+                  status: Core.$('in-s-status').value };
+        if (!p.judul.trim()) {
+          Core.toast('Judul wajib diisi.', 'peringatan');
+          dialogUbahBaris(tipe, b);
+          return;
+        }
+        Core.api('courseUbahBaris', Core.ambilToken(), tipe, b.id, p)
+          .then(function () {
+            Core.toast('Perubahan disimpan.', 'sukses');
+            muatSusunan();
+          })
+          .catch(function (err) {
+            Core.toast(err.message, 'bahaya');
+            dialogUbahBaris(tipe, b);
+          });
       });
+  }
+
+  function dialogUbahItem(it) {
+    formUmum('Ubah — ' + (NAMA_ITEM[it.jenis] || 'Item'),
+      '<div class="grup"><label>Jenis</label>' +
+      '<input class="isian" value="' + (IKON_ITEM[it.jenis] || '•') + ' ' +
+        Core.esc(NAMA_ITEM[it.jenis] || it.jenis) + '" disabled>' +
+      '<span class="bantuan">Jenis tidak dapat diubah setelah dibuat.</span></div>',
+      it.judul, it.deskripsi,
+      it.status === 'publish' ? 'publish' : 'draft', 'Simpan',
+      it.status === 'scheduled'
+        ? 'Item ini terjadwal (' + fmtJadwal(it.publish_at) + ') — ubah lewat 🕐.'
+        : '')
+      .then(function (ya) {
+        if (!ya) return;
+        var p = { judul: Core.$('in-s-judul').value,
+                  deskripsi: Core.$('in-s-desk').value,
+                  status: Core.$('in-s-status').value };
+        if (!p.judul.trim()) {
+          Core.toast('Judul wajib diisi.', 'peringatan');
+          dialogUbahItem(it);
+          return;
+        }
+        Core.api('courseUbahItem', Core.ambilToken(), it.id, p)
+          .then(function () {
+            Core.toast('Perubahan disimpan.', 'sukses');
+            muatSusunan();
+          })
+          .catch(function (err) {
+            Core.toast(err.message, 'bahaya');
+            dialogUbahItem(it);
+          });
+      });
+  }
+
+  /** 🕐 jadwal terbit — datetime; kosong = batalkan jadwal. */
+  function dialogJadwal(level, tipe, b) {
+    Core.dialog({
+      judul: '🕐 Jadwal terbit',
+      html:
+        '<div class="grup"><label>Terlihat murid TEPAT pada (§7.8b)</label>' +
+        '<input type="datetime-local" class="isian" id="in-s-jadwal" value="' +
+          Core.esc(b.publish_at ? String(b.publish_at).replace(' ', 'T') : '') + '">' +
+        '<span class="bantuan">Tanpa trigger waktu &amp; tanpa notifikasi — ' +
+        'dievaluasi saat murid membuka. Mengosongkan = membatalkan jadwal.</span></div>',
+      labelYa: 'Simpan'
+    }).then(function (ya) {
+      if (!ya) return;
+      var v = Core.$('in-s-jadwal').value;
+      var panggil = level === 'item'
+        ? Core.api('courseJadwalItem', Core.ambilToken(), b.id, v)
+        : Core.api('courseJadwalBaris', Core.ambilToken(), tipe, b.id, v);
+      panggil.then(function (r) {
+        Core.toast(r && r.status === 'scheduled'
+          ? 'Terjadwal — murid melihat tepat ' + fmtJadwal(r.publish_at) + '.'
+          : 'Jadwal dikosongkan.', 'sukses');
+        muatSusunan();
+      }).catch(function (err) { Core.toast(err.message, 'bahaya'); });
     });
   }
 
-  /* ---------- buat / edit ---------- */
+  function konfirmasiHapusBaris(tipe, b) {
+    var pesan = tipe === 'topik'
+      ? 'Topik "' + b.judul + '"' + (b.item.length
+          ? ' beserta ' + b.item.length + ' item di dalamnya, soal, dan progres murid'
+          : ' (masih kosong)') + ' akan dihapus dan tidak dapat dibuka kembali.'
+      : NAMA_BARIS[b.jenis] + ' "' + b.judul +
+        '" beserta konten dan progres murid akan dihapus dan tidak dapat dibuka kembali.';
+    Core.konfirmasi('Hapus ' + NAMA_BARIS[b.jenis] + '?', pesan,
+      { labelYa: 'Ya, hapus', bahaya: true })
+      .then(function (ya) {
+        if (!ya) return;
+        Core.api('courseHapusBaris', Core.ambilToken(), tipe, b.id)
+          .then(function () {
+            Core.toast(NAMA_BARIS[b.jenis] + ' dihapus.', 'sukses');
+            muatSusunan();
+          })
+          .catch(function (err) { Core.toast(err.message, 'bahaya'); });
+      });
+  }
+
+  function konfirmasiHapusItem(it) {
+    Core.konfirmasi('Hapus ' + (NAMA_ITEM[it.jenis] || 'item') + '?',
+      '"' + it.judul + '" beserta konten dan progres murid akan dihapus ' +
+      'dan tidak dapat dibuka kembali.',
+      { labelYa: 'Ya, hapus', bahaya: true })
+      .then(function (ya) {
+        if (!ya) return;
+        Core.api('courseHapusItem', Core.ambilToken(), it.id)
+          .then(function () {
+            Core.toast('Item dihapus.', 'sukses');
+            muatSusunan();
+          })
+          .catch(function (err) { Core.toast(err.message, 'bahaya'); });
+      });
+  }
+
+  /* ---------- buat / edit course (kartu) ---------- */
 
   function dialogForm(taId) {
     Core.api('kelasDaftar', Core.ambilToken()).then(function (kelas) {
@@ -280,7 +695,6 @@ var CourseLayar = (function () {
 
   Core.daftarRute('course', render);
   Core.daftarRute('course_detail', renderDetail);
-  Core.daftarRute('course_topik', renderTopik);
-  return { render: render, renderDetail: renderDetail, renderTopik: renderTopik };
+  return { render: render, renderDetail: renderDetail };
 })();
 </script>

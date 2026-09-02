@@ -399,21 +399,50 @@ tbody tr:hover { background: var(--permukaan); }
 
 /* ---------- kisi item course (4 pilihan: Materi/LKPD/Quiz/Refleksi)
    gaya .kartu-kelas v1 ---------- */
-.kisi-item { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-             gap: 12px; }
-.item-course {
-  display: flex; flex-direction: column; gap: 4px; width: 100%; text-align: left;
-  background: var(--putih); border: 1px solid var(--garis);
-  border-radius: var(--radius); padding: 18px;
-  box-shadow: var(--bayang); cursor: pointer;
-  font-family: var(--font); color: var(--teks);
-  transition: box-shadow .15s, transform .08s, border-color .15s;
+/* ---------- layar Kelola Topik & Item (susunan gabungan §7.8b) ---------- */
+.daftar-susunan { overflow: hidden; }
+.baris-susunan {
+  display: flex; align-items: center; gap: 10px; width: 100%;
+  padding: 11px 14px; border-bottom: 1px solid var(--garis);
+  font-family: var(--font); color: var(--teks); text-align: left;
+  transition: background .12s;
 }
-.item-course:hover { box-shadow: var(--bayang-mn); border-color: var(--hijau); }
-.item-course:active { transform: translateY(1px); }
-.item-course .ikon { font-size: 1.6rem; line-height: 1.2; }
-.item-course b { font-size: 1.02rem; }
-.item-course small { color: var(--teks-lembut); font-size: .8rem; }
+.baris-susunan:last-of-type { border-bottom: none; }
+.baris-susunan.buka-toggle { cursor: pointer; }
+.baris-susunan.buka-toggle:hover { background: var(--permukaan); }
+.baris-susunan.draf .sus-judul,
+.baris-susunan.draf .sus-meta { color: var(--terkunci, #B8C4B6); }
+.baris-susunan.draf { background: #FCFDFB; }
+.nomor-sus {
+  flex: 0 0 32px; height: 32px; border-radius: 50%;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-weight: 800; font-size: .9rem;
+  background: var(--hijau-muda); color: var(--hijau-tua);
+}
+.baris-susunan.draf .nomor-sus { background: #ECF0EB; color: #74836F; }
+.ikon-sus { flex: none; width: 28px; text-align: center; font-size: 1.2rem; }
+.ikon-sus.kecil { font-size: 1rem; width: 24px; }
+.sus-tengah { flex: 1; min-width: 0; display: block; }
+.sus-judul { display: block; font-weight: 700; font-size: .93rem;
+             white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sus-meta  { display: block; font-size: .74rem; color: var(--teks-lembut); }
+.sus-kontrol { display: flex; gap: 1px; flex: none; }
+.badge-jadwal { background: #FBF0D8; color: #9A7414; }
+.badge-draf   { background: #ECF0EB; color: #74836F; }
+/* item di dalam topik: menjorok + garis putus (pola daftar pertemuan v1) */
+.isi-topik {
+  margin: 0; padding: 2px 10px 6px 52px;
+  border-bottom: 1px solid var(--garis); background: #FBFDF9;
+}
+.isi-topik .baris-item-sus {
+  display: flex; align-items: center; gap: 8px; width: 100%;
+  padding: 7px 8px; border: 0; background: none; font-family: var(--font);
+  color: var(--teks); text-align: left; border-radius: 7px; font-size: .9rem;
+}
+.isi-topik .baris-item-sus:hover { background: var(--hijau-muda); }
+.isi-topik .baris-item-sus.draf .sus-judul,
+.isi-topik .baris-item-sus.draf .sus-meta { color: #74836F; }
+.kosong-item { color: var(--teks-lembut); font-size: .8rem; cursor: default; }
 
 /* ---------- baris "Perlu tindakan" (bisa diklik → proses) ---------- */
 button.tindak-baris {

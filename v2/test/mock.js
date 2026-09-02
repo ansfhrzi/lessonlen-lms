@@ -45,7 +45,9 @@ const HEAD = {
   Classes: ['class_id','name','academic_year','status','created_at','updated_at'],
   Subjects: ['subject_id','name','code','owner_teacher_id','status','created_at','updated_at'],
   Teaching_Assignments: ['teaching_assignment_id','class_id','teacher_id','subject_id','academic_year','status','created_at','updated_at'],
-  Enrollment: ['enroll_id','class_id','user_id','tanggal_daftar','status']
+  Enrollment: ['enroll_id','class_id','user_id','tanggal_daftar','status'],
+  Topics: ['topic_id','teaching_assignment_id','title','description','status','publish_at','sort_order','created_at','updated_at'],
+  Items: ['item_id','topic_id','ta_id','type','title','description','status','publish_at','related_id','sort_order','created_at','updated_at']
 };
 const TABEL = {};   // nama -> array objek (sudah termasuk _baris)
 

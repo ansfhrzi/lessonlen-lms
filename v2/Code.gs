@@ -170,6 +170,103 @@ function courseHapus(token, taId) {
 }
 
 /* ============================================================
+ *  API — KELOLA TOPIK & ITEM (Tahap 4 poin 1 — §7.8/§7.8b)
+ *  Layar "detail course" guru = susunan gabungan topik + item
+ *  mandiri. Logika ada di Topik.gs; wrapper di sini.
+ * ============================================================ */
+
+/** Susunan gabungan + detail course (satu panggilan). */
+function courseSusunan(token, taId) {
+  return _bungkus(token, 'guru', function (sesi) {
+    return Topik.susunan(sesi, taId);
+  });
+}
+
+/** Buat baris (topik / quiz mandiri / refleksi mandiri) — paling dasar. */
+function courseBuatBaris(token, taId, p) {
+  return _bungkus(token, 'guru', function (sesi) {
+    return Topik.buatBaris(sesi, taId, p);
+  });
+}
+
+/** Ubah baris (judul/deskripsi/status; jenis terkunci). */
+function courseUbahBaris(token, tipe, id, p) {
+  return _bungkus(token, 'guru', function (sesi) {
+    return Topik.ubahBaris(sesi, tipe, id, p);
+  });
+}
+
+/** Hapus baris (topik ikut menghapus item di dalamnya). */
+function courseHapusBaris(token, tipe, id) {
+  return _bungkus(token, 'guru', function (sesi) {
+    return Topik.hapusBaris(sesi, tipe, id);
+  });
+}
+
+/** 👁/🙈 — publish eksplisit (notif) / draf (jadwal batal). */
+function courseStatusBaris(token, tipe, id, status) {
+  return _bungkus(token, 'guru', function (sesi) {
+    return Topik.ubahStatusBaris(sesi, tipe, id, status);
+  });
+}
+
+/** 🕐 jadwal terbit (scheduled + publish_at, lazy tanpa notifikasi). */
+function courseJadwalBaris(token, tipe, id, publishAt) {
+  return _bungkus(token, 'guru', function (sesi) {
+    return Topik.aturJadwalBaris(sesi, tipe, id, publishAt);
+  });
+}
+
+/** ▲▼ tukar tetangga dalam susunan gabungan + renumber 1..N. */
+function coursePindahBaris(token, tipe, id, arah) {
+  return _bungkus(token, 'guru', function (sesi) {
+    return Topik.pindahBaris(sesi, tipe, id, arah);
+  });
+}
+
+/** ＋ Item: buat item dalam topik (5 jenis §7.8) — dasar topik. */
+function courseBuatItem(token, topicId, p) {
+  return _bungkus(token, 'guru', function (sesi) {
+    return Topik.buatItem(sesi, topicId, p);
+  });
+}
+
+/** Ubah item dalam topik (judul/deskripsi/status). */
+function courseUbahItem(token, itemId, p) {
+  return _bungkus(token, 'guru', function (sesi) {
+    return Topik.ubahItem(sesi, itemId, p);
+  });
+}
+
+/** Hapus item dalam topik. */
+function courseHapusItem(token, itemId) {
+  return _bungkus(token, 'guru', function (sesi) {
+    return Topik.hapusItem(sesi, itemId);
+  });
+}
+
+/** 👁/🙈 item. */
+function courseStatusItem(token, itemId, status) {
+  return _bungkus(token, 'guru', function (sesi) {
+    return Topik.ubahStatusItem(sesi, itemId, status);
+  });
+}
+
+/** 🕐 jadwal terbit item. */
+function courseJadwalItem(token, itemId, publishAt) {
+  return _bungkus(token, 'guru', function (sesi) {
+    return Topik.aturJadwalItem(sesi, itemId, publishAt);
+  });
+}
+
+/** ▲▼ item: tukar tetangga di dalam topik + renumber. */
+function coursePindahItem(token, topicId, itemId, arah) {
+  return _bungkus(token, 'guru', function (sesi) {
+    return Topik.pindahItem(sesi, topicId, itemId, arah);
+  });
+}
+
+/* ============================================================
  *  API — STATUS API KEY (menu dashboard guru — §22D)
  *  Key tersimpan di Script Properties; panel hanya melihat
  *  4 digit terakhir. Mekanisme persis v1 (Ai.gs).

@@ -235,36 +235,110 @@ const tunggu = (ms) => new Promise(r => setTimeout(r, ms));
       d.querySelectorAll('#wadah-tabel tbody tr').length === 4 &&
       d.getElementById('info-kelas').textContent.includes('4 siswa terdaftar'));
 
-  // --- Kelola Course: KARTU course + detail 4 item (permintaan) ---
+  // --- Kelola Course: kisi kartu → layar Kelola Topik & Item (poin 1) ---
   d.querySelector('#menu-utama a[data-rute="course"]').click();
   await tunggu(500);
   cek('course: kartu course tampil (4)',
       d.querySelectorAll('#wadah-kisi .kartu-barang').length === 4);
   d.querySelector('#wadah-kisi [data-buka]').click();
   await tunggu(500);
-  cek('course: detail terbuka dgn 3 item (Topik/Quiz mandiri/Refleksi mandiri)',
-      d.querySelectorAll('.item-course').length === 3 &&
-      d.getElementById('layar').textContent.includes('Quiz mandiri') &&
-      d.getElementById('layar').textContent.includes('Refleksi mandiri') &&
-      d.getElementById('jd-c').textContent !== '…' &&
-      d.getElementById('jd-c-sub').textContent.includes('murid'));
-  // buka Topik → 4 item di dalamnya
-  d.querySelector('.item-course[data-dalam="1"]').click();
-  await tunggu(500);
-  cek('topik: 5 item sesuai §7.8 (Materi/Tugas Individu/Tugas Kelompok/Quiz/Refleksi)',
-      d.querySelectorAll('.kisi-item .item-course').length === 5 &&
-      d.getElementById('layar').textContent.includes('Tugas Individu') &&
-      d.getElementById('layar').textContent.includes('Tugas Kelompok') &&
-      d.getElementById('layar').textContent.includes('Isi topik') &&
-      d.getElementById('jd-t-sub').textContent.includes('Matematika'));
-  d.querySelector('.kisi-item .item-course').click();
-  await tunggu(200);
-  cek('topik: item → info "menyusul Tahap 4"',
-      d.getElementById('toast-wadah') &&
-      d.getElementById('toast-wadah').textContent.includes('Tahap 4'));
-  d.getElementById('btn-kembali-t').click();
+  cek('detail = layar Kelola Topik & Item (jd-c terisi)',
+      d.getElementById('jd-c').textContent === 'Matematika' &&
+      d.getElementById('jd-c-sub').textContent.includes('murid') &&
+      d.getElementById('layar').textContent.includes('Susunan course') &&
+      d.getElementById('layar').textContent.includes('Refleksi mandiri'));
+  cek('susunan: 4 baris gabungan bernomor 1..4',
+      d.querySelectorAll('#wadah-susunan .baris-susunan').length === 4 &&
+      [...d.querySelectorAll('#wadah-susunan .nomor-sus')].map(x => x.textContent).join('') === '1234');
+  cek('topik pertama terbuka dgn 3 item',
+      d.querySelectorAll('.isi-topik .baris-item-sus').length === 3 &&
+      d.querySelector('.isi-topik').textContent.includes('Materi'));
+  cek('baris terjadwal ber-badge 🕐', !!d.querySelector('#wadah-susunan .badge-jadwal'));
+
+  // klik area baris topik → buka/tutup
+  d.querySelector('.baris-susunan.buka-toggle .sus-tengah').click();
   await tunggu(300);
-  cek('topik: kembali ke detail course', !!d.getElementById('course-detail'));
+  cek('klik baris topik → tutup (isi hilang)', d.querySelectorAll('.isi-topik').length === 0);
+  d.querySelector('.baris-susunan.buka-toggle .sus-judul').click();
+  await tunggu(300);
+  cek('klik lagi → terbuka', d.querySelectorAll('.isi-topik').length === 1);
+
+  // ＋ Topik = FORM buat (pola "+ Pertemuan" v1) → draf di dasar
+  d.getElementById('btn-buat-topik').click();
+  await tunggu(300);
+  cek('dialog "Buat Topik" terbuka (jenis terkunci)',
+      !!d.getElementById('in-s-judul') &&
+      d.querySelector('.kotak-dialog h3').textContent.includes('Buat Topik') &&
+      !!d.querySelector('.kotak-dialog input[disabled]'));
+  d.getElementById('in-s-judul').value = 'Aliran data';
+  d.querySelector('.kotak-dialog [data-aksi="ya"]').click();
+  await tunggu(500);
+  let baris5 = d.querySelectorAll('#wadah-susunan .baris-susunan')[4];
+  cek('topik baru = baris 5 paling dasar (draf)',
+      d.querySelectorAll('#wadah-susunan .baris-susunan').length === 5 &&
+      baris5.textContent.includes('Aliran data') &&
+      baris5.querySelector('.badge-draf') !== null);
+
+  // ＋ Item = form dgn pilihan 5 jenis §7.8
+  d.querySelector('.isi-topik [data-aksi="tambah-item"]').click();
+  await tunggu(300);
+  cek('dialog "Buat Item" + select 5 jenis',
+      d.querySelector('.kotak-dialog h3').textContent.includes('Buat Item') &&
+      d.getElementById('in-s-jenis').options.length === 5);
+  d.getElementById('in-s-jenis').value = 'tugas_kelompok';
+  d.getElementById('in-s-judul').value = 'Proyek kelompok';
+  d.querySelector('.kotak-dialog [data-aksi="ya"]').click();
+  await tunggu(500);
+  cek('item baru muncul dlm topik (Tugas Kelompok)',
+      d.querySelector('.isi-topik').textContent.includes('Proyek kelompok') &&
+      d.querySelector('.isi-topik').textContent.includes('Tugas Kelompok'));
+
+  // ▼ tukar tetangga + renumber
+  d.querySelector('#wadah-susunan .baris-susunan [data-aksi="bawah"]').click();
+  await tunggu(400);
+  cek('▼ menukar posisi (baris 1 kini Tryout terjadwal)',
+      d.querySelector('#wadah-susunan .baris-susunan').textContent.includes('Tryout operasi hitung'));
+  cek('nomor tetap 1..5',
+      [...d.querySelectorAll('#wadah-susunan .nomor-sus')].map(x => x.textContent).join('') === '12345');
+
+  // 🙈 pada terjadwal → jadwal dibatalkan
+  d.querySelector('#wadah-susunan .baris-susunan [data-aksi="status"]').click();
+  await tunggu(400);
+  cek('🙈 → jadwal DIBATALKAN (badge 🕐 hilang + toast)',
+      !d.querySelector('#wadah-susunan .badge-jadwal') &&
+      d.getElementById('toast-wadah').textContent.includes('DIBATALKAN'));
+
+  // 🕐 jadwalkan ulang
+  d.querySelector('#wadah-susunan .baris-susunan [data-aksi="jadwal"]').click();
+  await tunggu(300);
+  cek('dialog jadwal (datetime-local) terbuka', !!d.getElementById('in-s-jadwal'));
+  d.getElementById('in-s-jadwal').value = '2026-09-15T07:30';
+  d.querySelector('.kotak-dialog [data-aksi="ya"]').click();
+  await tunggu(400);
+  cek('🕐 jadwal terpasang kembali', !!d.querySelector('#wadah-susunan .badge-jadwal'));
+
+  // ✏️ ubah judul (jenis terkunci)
+  d.querySelector('#wadah-susunan .baris-susunan [data-aksi="ubah"]').click();
+  await tunggu(300);
+  cek('dialog "Ubah — Quiz mandiri" + jenis disabled',
+      d.querySelector('.kotak-dialog h3').textContent.includes('Ubah — Quiz mandiri') &&
+      !!d.querySelector('.kotak-dialog input[disabled]'));
+  d.getElementById('in-s-judul').value = 'Tryout operasi hitung v2';
+  d.querySelector('.kotak-dialog [data-aksi="ya"]').click();
+  await tunggu(400);
+  cek('✏️ judul berubah', d.querySelector('#wadah-susunan .baris-susunan').textContent.includes('v2'));
+
+  // 🗑 hapus dgn konfirmasi
+  d.querySelector('#wadah-susunan .baris-susunan [data-aksi="hapus"]').click();
+  await tunggu(300);
+  cek('🗑 dialog konfirmasi hapus', d.querySelector('.kotak-dialog h3').textContent.includes('Hapus'));
+  d.querySelector('.kotak-dialog [data-aksi="ya"]').click();
+  await tunggu(400);
+  cek('baris terhapus → 4 baris, nomor 1..4',
+      d.querySelectorAll('#wadah-susunan .baris-susanan, #wadah-susunan .baris-susunan').length === 4 &&
+      [...d.querySelectorAll('#wadah-susunan .nomor-sus')].map(x => x.textContent).join('') === '1234');
+
+  // kembali → kisi; buat course baru (5 kartu)
   d.getElementById('btn-kembali-c').click();
   await tunggu(300);
   cek('course: kembali ke kisi (4 kartu)',

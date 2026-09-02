@@ -69,7 +69,21 @@ MOCK = r"""
       { teaching_assignment_id: 't2', class_id: 'k1', class_name: 'XI TKJ 1', subject_id: 's2', subject_name: 'Bahasa Indonesia', label: 'XI TKJ 1 - Bahasa Indonesia', academic_year: '2026/2027', status: 'aktif', jml_murid: 3 },
       { teaching_assignment_id: 't3', class_id: 'k2', class_name: 'XI TKJ 2', subject_id: 's1', subject_name: 'Matematika', label: 'XI TKJ 2 - Matematika', academic_year: '2026/2027', status: 'aktif', jml_murid: 2 },
       { teaching_assignment_id: 't4', class_id: 'k3', class_name: 'XI RPL 1', subject_id: 's3', subject_name: 'Simpan Digital', label: 'XI RPL 1 - Simpan Digital', academic_year: '2025/2026', status: 'nonaktif', jml_murid: 1 }
-    ]
+    ],
+    /* Kelola Topik & Item (§7.8b): susunan gabungan per course */
+    susunan: {
+      t1: [
+        { id: 'tpc-1', tipe: 'topik', jenis: 'topik', judul: 'Pecahan & pecahan desimal', deskripsi: 'Bangun bilangan pecahan', status: 'publish', publish_at: '', item: [
+          { id: 'itm-1', jenis: 'materi', judul: 'Menyederhanakan pecahan', deskripsi: '', status: 'publish', publish_at: '' },
+          { id: 'itm-2', jenis: 'tugas_individu', judul: 'Latihan 12 soal', deskripsi: '', status: 'draft', publish_at: '' },
+          { id: 'itm-3', jenis: 'quiz', judul: 'Quiz pecahan', deskripsi: '', status: 'publish', publish_at: '' }
+        ] },
+        { id: 'itm-4', tipe: 'mandiri', jenis: 'quiz_mandiri', judul: 'Tryout operasi hitung', deskripsi: '', status: 'scheduled', publish_at: '2026-09-12 07:00', item: null },
+        { id: 'tpc-2', tipe: 'topik', jenis: 'topik', judul: 'Perbandingan', deskripsi: '', status: 'draft', publish_at: '', item: [] },
+        { id: 'itm-5', tipe: 'mandiri', jenis: 'refleksi_mandiri', judul: 'Refleksi mingguan #1', deskripsi: '', status: 'publish', publish_at: '', item: null }
+      ],
+      t2: [], t3: [], t4: []
+    }
   };
 
   function ringkas() {
@@ -81,6 +95,30 @@ MOCK = r"""
     }
     return { role: 'murid', kelas_diikuti: 1, notif_baru: 2,
              biodata_kurang: !db.muridBiodataIsi };
+  }
+
+  /* --- helper susunan (Kelola Topik & Item) --- */
+  function courseTaId(id) {
+    for (var taId in db.susunan) {
+      if ((db.susunan[taId] || []).some(function (b) { return b.id === id; })) return taId;
+    }
+    return null;
+  }
+  /* tipe: 'topik' | 'mandiri' | 'item' — panggil balik dgn baris yg cocok */
+  function courseCari(tipe, id, fn) {
+    for (var taId in db.susunan) {
+      var daftar = db.susunan[taId] || [];
+      for (var i = 0; i < daftar.length; i++) {
+        var b = daftar[i];
+        if (tipe !== 'item' && b.id === id) { if (fn) fn(b, b, taId); return b; }
+        if (b.item) {
+          for (var j = 0; j < b.item.length; j++) {
+            if (b.item[j].id === id) { if (fn) fn(b.item[j], b, taId); return b.item[j]; }
+          }
+        }
+      }
+    }
+    return null;
   }
 
   var mock = {
@@ -301,6 +339,117 @@ MOCK = r"""
     courseHapus: function (t, id) {
       db.course = db.course.filter(function (x) { return x.teaching_assignment_id !== id; });
       return {};
+    },
+
+    /* ===== Kelola Topik & Item (mirror Topik.gs — §7.8b) =====
+       db.susunan[taId] = array gabungan; urutan array = sort_order.
+       Item topik = array `item` di baris topik (urutan sendiri). */
+    courseSusunan: function (t, taId) {
+      var c = db.course.filter(function (x) { return x.teaching_assignment_id === taId; })[0] || {};
+      var baris = (db.susunan[taId] || []).map(function (b, i) {
+        return Object.assign({}, b, { urutan: i + 1,
+          item: b.item ? b.item.map(function (x) { return Object.assign({}, x); }) : null });
+      });
+      return { course: { class_id: c.class_id, class_name: c.class_name,
+               subject_name: c.subject_name, academic_year: c.academic_year,
+               status: c.status, jml_murid: c.jml_murid }, baris: baris };
+    },
+    courseBuatBaris: function (t, taId, p) {
+      var daftar = db.susunan[taId] = db.susunan[taId] || [];
+      var baris;
+      if (p.jenis_baris === 'topik') {
+        baris = { id: 'tpc-' + Date.now(), tipe: 'topik', jenis: 'topik',
+                  judul: p.judul, deskripsi: p.deskripsi || '',
+                  status: p.status || 'draft', publish_at: '', item: [] };
+      } else {
+        baris = { id: 'itm-' + Date.now(), tipe: 'mandiri', jenis: p.jenis_baris,
+                  judul: p.judul, deskripsi: p.deskripsi || '',
+                  status: p.status || 'draft', publish_at: '', item: null };
+      }
+      daftar.push(baris);   /* SELALU paling dasar (§7.8b) */
+      return { baru: true, id: baris.id };
+    },
+    courseUbahBaris: function (t, tipe, id, p) {
+      courseCari(tipe, id, function (b) {
+        b.judul = p.judul; b.deskripsi = p.deskripsi || '';
+        if (p.status) b.status = p.status;
+        if (p.status === 'draft') b.publish_at = '';
+      });
+      return { diubah: true };
+    },
+    courseHapusBaris: function (t, tipe, id) {
+      var taId = courseTaId(id);
+      db.susunan[taId] = (db.susunan[taId] || []).filter(function (b) {
+        return b.id !== id;   /* topik: item ikut hilang bersama barisnya */
+      });
+      return { terhapus: true };
+    },
+    courseStatusBaris: function (t, tipe, id, status) {
+      courseCari(tipe, id, function (b) {
+        b.status = status;
+        b.publish_at = '';    /* 👁 & 🙈 sama-sama mengosongkan jadwal */
+      });
+      return { status: status };
+    },
+    courseJadwalBaris: function (t, tipe, id, publishAt) {
+      var jadwal = String(publishAt || '').trim().replace('T', ' ');
+      courseCari(tipe, id, function (b) {
+        b.publish_at = jadwal;
+        b.status = jadwal ? 'scheduled' : 'publish';
+      });
+      return { status: jadwal ? 'scheduled' : 'publish', publish_at: jadwal };
+    },
+    coursePindahBaris: function (t, tipe, id, arah) {
+      var taId = courseTaId(id);
+      var daftar = db.susunan[taId] || [];
+      var i = daftar.findIndex(function (b) { return b.id === id; });
+      var lawan = arah === 'atas' ? i - 1 : i + 1;
+      if (i < 0 || lawan < 0 || lawan >= daftar.length) return { pindah: false };
+      var tmp = daftar[i]; daftar[i] = daftar[lawan]; daftar[lawan] = tmp;
+      return { pindah: true };
+    },
+    courseBuatItem: function (t, topicId, p) {
+      var topik = courseCari('topik', topicId);
+      topik.item.push({ id: 'itm-' + Date.now(), jenis: p.type,
+        judul: p.judul, deskripsi: p.deskripsi || '',
+        status: p.status || 'draft', publish_at: '' });
+      return { baru: true };
+    },
+    courseUbahItem: function (t, itemId, p) {
+      courseCari('item', itemId, function (it) {
+        it.judul = p.judul; it.deskripsi = p.deskripsi || '';
+        if (p.status) it.status = p.status;
+        if (p.status === 'draft') it.publish_at = '';
+      });
+      return { diubah: true };
+    },
+    courseHapusItem: function (t, itemId) {
+      courseCari('item', itemId, function (it, topik) {
+        topik.item = topik.item.filter(function (x) { return x.id !== itemId; });
+      });
+      return { terhapus: true };
+    },
+    courseStatusItem: function (t, itemId, status) {
+      courseCari('item', itemId, function (it) {
+        it.status = status; it.publish_at = '';
+      });
+      return { status: status };
+    },
+    courseJadwalItem: function (t, itemId, publishAt) {
+      var jadwal = String(publishAt || '').trim().replace('T', ' ');
+      courseCari('item', itemId, function (it) {
+        it.publish_at = jadwal;
+        it.status = jadwal ? 'scheduled' : 'publish';
+      });
+      return { status: jadwal ? 'scheduled' : 'publish', publish_at: jadwal };
+    },
+    coursePindahItem: function (t, topicId, itemId, arah) {
+      var topik = courseCari('topik', topicId);
+      var i = topik.item.findIndex(function (x) { return x.id === itemId; });
+      var lawan = arah === 'atas' ? i - 1 : i + 1;
+      if (i < 0 || lawan < 0 || lawan >= topik.item.length) return { pindah: false };
+      var tmp = topik.item[i]; topik.item[i] = topik.item[lawan]; topik.item[lawan] = tmp;
+      return { pindah: true };
     },
     apiKeyStatus: function () {
       var key = [], status = ['siap', 'siap', 'istirahat', 'siap', 'siap', 'bermasalah'];

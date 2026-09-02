@@ -42,7 +42,8 @@ yang ada di akar repositori.
 | `js_beranda.html` | **UI Tahap 3** — beranda §22D: guru (4 angka + perlu tindakan + **Course saya**) & murid (stat + **kartu Kelas Saya** dgn daftar mapel + pengingat biodata) |
 | `js_murid.html` | **UI Tahap 3** — Kelola Murid: daftar+cari/filter, tambah (dialog sandi + kirim WA), detail (+`pwd_awal`, reset), edit, nonaktif, impor massal + pratinjau |
 | `js_kelas.html` | **UI Tahap 3** — Kelola Kelas: **dropdown pilih kelas + tabel siswa** di bawahnya (aksi per kelas aktif setelah dipilih), form buat/edit, tambah murid (list+filter rombel), keluarkan |
-| `js_course.html` | **UI Tahap 3** — Kelola Course: **kartu course** (buat/edit/hapus) → dibuka: **Topik · Quiz mandiri · Refleksi mandiri**; di dalam **Topik**: 4 item (Materi/LKPD/Quiz/Refleksi — konten menyusul Tahap 4) |
+| `js_course.html` | Kelola Course: **kartu course** (buat/edit/hapus) → dibuka: **layar Kelola Topik & Item** (Tahap 4 poin 1) — susunan bernomor gabungan Topik + Quiz/Refleksi mandiri; ＋ = form Buat, ▲▼, 👁/🙈, 🕐 jadwal, ✏️, 🗑; ＋ Item = 5 jenis §7.8 |
+| `Topik.gs` | **Tahap 4 poin 1** — logika Topics/Items §7.8/§7.8b: susunan gabungan, buat/ubah/hapus/status/jadwal/pindah (renumber), notifikasi publish eksplisit |
 | `js_rekap.html` | **UI Tahap 3** — Rekap Nilai placeholder "menyusul" |
 | `js_apikey.html` | **UI Tahap 3** — Status API Key: 10 slot + status, timpa daftar, reset cooldown |
 | `test/` | Uji node: `uji-auth-gate0.js` (18) + `uji-murid.js` (65) + `uji-lupa-akses.js` (35) + `uji-kelas.js` (55) + `uji-course.js` (41) + `uji-apikey.js` (31) + `uji-beranda.js` (18) + `uji-ui.js` (audit statis fungsi klien; daftar berkas auto) + `uji-ui-extra.js` (audit id/endpoint/CSS/rute) + `uji-alur-ui.js` (opsional: alur klik di jsdom, dilewati bila jsdom/pratinjau tak ada) |
@@ -116,11 +117,13 @@ di deployment `/exec` sungguhan:
   (id/endpoint/kelas CSS/rute) semua lulus
 - ↩️ **Rollback 2 Sep 2026** — UI/UX & fungsi tahap 3–4 lama dihapus
   (arsip: `a63527b..c1c0157`); keputusan alur baru: §22D dokumen rancangan
-- ⬜ Tahap 3 (baru) — Dashboard 5 menu ala §22D, urutan bangun:
+- ✅ Tahap 3 (baru) — Dashboard 5 menu ala §22D, urutan bangun:
   **Beranda ringkas → Kelola Murid → Kelola Kelas → Kelola Course →
   Status API Key**; menu Rekap Nilai tampil sebagai placeholder "menyusul"
-- ⬜ Tahap 4 — Konten course: topik, materi, quiz, tugas (rancangan UI
-  disepakati lebih dulu)
+- 🔶 Tahap 4 — Konten course, per poin (prototipe → persetujuan → implement):
+  **poin 1 Kelola Topik & Item selesai** (`Topik.gs` + 13 endpoint + UI
+  susunan gabungan); berikutnya: poin 2 editor per jenis item, poin 3 alur
+  murid (`topikKelasSaya`), poin 4 urutan pengerjaan
 - ⬜ Tahap 5 — Rekap nilai per course + export Excel
 - ⬜ Tahap 6 — Porting `Ai.gs` v1 (Gemini, perilaku tak berubah); API key
   dari menu Status terhubung penuh ke generator
