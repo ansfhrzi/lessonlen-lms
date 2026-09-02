@@ -620,21 +620,29 @@ var Mapel = (function () {
   function topikMurid(sesi, taId) {
     var ctx = _konteksMurid(sesi, taId);
 
+    /* item publish per topik — daftar isi ala v1 menampilkan item
+       langsung di bawah topiknya (satu pemindaian, tanpa N+1). */
     var itemPer = {};
-    Db.bacaKolom('Items', ['item_id', 'topic_id', 'status'])
+    Db.saring('Items', { status: 'publish' })
       .forEach(function (i) {
-        if (i.status !== 'publish') return;
-        itemPer[i.topic_id] = (itemPer[i.topic_id] || 0) + 1;
+        (itemPer[i.topic_id] = itemPer[i.topic_id] || []).push({
+          item_id: i.item_id,
+          type: i.type,
+          title: i.title,
+          description: i.description || ''
+        });
       });
 
     var topik = Db.saring('Topics',
         { teaching_assignment_id: taId, status: 'publish' })
       .map(function (t) {
+        var item = itemPer[t.topic_id] || [];
         return {
           topic_id: t.topic_id,
           title: t.title,
           description: t.description || '',
-          jml_item: itemPer[t.topic_id] || 0
+          jml_item: item.length,
+          item: item
         };
       })
       .sort(function (a, b) {

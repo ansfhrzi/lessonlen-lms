@@ -1161,8 +1161,12 @@ daftarRute('kelas-saya', function (bagian) {
 });
 
 /* ============================================================
-   RUTE: materi/<taId> (murid) — daftar topik publish
+   RUTE: materi/<taId> (murid) — DAFTAR ISI ala v1
+   Topik = baris-pertemuan bernomor; item publish tampil langsung
+   di bawah topiknya (pola v1.14: satu klik sampai materi).
    ============================================================ */
+var LIPAT_MATERI = {};   /* pilihan lipat per topik — memori halaman */
+
 daftarRute('materi', function (bagian) {
   if (!bagian || !bagian[0]) { pergiKe('#/kelas-saya'); return; }
   var taId = bagian[0];
@@ -1175,35 +1179,69 @@ daftarRute('materi', function (bagian) {
 
   callApi('topikKelasSaya', [State.token, taId], { diam: true })
     .then(function (data) {
+      var jmlItem = data.topik.reduce(function (a, t) {
+        return a + (t.jml_item || 0); }, 0);
+
       var html =
         '<button class="tautan-balik" onclick="pergiKe(\'#/kelas-saya\')">← Kelas Saya</button>' +
         '<div class="kepala-halaman">' +
-          '<h1>📗 ' + esc(data.mapel.name) + '</h1>' +
-          '<p class="lembut kecil">' + esc(data.kelas.name) +
-            (data.guru ? ' · ' + esc(data.guru) : '') +
-            (data.academic_year ? ' · ' + esc(data.academic_year) : '') + '</p>' +
-        '</div>';
+          '<h1>' + esc(namaKelasLengkap(
+            { kelas: data.kelas.name, mapel: data.mapel.name })) + '</h1>' +
+          '<p class="lembut kecil">' +
+            (data.guru ? esc(data.guru) + ' · ' : '') +
+            (data.academic_year ? esc(data.academic_year) + ' · ' : '') +
+            '📅 ' + data.topik.length + ' topik · ' + jmlItem + ' item</p>' +
+        '</div>' +
+        '<h2 class="mb-8">Daftar Isi</h2>';
 
       if (!data.topik.length) {
         html += kosongkan('🧩', 'Belum ada topik yang diterbitkan',
           'Materi akan muncul di sini setelah gurunya menerbitkannya.');
       } else {
-      html += '<div class="kolom sela-kecil">' + data.topik.map(function (t, idx) {
-        return '<button class="baris-pertemuan" data-topik="' + esc(t.topic_id) + '">' +
-          '<span class="nomor-pertemuan">' + (idx + 1) + '</span>' +
-          '<div class="tumbuh" style="min-width:0">' +
-            '<div><b>' + esc(t.title) + '</b></div>' +
-            '<div class="kecil lembut">' + esc(t.description || '') + '</div>' +
-          '</div>' +
-          '<span class="lencana">🗂 ' + t.jml_item + ' · Buka →</span>' +
-        '</button>';
-      }).join('') + '</div>';
+        html += '<div class="kolom sela-kecil" id="daftar-isi-murid">' +
+          data.topik.map(function (t, idx) {
+            return barisTopikMurid(t, idx, data.topik.length);
+          }).join('') + '</div>';
       }
 
       isi.innerHTML = html;
-      $$('[data-topik]', isi).forEach(function (b) {
-        b.onclick = function () { pergiKe('#/buka/' + b.dataset.topik); };
-      });
+
+      isi.onclick = function (e) {
+        /* Lipat dulu — tombol panah menumpang di atas baris topik. */
+        var lp = e.target.closest('[data-lipat]');
+        if (lp) {
+          LIPAT_MATERI[lp.dataset.lipat] = !terlipatMateri(
+            lp.dataset.lipat, lp.dataset.idx | 0, data.topik.length);
+          $('#daftar-isi-murid', isi).innerHTML =
+            data.topik.map(function (t, idx) {
+              return barisTopikMurid(t, idx, data.topik.length);
+            }).join('');
+          return;
+        }
+
+        /* Item SEBELUM baris topik — item ada di dalam blok yang
+           juga punya [data-topik]. */
+        var it = e.target.closest('[data-item]');
+        if (it) {
+          if (it.dataset.tipe !== 'materi') {
+            toast('Fitur "' + (TIPE_ITEM[it.dataset.tipe] || {}).label +
+                  '" menyusul di tahap berikutnya.', 'peringatan');
+            return;
+          }
+          pergiKe('#/baca/' + it.dataset.item);
+          return;
+        }
+
+        var b = e.target.closest('[data-topik]');
+        if (b) {
+          LIPAT_MATERI[b.dataset.topik] = !terlipatMateri(
+            b.dataset.topik, (b.dataset.idx | 0), data.topik.length);
+          $('#daftar-isi-murid', isi).innerHTML =
+            data.topik.map(function (t, idx) {
+              return barisTopikMurid(t, idx, data.topik.length);
+            }).join('');
+        }
+      };
     })
     .catch(function () {
       isi.innerHTML = kosongkan('⚠️', 'Gagal memuat',
@@ -1213,69 +1251,64 @@ daftarRute('materi', function (bagian) {
     });
 });
 
+/** Bawaan: topik pertama terbuka, sisanya terlipat (pola v1.14.2 —
+    tanpa data progres, "yang sedang dikerjakan" = paling awal). */
+function terlipatMateri(topicId, idx, total) {
+  if (LIPAT_MATERI[topicId] !== undefined) return LIPAT_MATERI[topicId];
+  return idx > 0;
+}
+
+function barisTopikMurid(t, idx, total) {
+  var terlipat = terlipatMateri(t.topic_id, idx, total);
+  var adaItem = (t.item || []).length > 0;
+
+  var itemHtml = '';
+  if (adaItem && !terlipat) {
+    itemHtml = '<ul class="item-ptm">' + t.item.map(function (i) {
+      var t2 = TIPE_ITEM[i.type] || { label: i.type, ikon: '📌' };
+      return '<li><button class="item-baris" data-item="' +
+        esc(i.item_id) + '" data-tipe="' + esc(i.type) + '">' +
+        '<span class="item-ikon">' + t2.ikon + '</span>' +
+        '<span class="tumbuh" style="min-width:0">' +
+          '<span class="item-judul">' + esc(i.title) + '</span>' +
+          (i.description ? '<span class="kecil lembut"> · ' +
+            esc(i.description) + '</span>' : '') +
+        '</span>' +
+        (i.type === 'materi'
+          ? '<span class="lencana">Baca →</span>'
+          : '<span class="lencana lencana-terkunci">Segera</span>') +
+        '</button></li>';
+    }).join('') + '</ul>';
+  }
+
+  return '<div class="blok-pertemuan' + (adaItem ? ' punya-lipat' : '') + '">' +
+    (adaItem
+      ? '<button class="btn-lipat-ptm" data-lipat="' + esc(t.topic_id) +
+        '" data-idx="' + idx + '" aria-expanded="' + (terlipat ? 'false' : 'true') +
+        '" title="' + (terlipat ? 'Tampilkan isi' : 'Sembunyikan isi') + '">' +
+        '<span class="panah' + (terlipat ? '' : ' turun') + '">›</span></button>'
+      : '') +
+    '<button class="baris-pertemuan" data-topik="' + esc(t.topic_id) +
+    '" data-idx="' + idx + '">' +
+      '<span class="nomor-pertemuan">' + (idx + 1) + '</span>' +
+      '<span class="tumbuh" style="min-width:0">' +
+        '<span class="tebal" style="display:block">' + esc(t.title) + '</span>' +
+        '<span class="kecil lembut">' +
+          (t.description ? esc(t.description) + ' · ' : '') +
+          t.jml_item + ' item</span>' +
+      '</span>' +
+      (adaItem ? '<span class="panah' + (terlipat ? '' : ' turun') + '">›</span>'
+               : '<span class="lencana">0 item</span>') +
+    '</button>' +
+    itemHtml +
+  '</div>';
+}
+
 /* ============================================================
-   RUTE: buka/<topicId> (murid) — isi topik
+   RUTE: buka/<topicId> — alias lama. Item kini tampil langsung
+   di bawah topiknya di daftar isi (pola v1.14).
    ============================================================ */
-daftarRute('buka', function (bagian) {
-  if (!bagian || !bagian[0]) { pergiKe('#/kelas-saya'); return; }
-  var topicId = bagian[0];
-
-  var app = render('tpl-dashboard');
-  pasangTopbar(app);
-  var isi = $('#isi-halaman', app);
-
-  isi.innerHTML = rangkaMuat(64, 3);
-
-  callApi('bukaTopik', [State.token, topicId], { diam: true })
-    .then(function (data) {
-      var html =
-        '<button class="tautan-balik" onclick="history.back()">← Kembali</button>' +
-        '<div class="kepala-halaman">' +
-          '<h1>🧩 ' + esc(data.title) + '</h1>' +
-          '<p class="lembut kecil">' + esc(data.kelas) + ' · ' +
-            esc(data.mapel) + '</p>' +
-          (data.description ? '<p class="kecil">' + esc(data.description) + '</p>' : '') +
-        '</div>';
-
-      if (!data.item.length) {
-        html += kosongkan('🗂', 'Belum ada item yang diterbitkan', '');
-      } else {
-        html += '<div class="kolom sela-kecil">' + data.item.map(function (i) {
-          var bisa = i.type === 'materi';
-          var t = TIPE_ITEM[i.type] || { label: i.type };
-          return '<button class="item-murid' + (bisa ? '' : ' terkunci') +
-            '" data-item="' + esc(i.item_id) + '" data-tipe="' + esc(i.type) + '">' +
-            ikonTipe(i.type) +
-            '<div class="tumbuh" style="min-width:0">' +
-              '<div><b>' + esc(i.title) + '</b></div>' +
-              '<div class="kecil lembut">' + esc(t.label) +
-                (i.description ? ' · ' + esc(i.description) : '') + '</div>' +
-            '</div>' +
-            '<span class="lencana' + (bisa ? '' : ' lencana-terkunci') + '">' +
-              (bisa ? 'Baca →' : 'Segera') + '</span>' +
-          '</button>';
-        }).join('') + '</div>';
-      }
-
-      isi.innerHTML = html;
-      $$('[data-item]', isi).forEach(function (b) {
-        b.onclick = function () {
-          if (b.dataset.tipe !== 'materi') {
-            toast('Fitur "' + (TIPE_ITEM[b.dataset.tipe] || {}).label +
-                  '" menyusul di tahap berikutnya.', 'peringatan');
-            return;
-          }
-          pergiKe('#/baca/' + b.dataset.item);
-        };
-      });
-    })
-    .catch(function () {
-      isi.innerHTML = kosongkan('⚠️', 'Gagal memuat',
-        'Periksa koneksi Anda.',
-        '<button class="btn btn-hantu btn-kecil mt-16" ' +
-        'onclick="history.back()">Kembali</button>');
-    });
-});
+daftarRute('buka', function () { pergiKe('#/kelas-saya'); });
 
 /* ============================================================
    RUTE: baca/<itemId> (murid) — pembaca materi

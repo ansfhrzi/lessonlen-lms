@@ -322,6 +322,21 @@ cek('kelasSaya mapel membawa jml_topik (publish saja)',
   }).length,
   'jml_topik=' + r.data[0].mapel[0].jml_topik);
 
+/* daftar isi ala v1: item publish menempel di topiknya, tanpa konten.
+   ITM1 ada di TPC1b; hanya ITM1 yang publish (ITMQ/ITM2 masih draf). */
+r = topikKelasSaya(TOKEN_B, TA);
+const TPC1bTopik = r.ok ? r.data.topik.filter(function (t) {
+  return t.topic_id === TPC1b; })[0] : null;
+const TPC1items = (TPC1bTopik && TPC1bTopik.item) || [];
+cek('topikKelasSaya: item publish menempel pada topik',
+  TPC1bTopik && TPC1bTopik.jml_item === 1 &&
+  TPC1items.some(function (i) {
+    return i.item_id === ITM1 && i.type === 'materi' &&
+           i.title === 'Pengenalan LAN'; }),
+  JSON.stringify(TPC1bTopik || r).slice(0, 220));
+cek('topikKelasSaya: item TANPA konten',
+  TPC1items.every(function (i) { return i.content === undefined; }));
+
 r = topikKelasSaya(TOKEN_B, TA);
 cek('topikKelasSaya: konteks kelas/mapel/guru terisi',
   r.ok === true && r.data.kelas.name === 'XI TJKT 1' &&

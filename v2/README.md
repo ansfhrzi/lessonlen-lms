@@ -176,8 +176,8 @@ mencetak `OK <nama>` / `GAGAL <nama> → <info>`, diakhiri ringkasan
 | `itemUbahStatus(token, id, status)` | guru | draft/publish; publish → notif `pertemuan_baru` ke kelas |
 | `itemHapus(token, id)` | guru | ditolak bila item sudah tertaut |
 | `itemPindah(token, id, arah)` | guru | naik/turun dalam topik |
-| `topikKelasSaya(token, taId)` | murid | topik publish; wajib terdaftar aktif + TA & kelas aktif |
-| `bukaTopik(token, topicId)` | murid | isi topik — item publish tanpa konten |
+| `topikKelasSaya(token, taId)` | murid | topik publish **+ `item[]` publish per topik** (tanpa konten) untuk daftar isi ala v1; wajib terdaftar aktif + TA & kelas aktif |
+| `bukaTopik(token, topicId)` | murid | isi satu topik — item publish tanpa konten |
 | `bacaMateri(token, itemId)` | murid | konten materi publish; jenis lain → `FITUR_BELUM_ADA` |
 
 ## Darurat
