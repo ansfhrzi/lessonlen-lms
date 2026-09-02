@@ -1110,25 +1110,44 @@ daftarRute('kelas-saya', function (bagian) {
         html = kosongkan('📚', 'Belum terdaftar di kelas mana pun',
           'Hubungi guru Anda untuk didaftarkan.');
       } else {
-        html = '<div class="kolom">' + kelas.map(function (k) {
-          var pil = (k.mapel || []).map(function (m) {
-            return m.ta_id
-              ? '<button class="pil pil-kelas pil-tautan" data-ta="' +
-                esc(m.ta_id) + '">▶ ' + esc(m.nama) +
-                (m.guru ? ' · ' + esc(m.guru) : '') + '</button>'
-              : '<span class="pil">' + esc(m.nama) +
-                (m.guru ? ' · ' + esc(m.guru) : '') + '</span>';
-          }).join('');
-          return '<div class="kartu-kelas" style="cursor:default">' +
-            '<div class="baris-antara mb-8">' +
-              '<div style="min-width:0"><div class="judul">' + esc(k.name) + '</div>' +
-              '<div class="kecil lembut">' + esc(k.academic_year || '') + '</div></div>' +
-            '</div>' +
-            '<div class="kecil lembut mb-4">MAPEL — ketuk untuk membuka</div>' +
-            (pil ? '<div class="baris-pil">' + pil + '</div>'
-                 : '<span class="kecil lembut">belum ada mapel</span>') +
-          '</div>';
-        }).join('') + '</div>';
+        /* Kartu course ala v1: SETIAP MAPEL = satu kartu sendiri
+           berjudul "KELAS - MAPEL" dengan jumlah topik yang terlihat
+           murid (hanya yang publish). */
+        var kartu = [];
+        kelas.forEach(function (k) {
+          (k.mapel || []).forEach(function (m) {
+            kartu.push({ kelasName: k.name, tahun: k.academic_year || '',
+                         m: m });
+          });
+        });
+        kartu.sort(function (a, b) {
+          return String(a.kelasName).localeCompare(String(b.kelasName)) ||
+                 String(a.m.nama).localeCompare(String(b.m.nama));
+        });
+
+        if (!kartu.length) {
+          html = kosongkan('📗', 'Belum ada mapel aktif',
+            'Guru belum membuka mapel di kelas Anda.');
+        } else {
+          html = '<div class="kolom">' + kartu.map(function (c) {
+            var judul = namaKelasLengkap(
+              { kelas: c.kelasName, mapel: c.m.nama });
+            return '<button class="kartu-kelas" data-ta="' +
+              esc(c.m.ta_id) + '">' +
+              '<div class="baris-antara mb-8">' +
+                '<div style="min-width:0">' +
+                  '<div class="judul">' + esc(judul) + '</div>' +
+                  (c.tahun ? '<div class="kecil lembut">' +
+                    esc(c.tahun) + '</div>' : '') +
+                '</div>' +
+              '</div>' +
+              '<div class="baris kecil lembut" style="gap:14px">' +
+                (c.m.guru ? '<span>🧑‍🏫 ' + esc(c.m.guru) + '</span>' : '') +
+                '<span>📅 ' + (c.m.jml_topik || 0) + ' topik</span>' +
+              '</div>' +
+            '</button>';
+          }).join('') + '</div>';
+        }
       }
 
       isi.innerHTML = html;

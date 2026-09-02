@@ -587,6 +587,17 @@ var Kelas = (function () {
         });
     }
 
+    /* topik publish per penugasan — kartu course murid ala v1
+       menampilkan jumlah topik yang terlihat oleh murid. */
+    var publishPerTa = {};
+    Db.bacaKolom('Topics', ['teaching_assignment_id', 'status'])
+      .forEach(function (t) {
+        if (t.status === 'publish') {
+          publishPerTa[t.teaching_assignment_id] =
+            (publishPerTa[t.teaching_assignment_id] || 0) + 1;
+        }
+      });
+
     /* mapel per kelas dari Teaching_Assignments aktif */
     var mapelPerKelas = {};
     Db.baca('Teaching_Assignments').forEach(function (t) {
@@ -597,7 +608,8 @@ var Kelas = (function () {
         .push({ subject_id: t.subject_id,
                 ta_id: t.teaching_assignment_id,
                 nama: s ? s.name : '(mapel dihapus)',
-                guru: g ? g.nama : '' });
+                guru: g ? g.nama : '',
+                jml_topik: publishPerTa[t.teaching_assignment_id] || 0 });
     });
 
     return Object.keys(idKelas).map(function (cid) {

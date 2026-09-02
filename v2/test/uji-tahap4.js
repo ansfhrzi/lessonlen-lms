@@ -314,6 +314,14 @@ cek('kelasSaya membawa ta_id pada mapel',
   r.ok === true && r.data[0].mapel[0].ta_id === TA &&
   r.data[0].mapel[0].subject_id === SBK, JSON.stringify(r.data));
 
+/* kartu course ala v1: jumlah topik publish per mapel */
+cek('kelasSaya mapel membawa jml_topik (publish saja)',
+  r.data[0].mapel[0].jml_topik ===
+  Db.baca('Topics').filter(function (t) {
+    return t.teaching_assignment_id === TA && t.status === 'publish';
+  }).length,
+  'jml_topik=' + r.data[0].mapel[0].jml_topik);
+
 r = topikKelasSaya(TOKEN_B, TA);
 cek('topikKelasSaya: konteks kelas/mapel/guru terisi',
   r.ok === true && r.data.kelas.name === 'XI TJKT 1' &&
@@ -412,6 +420,19 @@ cek('audit: item_publish tercatat', log.some(x => x.indexOf('UPDATE:item_publish
 r = penugasanDaftar(TOKEN_G, {});
 cek('sanity: penugasan aktif 1 dengan 3 topik',
   r.data.length === 1 && r.data[0].jml_topik === 3, JSON.stringify(r.data));
+
+/* kartu course ala v1: draf & murid per penugasan */
+cek('penugasan membawa jml_draf yang benar',
+  r.data[0].jml_draf === Db.baca('Topics').filter(function (t) {
+    return t.teaching_assignment_id === r.data[0].teaching_assignment_id &&
+           t.status !== 'publish';
+  }).length,
+  'jml_draf=' + r.data[0].jml_draf);
+cek('penugasan membawa jml_murid yang benar',
+  r.data[0].jml_murid === Db.baca('Enrollment').filter(function (e) {
+    return e.class_id === r.data[0].class_id && e.status === 'aktif';
+  }).length,
+  'jml_murid=' + r.data[0].jml_murid);
 
 console.log(gagal === 0 ? '\nSEMUA ' + no + ' UJI TAHAP 4 LULUS ✔'
                         : '\nADA ' + gagal + '/' + no + ' UJI GAGAL ✘');

@@ -146,12 +146,24 @@ var Mapel = (function () {
     Db.bacaKolom('Users', ['user_id', 'nama'])
       .forEach(function (u) { petaGuru[u.user_id] = u.nama; });
 
-    /* topik per penugasan — jumlah untuk kolom informasi */
-    var topikPer = {};
-    Db.bacaKolom('Topics', ['topic_id', 'teaching_assignment_id'])
+    /* topik per penugasan — jumlah untuk kolom informasi.
+       Kartu course ala v1 menampilkan total topik + berapa yang
+       masih draf, dan jumlah murid kelasnya. */
+    var topikPer = {}, drafPer = {};
+    Db.bacaKolom('Topics', ['topic_id', 'teaching_assignment_id', 'status'])
       .forEach(function (t) {
         topikPer[t.teaching_assignment_id] =
           (topikPer[t.teaching_assignment_id] || 0) + 1;
+        if (t.status !== 'publish') {
+          drafPer[t.teaching_assignment_id] =
+            (drafPer[t.teaching_assignment_id] || 0) + 1;
+        }
+      });
+
+    var muridPerKelas = {};
+    Db.saring('Enrollment', { status: 'aktif' })
+      .forEach(function (e) {
+        muridPerKelas[e.class_id] = (muridPerKelas[e.class_id] || 0) + 1;
       });
 
     return Db.baca('Teaching_Assignments')
@@ -174,6 +186,8 @@ var Mapel = (function () {
           guru: petaGuru[t.teacher_id] || '?',
           academic_year: t.academic_year || '',
           jml_topik: topikPer[t.teaching_assignment_id] || 0,
+          jml_draf: drafPer[t.teaching_assignment_id] || 0,
+          jml_murid: muridPerKelas[t.class_id] || 0,
           status: t.status
         };
       })

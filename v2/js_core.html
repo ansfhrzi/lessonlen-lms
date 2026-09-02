@@ -99,6 +99,20 @@ function $(sel, induk) { return (induk || document).querySelector(sel); }
 function $$(sel, induk) {
   return Array.prototype.slice.call((induk || document).querySelectorAll(sel));
 }
+
+/**
+ * "KELAS - MAPEL" — satu kartu course ala v1 mewakili satu
+ * penugasan mengajar (kelas × mapel). Menerima baris dari
+ * penugasanDaftar ({kelas, mapel}) maupun kelasSaya ({name, mapel}).
+ */
+function namaKelasLengkap(k) {
+  if (!k) return '';
+  var nama = String(k.kelas || k.name || '').trim();
+  var mapel = String(k.mapel || '').trim();
+  if (!mapel) return nama;
+  if (!nama) return mapel;
+  return nama + ' - ' + mapel;
+}
 function ambilTemplate(id) {
   var t = document.getElementById(id);
   if (!t) throw new Error('Template tidak ada: ' + id);

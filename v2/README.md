@@ -150,7 +150,7 @@ mencetak `OK <nama>` / `GAGAL <nama> → <info>`, diakhiri ringkasan
 | `muridTersedia(token, classId)` | guru | kandidat pendaftaran |
 | `muridDaftarkan(token, classId, ids)` | guru | enroll (dedupe + reaktivasi) |
 | `muridKeluarkan(token, classId, userId)` | guru | status enrollment `keluar` |
-| `kelasSaya(token)` | semua | kelas diikuti murid / diajar guru |
+| `kelasSaya(token)` | semua | kelas diikuti murid / diajar guru; `mapel[]` membawa `ta_id` + `jml_topik` (publish) untuk kartu course |
 | `simpanBiodataSaya(token, p)` | murid | lengkapi email + WA (+NISN opsional) |
 | `daftarNotifikasi(token)` / `notifTandaiDibaca` | semua | notifikasi in-app |
 
@@ -162,7 +162,7 @@ mencetak `OK <nama>` / `GAGAL <nama> → <info>`, diakhiri ringkasan
 | `mapelSimpan(token, p)` | guru | buat/edit mapel (pemilik otomatis pembuat) |
 | `mapelUbahStatus(token, id, status)` | guru | aktif/nonaktif (soft delete) |
 | `guruDaftar(token)` | guru | guru aktif — pilihan pengampu |
-| `penugasanDaftar(token, filter)` | guru | daftar TA + nama kelas/mapel/guru, filter `class_id/subject_id/teacher_id/status/semua` |
+| `penugasanDaftar(token, filter)` | guru | daftar TA + nama kelas/mapel/guru + `jml_topik/jml_draf/jml_murid` (kartu course ala v1), filter `class_id/subject_id/teacher_id/status/semua` |
 | `penugasanSimpan(token, p)` | guru | buat/edit TA; unik `kelas+guru+mapel` aktif; reaktivasi baris nonaktif; pengampu wajib guru aktif |
 | `penugasanUbahStatus(token, id, status)` | guru | aktif/nonaktif |
 | `topikDaftar(token, taId)` | guru | topik satu penugasan + jumlah item |

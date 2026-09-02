@@ -137,6 +137,8 @@ r = kelasSaya(TOKEN_B);
 cek('kelasSaya murid memuat kelas + mapel',
   r.ok === true && r.data.length === 1 && r.data[0].mapel.length === 1 &&
   r.data[0].mapel[0].nama === 'PKPJ', JSON.stringify(r.data));
+cek('kelasSaya mapel membawa jml_topik (kosong = 0)',
+  r.data[0].mapel[0].jml_topik === 0);
 
 /* ---------- ARSIP ---------- */
 r = kelasUbahStatus(TOKEN_G, KLS, 'arsip');

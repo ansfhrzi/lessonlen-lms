@@ -51,21 +51,16 @@ daftarRute('beranda', function () {
       Menu.diisi = Date.now();
 
       if (State.user.role === 'guru') {
-        /* jumlah murid/mapel ringkas dari kelasDaftar (kelasSaya
-           tidak memuatnya) */
-        callApi('kelasDaftar', [State.token, true], { diam: true })
-          .then(function (ringkas) {
-            var peta = {};
-            (ringkas || []).forEach(function (k) { peta[k.class_id] = k; });
-            (kelas || []).forEach(function (k) {
-              var r = peta[k.class_id];
-              if (r) { k.jml_murid = r.jml_murid; k.jml_mapel = r.jml_mapel; }
-            });
-            gambarBerandaGuru(isi, kelas || []);
+        /* Kartu course ala v1: satu kartu per penugasan
+           (kelas × mapel) — penugasanDaftar sudah membawa
+           jml_topik, jml_draf, dan jml_murid. */
+        callApi('penugasanDaftar', [State.token, {}], { diam: true })
+          .then(function (ta) {
+            gambarBerandaGuru(isi, ta || []);
             _menuMuatKelas();
           })
           .catch(function () {
-            gambarBerandaGuru(isi, kelas || []);
+            gambarBerandaGuru(isi, []);
             _menuMuatKelas();
           });
       } else {
@@ -81,7 +76,7 @@ daftarRute('beranda', function () {
 });
 
 /* ---------------------------------------------- beranda guru */
-function gambarBerandaGuru(isi, kelas) {
+function gambarBerandaGuru(isi, penugasan) {
   var s = State.ringkasan || {};
 
   var html =
@@ -111,33 +106,34 @@ function gambarBerandaGuru(isi, kelas) {
     '<button class="btn btn-hantu btn-kecil" data-tautan="#/kelas">📚 Kelola Kelas</button>' +
     '<button class="btn btn-hantu btn-kecil" data-tautan="#/murid">👥 Kelola Murid</button>' +
     '<button class="btn btn-hantu btn-kecil" data-tautan="#/mapel">📗 Mapel</button>' +
-    '<button class="btn btn-hantu btn-kecil" data-tautan="#/topik">🧩 Topik & Materi</button>' +
+    '<button class="btn btn-hantu btn-kecil" data-tautan="#/penugasan">🧑‍🏫 Penugasan</button>' +
     '</div>';
 
-  /* daftar kelas */
+  /* daftar course ala v1: satu kartu per penugasan (kelas × mapel).
+     Lencana % dan bilah progres sengaja tidak ada — di v1 angka itu
+     membebani server tiap kali beranda dibuka. */
   html += '<h2 class="mb-8">Kelas Saya</h2>';
-  if (!kelas.length) {
-    html += kosongkan('📚', 'Belum ada kelas',
-      'Buat kelas pertama Anda dari layar Kelola Kelas.',
+  if (!penugasan.length) {
+    html += kosongkan('📚', 'Belum ada kelas yang diajar',
+      'Hubungkan kelas dengan mapel di layar Penugasan.',
       '<button class="btn btn-hantu btn-kecil mt-16" ' +
-      'data-tautan="#/kelas">Buka Kelola Kelas</button>');
+      'data-tautan="#/penugasan">Buka Penugasan</button>');
   } else {
-    html += '<div class="kolom">' + kelas.map(function (k) {
-      var jml = (k.mapel || []).length;
-      var pil = (k.mapel || []).map(function (m) {
-        return '<span class="pil pil-kelas">' + esc(m.nama) +
-          (m.guru ? ' · ' + esc(m.guru) : '') + '</span>';
-      }).join('');
-      return '<button class="kartu-kelas" data-kelas="' + esc(k.class_id) + '">' +
+    html += '<div class="kolom">' + penugasan.map(function (t) {
+      return '<button class="kartu-kelas" data-ta="' +
+        esc(t.teaching_assignment_id) + '">' +
         '<div class="baris-antara mb-8">' +
-          '<div style="min-width:0"><div class="judul">' + esc(k.name) + '</div></div>' +
-          '<span class="kecil lembut">' + esc(k.academic_year || '') + '</span>' +
+          '<div style="min-width:0">' +
+            '<div class="judul">' + esc(namaKelasLengkap(t)) + '</div>' +
+          '</div>' +
         '</div>' +
         '<div class="baris kecil lembut" style="gap:14px">' +
-          '<span>👥 ' + (k.jml_murid || 0) + ' murid</span>' +
-          '<span>📗 ' + jml + ' mapel</span>' +
+          '<span>👥 ' + (t.jml_murid || 0) + ' murid</span>' +
+          '<span>📅 ' + (t.jml_topik || 0) + ' topik</span>' +
+          (t.jml_draf > 0
+            ? '<span class="lencana lencana-peringatan">' +
+              t.jml_draf + ' draf</span>' : '') +
         '</div>' +
-        (pil ? '<div class="baris-pil mt-8">' + pil + '</div>' : '') +
       '</button>';
     }).join('') + '</div>';
   }
@@ -145,8 +141,8 @@ function gambarBerandaGuru(isi, kelas) {
   isi.innerHTML = html;
 
   isi.onclick = function (e) {
-    var kk = e.target.closest('[data-kelas]');
-    if (kk) { pergiKe('#/kelas/' + kk.dataset.kelas); return; }
+    var ta = e.target.closest('[data-ta]');
+    if (ta) { pergiKe('#/topik/' + ta.dataset.ta); return; }
     var bt = e.target.closest('[data-tautan]');
     if (bt) pergiKe(bt.dataset.tautan);
   };
