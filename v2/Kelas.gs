@@ -242,7 +242,7 @@ var Kelas = (function () {
           .filter(function (x) { return !!x; })
           .sort(function (a, b) { return _bandingAlami(a.name, b.name); });
         return { user_id: u.user_id, nama: u.nama, username: u.username,
-                 kelas: lain };
+                 rombel: String(u.rombel || ''), kelas: lain };
       })
       .sort(function (a, b) { return _bandingAlami(a.nama, b.nama); });
   }

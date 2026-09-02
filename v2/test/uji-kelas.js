@@ -153,6 +153,8 @@ cek('tersedia: hanya Siti (satu2nya yang belum di K1)',
 cek('tersedia: kelas lain (XI TKJ 2 B) terlihat utk membedakan nama sama',
     r[0].kelas.length === 1 && r[0].kelas[0].name === 'XI TKJ 2 B',
     JSON.stringify(r[0].kelas));
+cek('tersedia: rombel (Users) terbawa utk filter dialog',
+    r[0].rombel !== undefined, JSON.stringify(r[0]));
 cek('tersedia: murid nonaktif tidak muncul', r.every(function (x) {
   return Db.cari('Users', 'user_id', x.user_id).status === 'aktif'; }));
 

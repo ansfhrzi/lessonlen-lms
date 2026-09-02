@@ -502,6 +502,8 @@ function ujiKelas() {
           rt.every(function (x) {
             return x.user_id !== m1.user_id && x.user_id !== m2.user_id;
           }));
+  _ujiCek('tersedia membawa rombel (filter dialog tambah murid)',
+          rt.length === 0 || rt[0].rombel !== undefined, JSON.stringify(rt[0] || {}));
 
   /* --- keluarkan lalu enroll ulang → reaktivasi --- */
   Kelas.keluarkan(sesiG, K, m2.user_id);

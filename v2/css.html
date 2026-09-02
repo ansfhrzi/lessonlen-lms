@@ -397,6 +397,26 @@ tbody tr:hover { background: var(--permukaan); }
                      background: var(--garis); margin-top: 6px; flex: none; }
 .notif-item.belum .titik { background: var(--peringatan); }
 
+/* ---------- dialog pilih murid (daftar + filter rombel) ---------- */
+.pilih-alat { display: flex; gap: 10px; align-items: center;
+              margin-bottom: 10px; flex-wrap: wrap; }
+.pilih-alat .kecil { margin-left: auto; }
+.pilih-list { max-height: 260px; overflow-y: auto;
+              border: 1px solid var(--garis); border-radius: var(--radius-sm);
+              -webkit-overflow-scrolling: touch; }
+.pilih-baris { display: flex; align-items: center; gap: 10px;
+               padding: 10px 12px; border-bottom: 1px solid var(--garis);
+               cursor: pointer; }
+.pilih-baris:last-child { border-bottom: none; }
+.pilih-baris:hover { background: var(--permukaan); }
+.pilih-baris input[type="checkbox"] { width: 17px; height: 17px;
+                                      accent-color: var(--hijau); flex: none; }
+.pilih-baris .pilih-tengah { flex: 1; min-width: 0; }
+.pilih-baris .pilih-tengah b { display: block; font-size: .9rem;
+                               white-space: nowrap; overflow: hidden;
+                               text-overflow: ellipsis; }
+.pilih-baris .pilih-tengah small { color: var(--teks-lembut); font-size: .76rem; }
+
 /* ---------- api key ---------- */
 .slot-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(145px, 1fr));
              gap: 10px; margin-bottom: 18px; }

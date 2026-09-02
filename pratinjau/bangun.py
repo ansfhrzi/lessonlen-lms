@@ -249,7 +249,7 @@ MOCK = r"""
         .filter(function (m) { return m.status === 'aktif' &&
                                      (!k || m.rombel !== k.name); })
         .map(function (m) { return { user_id: m.user_id, nama: m.nama,
-             username: m.username,
+             username: m.username, rombel: m.rombel || '',
              kelas: m.rombel ? [{ class_id: k ? k.class_id : '', name: m.rombel }] : [] }; });
     },
     kelasEnroll: function (t, classId, pilihan) {

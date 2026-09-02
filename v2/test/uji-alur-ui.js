@@ -167,14 +167,29 @@ const tunggu = (ms) => new Promise(r => setTimeout(r, ms));
   await tunggu(500);
   cek('kelas: detail terbuka (XI TKJ 1)', d.getElementById('jd-nama').textContent === 'XI TKJ 1');
   cek('kelas: tabel murid kelas ada', d.querySelectorAll('#wadah-detail tbody tr').length >= 1);
-  // --- tambah murid ke kelas (laporan pemakaian nyata) ---
+  // --- tambah murid ke kelas: LIST + FILTER ROMBEL (permintaan) ---
   d.getElementById('btn-enroll').click();
   await tunggu(500);
-  cek('kelas: dialog "Tambah murid" terbuka dgn daftar tersedia',
+  cek('kelas: dialog "Tambah murid" terbuka berupa daftar nama',
       d.querySelector('.kotak-dialog') &&
-      d.querySelector('.kotak-dialog').textContent.includes('Tambah murid ke kelas') &&
-      d.querySelectorAll('.slot-grid .slot').length >= 1);
-  d.querySelector('.slot-grid input[type="checkbox"]').checked = true;
+      d.querySelectorAll('#pilih-list .pilih-baris').length >= 2 &&
+      d.querySelectorAll('#pilih-list .pilih-baris .avatar').length >= 2);
+  cek('kelas: filter rombel tersedia dgn opsi terurut',
+      d.getElementById('sel-rombel') &&
+      d.getElementById('sel-rombel').options.length >= 3);
+  d.getElementById('sel-rombel').value = 'XI RPL 1';
+  d.getElementById('sel-rombel').dispatchEvent(new w.Event('change'));
+  await tunggu(150);
+  cek('kelas: filter "XI RPL 1" → hanya 1 murid',
+      d.querySelectorAll('#pilih-list .pilih-baris').length === 1 &&
+      d.getElementById('pilih-list').textContent.includes('Fajar'));
+  d.getElementById('sel-rombel').value = 'XI TKJ 2';
+  d.getElementById('sel-rombel').dispatchEvent(new w.Event('change'));
+  await tunggu(150);
+  d.querySelector('#pilih-list input[type="checkbox"]').checked = true;
+  d.querySelector('#pilih-list input[type="checkbox"]').dispatchEvent(new w.Event('change'));
+  cek('kelas: penghitung terpilih jalan',
+      d.getElementById('hitung-pilih').textContent.includes('1 dipilih'));
   d.querySelector('.kotak-dialog [data-aksi="ya"]').click();
   await tunggu(600);
   cek('kelas: enroll sukses → dialog tertutup, detail dimuat ulang',

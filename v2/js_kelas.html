@@ -209,31 +209,82 @@ var KelasLayar = (function () {
         });
         return;
       }
-      var opsi = daftar.map(function (m) {
-        var kelasnya = (m.kelas && m.kelas.length) ? ' · sudah di ' +
-          m.kelas.map(function (k) { return k.name; }).join(', ') : '';
-        return '<label class="slot' + (m.kelas && m.kelas.length ? ' penuh' : '') + '">' +
-          '<input type="checkbox" value="' + Core.esc(m.user_id) + '"> <b>' +
-          Core.esc(m.nama) + '</b>' +
-          '<small>' + Core.esc(m.username) + kelasnya + '</small></label>';
+      /* rombel unik utk filter (Users.rombel) */
+      var rombelSet = {};
+      daftar.forEach(function (m) { if (m.rombel) rombelSet[m.rombel] = true; });
+      var opsiRombel = Object.keys(rombelSet).sort(function (a, b) {
+        return a.localeCompare(b, 'id', { numeric: true });
+      }).map(function (r) {
+        return '<option value="' + Core.esc(r) + '">' + Core.esc(r) + '</option>';
       }).join('');
+
+      /* keadaan centang bertahan lintas penyaringan */
+      var dipilih = {};   /* user_id → true */
+      var AKTIF = daftar;
+
+      function barisPilih(m) {
+        var lain = (m.kelas && m.kelas.length) ? ' · sudah di ' +
+          m.kelas.map(function (k) { return k.name; }).join(', ') : '';
+        return '<label class="pilih-baris">' +
+          '<input type="checkbox" value="' + Core.esc(m.user_id) + '"' +
+          (dipilih[m.user_id] ? ' checked' : '') + '>' +
+          '<span class="avatar">' + Core.esc(Core.inisial(m.nama)) + '</span>' +
+          '<span class="pilih-tengah"><b>' + Core.esc(m.nama) + '</b>' +
+          '<small>' + Core.esc(m.username) +
+          (m.rombel ? ' · ' + Core.esc(m.rombel) : '') + lain + '</small></span>' +
+          '</label>';
+      }
+
+      function renderPilih() {
+        var wadah = Core.$('pilih-list');
+        if (!wadah) return;
+        var rombel = Core.$('sel-rombel') ? Core.$('sel-rombel').value : '';
+        AKTIF = rombel
+          ? daftar.filter(function (m) { return m.rombel === rombel; })
+          : daftar;
+        wadah.innerHTML = AKTIF.length
+          ? AKTIF.map(barisPilih).join('')
+          : '<div class="kosong">Tidak ada murid pada rombel ini.</div>';
+        wadah.querySelectorAll('input[type="checkbox"]').forEach(function (cb) {
+          cb.addEventListener('change', function () {
+            if (cb.checked) dipilih[cb.value] = true;
+            else delete dipilih[cb.value];
+            hitung();
+          });
+        });
+      }
+
+      function hitung() {
+        var n = Object.keys(dipilih).length;
+        var el = Core.$('hitung-pilih');
+        if (el) el.textContent = daftar.length + ' murid tersedia' +
+          (n ? ' · ' + n + ' dipilih' : '');
+      }
 
       Core.dialog({
         judul: '＋ Tambah murid ke kelas',
         pesan: 'Centang murid yang mau didaftarkan. Murid yang sudah di kelas ' +
                'lain bisa tetap dicentang — mereka ikut dua kelas sekaligus.',
         html:
-          '<div class="slot-grid">' + opsi + '</div>' +
+          '<div class="pilih-alat">' +
+            '<select class="isian" id="sel-rombel" style="width:auto">' +
+              '<option value="">Semua rombel</option>' + opsiRombel + '</select>' +
+            '<span class="kecil" id="hitung-pilih"></span>' +
+          '</div>' +
+          '<div class="pilih-list" id="pilih-list"></div>' +
           '<div class="pesan-salah" id="salah-enroll" style="margin-top:10px"></div>',
-        labelYa: 'Daftarkan yang dicentang'
+        labelYa: 'Daftarkan yang dicentang',
+        saatBuka: function () {
+          renderPilih();
+          hitung();
+          var sel = Core.$('sel-rombel');
+          if (sel) sel.addEventListener('change', renderPilih);
+        }
       }).then(function (ya) {
         if (!ya) return;
         /* kontrak: kelasEnroll(token, classId, userIds) — array STRING
            user_id, bukan objek (uji node uji-kelas memakai ['USR-…']) */
-        var terpilih = [];
-        document.querySelectorAll('.slot-grid input:checked').forEach(function (cb) {
-          terpilih.push(cb.value);
-        });
+        var terpilih = Object.keys(dipilih);
         if (!terpilih.length) return;
 
         Core.api('kelasEnroll', Core.ambilToken(), classId, terpilih)
