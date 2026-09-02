@@ -83,24 +83,23 @@ var SKEMA = {
 
   Topics: {
     head: ['topic_id','teaching_assignment_id','title','description','status',
-           'publish_at','sort_order','created_at','updated_at'],
+           'sort_order','created_at','updated_at'],
     lebar: { topic_id:100, teaching_assignment_id:130, title:240,
-             description:300, status:90, publish_at:140, sort_order:80,
+             description:300, status:90, sort_order:80,
              created_at:140, updated_at:140 },
-    enum: { status: ['draft','publish','scheduled'] },
+    enum: { status: ['draft','publish'] },
     wrap: ['description']
   },
 
   Items: {
-    head: ['item_id','topic_id','ta_id','type','title','description','content',
-           'status','publish_at','related_id','sort_order','ai_source',
-           'ai_reviewed','created_at','updated_at'],
-    lebar: { item_id:90, topic_id:100, ta_id:130, type:110, title:220,
-             description:280, content:400, status:90, publish_at:140,
-             related_id:110, sort_order:80,
+    head: ['item_id','topic_id','type','title','description','content',
+           'status','related_id','sort_order','ai_source','ai_reviewed',
+           'created_at','updated_at'],
+    lebar: { item_id:90, topic_id:100, type:110, title:220, description:280,
+             content:400, status:90, related_id:110, sort_order:80,
              ai_source:90, ai_reviewed:100, created_at:140, updated_at:140 },
     enum: { type: ['materi','tugas_individu','tugas_kelompok','quiz','refleksi'],
-            status: ['draft','publish','scheduled'],
+            status: ['draft','publish'],
             ai_source: [true,false], ai_reviewed: [true,false] },
     wrap: ['description','content']
   },

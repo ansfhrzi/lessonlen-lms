@@ -1,52 +1,21 @@
 <!DOCTYPE html>
-<html lang="id">
+<html>
 <head>
   <base target="_top">
-  <meta charset="UTF-8">
+  <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=5">
   <title><?= appNama ?></title>
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'><?= appIkon ?></text></svg>">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap"
-        rel="stylesheet">
+  <link rel="icon"
+        href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22><?= appIkon ?></text></svg>">
   <?!= include('css'); ?>
 </head>
 <body>
+  <div id="app" class="app"></div>
 
-  <!-- tempat seluruh layar dirender -->
-  <div id="app"></div>
-
-  <!-- lapisan global (pola v1) -->
-  <div id="tirai-muat">
-    <div class="kotak-muat">
-      <div class="putar"></div>
-      <div id="pesan-muat" class="pesan-muat"></div>
-    </div>
-  </div>
-  <div id="toast-wadah"></div>
-  <div class="tirai-dialog" id="tirai-dialog">
-    <div class="dialog" id="isi-dialog"></div>
-  </div>
-  <div class="tirai-panel" id="tirai-panel"></div>
-
-  <!-- template layar -->
   <?!= include('v_login'); ?>
   <?!= include('v_dashboard'); ?>
-  <?!= include('v_editor'); ?>
-
-  <!-- Data merek dari Code.gs — satu sumber kebenaran. -->
-  <script>
-    var APP_VERSI = '<?= appVersi ?>';
-    var APP_NAMA  = '<?= appNama ?>';
-    var APP_IKON  = '<?= appIkon ?>';
-  </script>
 
   <?!= include('js_core'); ?>
   <?!= include('js_auth'); ?>
-  <?!= include('js_beranda'); ?>
-  <?!= include('js_kelola'); ?>
-  <?!= include('js_mapel'); ?>
-
 </body>
 </html>

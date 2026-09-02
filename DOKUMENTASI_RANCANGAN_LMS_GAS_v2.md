@@ -1612,6 +1612,7 @@ Sebelum implementasi, Admin/developer harus menyetujui jawaban atas pertanyaan b
 17. Menunda WhatsApp dan otomatisasi copy file kompleks dari MVP inti.
 18. Memperbaiki roadmap, testing, keamanan, backup, audit, dan operasional.
 19. (Adendum 2026-09, penerapan tahap 4.6–4.8 di folder `v2/`) Status `Topics`/`Items` menjadi `draft|publish|scheduled` + kolom `publish_at`; quiz/refleksi dapat mandiri tanpa topik via `Items.ta_id`; satu susunan course gabungan (`coursePindah`, renumber 1..N); murid menerima `urutan[]` campuran yang sama dengan guru. Lihat §7.8b.
+20. (Rollback 2026-09-02) Implementasi **tahap 3** (kelas/murid/enrollment + UI kelola) dan **tahap 4** (mapel/penugasan/topik/course/editor, port UI/UX gaya v1) dihapus dari folder `v2/` — UI/UX dinilai masih acak dan akan dibangun ulang dengan rancangan tampilan yang lebih matang. Kondisi kembali ke **tahap 2** (fondasi: skema 23 sheet, Auth lengkap, UI login + cangkang dasbor). Skema dan keputusan §7.7/§7.8/§7.8b TETAP menjadi acuan pembangunan ulang. Arsip kode tahap 3: commit `a63527b`; tahap 4: rentang `a63527b..c1c0157`.
 19. Menetapkan database final menjadi 21 sheet dengan `Audit_Logs`.
 20. Membersihkan konsep arsitektur lama “1 project/spreadsheet per guru”.
 

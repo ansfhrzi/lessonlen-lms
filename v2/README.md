@@ -1,6 +1,13 @@
-# LMS v2 — Fondasi + Kelola (Tahap 1–4 + Gate 0)
+# LMS v2 — Fondasi (Tahap 1 + Gate 0)
 
-Implementasi awal rancangan **v2.1** (`../DOKUMENTASI_RANCANGAN_LMS_GAS_v2.md`).
+> **⚠️ STATUS 2 Sep 2026 — ROLLBACK KE TAHAP 2.** Seluruh UI/UX & fungsi
+> tahap 3 (kelas/murid/enrollment) dan tahap 4 (mapel/course/editor)
+> **dihapus** dari folder ini dan akan dibangun ulang dengan rancangan
+> tampilan yang lebih matang. Kode lama diarsipkan di git: tahap 3 =
+> commit `a63527b`, tahap 4 = rentang `a63527b..c1c0157`
+> (`git checkout <commit> -- v2/`). Rincian: lihat `PERUBAHAN.md`.
+
+Implementasi rancangan **v2.1** (`../DOKUMENTASI_RANCANGAN_LMS_GAS_v2.md`).
 Folder ini adalah **satu project Apps Script baru** — terpisah dari LessonLen v1
 yang ada di akar repositori.
 
@@ -18,31 +25,22 @@ yang ada di akar repositori.
 
 | Berkas | Fungsi |
 |---|---|
-| `Code.gs` | `doGet`, `include`, pembungkus API `_bungkus`, endpoint auth + dasbor + kelas/murid/enrollment + mapel/penugasan/topik/item |
+| `Code.gs` | `doGet`, `include`, pembungkus API `_bungkus`, endpoint auth + dasbor |
 | `Setup.gs` | Skema **23 sheet**, `setupLengkap()`, seed, migrasi, `infoDatabase()` |
 | `Db.gs` | Lapisan akses Sheets: baca/tulis batch, cache, `LockService` |
 | `Util.gs` | Generator ID (sheet `Counters` + lock), hash kata sandi, sanitasi, audit log |
 | `Auth.gs` | Login, sesi, ganti/lupa/reset kata sandi (port v1) |
-| `Notif.gs` | Notifikasi in-app: `kirim`, `kirimKeKelas`, `daftar`, `tandaiDibaca` |
-| `Kelas.gs` | CRUD kelas, murid + impor massal, enrollment (enroll/reaktivasi/keluarkan), kelas saya, biodata murid |
-| `Mapel.gs` | CRUD mapel, penugasan mengajar (unik per kelas+guru+mapel, reaktivasi), topik (urut, view/hide, jadwal terbit, hapus kosong saja), item (materi/quiz/tugas/refleksi; quiz & refleksi bisa mandiri tanpa topik; konten disanitasi), bacaan murid (terlihat = publish atau terjadwal yang waktunya tiba) |
-| `Uji.gs` | **Uji tahapan dari EDITOR Apps Script**: `ujiGate0()`, `ujiTahap3()`, `ujiTahap4()`, `ujiSemua()` — data uji dibuat & dihapus otomatis |
-| `index.html` + `css.html` | Cangkang UI + sistem gaya **port dari v1** (Plus Jakarta Sans, palet hijau, topbar + lonceng, toast, tirai muat, dialog global, sidebar menu dengan laci HP, editor konten, baris pertemuan) |
-| `v_login.html`, `v_dashboard.html`, `v_editor.html` | Layar masuk (gradient + kartu), cangkang dasbor `topbar-slot + isi-halaman`, dan cangkang editor item (toolbar + mode HTML + pratinjau) |
-| `js_core.html` | `callApi`, **router hash** (`#/beranda`, `#/kelas/<id>`, …), topbar + lonceng, **sidebar menu** (pintasan layar + daftar kelas), toast, dialog global, laci HP |
-| `js_auth.html` | Login, ganti sandi (layar terkunci ala v1), lupa sandi, profil, biodata (dialog, isian dipertahankan) |
-| `js_beranda.html` | Beranda guru (kisi statistik + perlu tindakan + kartu kelas) & murid (spanduk biodata + mapel), antrean reset, notifikasi |
-| `js_kelola.html` | Kelola kelas (daftar kartu + detail tabel), kelola murid (filter + tabel), impor massal dengan pratinjau |
-| `js_mapel.html` | Mapel, penugasan, topik & item (guru, baris-pertemuan bernomor + baris-item); **editor item gaya v1**: contenteditable + toolbar (tabel dinamis, video YouTube nocookie, mode HTML, pratinjau); murid: Kelas Saya → Materi → Topik → pembaca `isi-materi` |
-| `test/` | Uji logika: Gate 0 (18) + Tahap 3 (42) + Tahap 4 (113); uji statis UI `uji-ui.js` — deteksi fungsi klien dipanggil-tapi-tak-terdefinisi (ReferenceError) |
+| `index.html` + `css.html` | Cangkang UI |
+| `v_login.html`, `v_dashboard.html` | Layar masuk & dasbor guru/murid |
+| `js_core.html`, `js_auth.html` | Pembungkus `google.script.run`, token sesi, logika layar |
+| `test/` | Uji node: `uji-auth-gate0.js` (18) + `uji-ui.js` (audit statis fungsi klien; daftar berkas auto) |
 
 ## Cara pasang (sekali saja)
 
 1. Buat **project Apps Script baru** (script.google.com → New project).
 2. Salin seluruh berkas folder ini ke project (nama file harus sama persis,
    tanpa awalan folder). Untuk berkas HTML, nama file di Apps Script adalah
-   `index`, `css`, `v_login`, `v_dashboard`, `v_editor`, `js_core`,
-   `js_auth`, `js_beranda`, `js_kelola`, `js_mapel`.
+   `index`, `css`, `v_login`, `v_dashboard`, `js_core`, `js_auth`.
 3. Jalankan fungsi **`setupLengkap`** dari editor → izinkan akses.
    Spreadsheet `DB_LMS_V2` (23 sheet) dibuat otomatis dan `DB_ID`
    tersimpan di Script Properties.
@@ -63,21 +61,6 @@ yang ada di akar repositori.
 `Grades`, `Reflections`, `Notifications`, `Materi_AI`, `Permintaan_Reset`,
 `Session`, `Counters`, `Audit_Logs` — definisi kolom ada di `Setup.gs` (SKEMA).
 
-### Kolom & status tambahan (tahap 4.6)
-
-- `Topics.publish_at`, `Items.publish_at` — jadwal terbit (boleh kosong).
-- `Items.ta_id` — penghubung item **mandiri** (quiz/refleksi tanpa topik)
-  ke course; kosong untuk item bertopik.
-- `status` Topics & Items kini `draft | publish | scheduled`.
-- **Susunan course gabungan**: topik & item mandiri satu daftar bernomor
-  (sort_order bersama per course; topik/item baru selalu di dasar;
-  `coursePindah` menukar tetangga lalu menomori ulang 1..N).
-  Murid menerima `urutan[]` yang sama — hanya baris yang terlihat.
-  Terlihat murid = `publish`, atau `scheduled` dengan `publish_at <= now`
-  (dievaluasi saat murid membuka — tanpa trigger waktu).
-- **Migrasi DB lama:** jalankan `migrasiStruktur()` sekali dari editor —
-  kolom baru disisipkan otomatis, data lama utuh.
-
 ## Gate 0 — PoC Login & Sesi (ceklist)
 
 Sebelum modul berikutnya dibangun, pastikan seluruh butir ini lulus
@@ -95,110 +78,17 @@ di deployment `/exec` sungguhan:
 [ ] Murid tidak bisa memanggil API guru (resetPasswordMurid/getPermintaanReset)
 ```
 
-## Uji di editor Apps Script
-
-Uji statis UI: `node v2/test/uji-ui.js` — memindai semua partial
-`js_*.html`/`v_*.html`; gagal bila ada fungsi yang dipanggil tapi tidak
-pernah didefinisikan (kelas bug `dialogTopik is not defined`).
-
-Selain uji Node (`test/`, jalankan dengan `node v2/test/<berkas>.js`),
-seluruh tahapan bisa diuji langsung dari editor Apps Script memakai
-`Uji.gs` — salin berkas ini ke project lalu jalankan salah satunya:
-
-| Fungsi | Cakupan | Cakupan uji |
-|---|---|---|
-| `ujiGate0()` | login, sesi, kunci 5×, ganti/reset sandi, penjaga peran | 19 |
-| `ujiTahap3()` | kelas, murid, impor, enrollment, biodata, notifikasi | 38 |
-| `ujiTahap4()` | mapel, penugasan, topik, item, bacaan murid, audit | 82 |
-| `ujiSemua()` | ketiganya berurutan + ringkasan | 139 |
-
-Cara baca hasil: **View → Log** (atau ikon *Execution log*) — tiap uji
-mencetak `OK <nama>` / `GAGAL <nama> → <info>`, diakhiri ringkasan
-`xx/yy lulus`.
-
-- Database harus sudah disiapkan (`setupLengkap()` sekali) — uji
-  berjalan pada DB sungguhan tetapi **data uji dibuat dan dihapus
-  otomatis** (juga saat ada uji yang gagal). Semua data uji memakai
-  penanda unik (mis. username `k3x9q2budi01`).
-- Nomor ID di sheet `Counters` ikut maju — normal, tidak berpengaruh.
-- Jalankan saat aplikasi tidak sedang dipakai orang lain.
-- Bila pembersihan terganggu (mis. eksekusi dihentikan paksa), sisa
-  data uji mudah dicari: username/nama memuat penanda yang tercetak
-  di awal log uji.
-
 ## Status & tahap berikutnya
 
 - ✅ Tahap 1 — Database initializer (23 sheet + seed + migrasi)
-- ✅ Tahap 2 (sebagian) — Auth + session + audit log
-- ✅ Tahap 3 — Kelas, murid, enrollment:
-  - Guru: CRUD kelas (buat/edit/arsip), kelola murid (tambah/edit/
-    nonaktifkan/reset sandi), impor massal dengan pratinjau,
-    daftarkan/keluarkan murid dari kelas
-  - Murid: layar Kelas Saya (kelas + mapel), lengkapi biodata sendiri
-  - Enrollment mengikuti v1: dedupe, reaktivasi baris `keluar`,
-    notifikasi `enroll_kelas`
-- ✅ Tahap 4 — Mapel, penugasan, topik, item:
-  - Guru: CRUD mapel (pemilik = pembuat), penugasan mengajar
-    (unik `kelas+guru+mapel` aktif, reaktivasi baris nonaktif,
-    pengampu divalidasi server), topik (urutan otomatis + pindah
-    atas/bawah, draft/publish, hapus hanya bila kosong), item
-    (materi/quiz/tugas_individu/tugas_kelompok/refleksi, konten HTML
-    disanitasi `Util.sanitasi`, publish → notifikasi kelas)
-  - Murid: ketuk chip mapel di Kelas Saya → topik publish → isi
-    topik → baca materi (quiz/tugas/refleksi menunggu tahap
-    berikutnya); penugasan nonaktif & kelas arsip otomatis menutup
-    bacaan
+- ✅ Tahap 2 — Auth + session + audit log + UI login/dasbor
+- ↩️ Tahap 3 — Kelas, murid, enrollment (Kelas.gs) — **dibangun ulang** (rollback 2 Sep 2026; arsip: commit `a63527b`)
+- ⬜ Tahap 4 — Subjects, Teaching_Assignments, Topics, Items (arsip: `a63527b..c1c0157`)
 - ⬜ Tahap 5 — Quiz + soal + penilaian
 - ⬜ Tahap 6 — Tugas individu & kelompok
 - ⬜ Tahap 7 — Rekap nilai & progres
 - ⬜ Tahap 8 — Porting `Ai.gs` v1 (generator Gemini, perilaku tidak berubah)
 - ⬜ Tahap 9 — Notifikasi lengkap + email terbatas
-
-### API Tahap 3 (semua lewat `_bungkus`, role diperiksa server-side)
-
-| Endpoint | Peran | Fungsi |
-|---|---|---|
-| `kelasDaftar(token, semua)` | guru | daftar kelas + jumlah murid/mapel |
-| `kelasSimpan(token, p)` | guru | buat/edit kelas |
-| `kelasUbahStatus(token, id, status)` | guru | arsip/aktifkan kelas |
-| `muridDaftar(token, filter)` | guru | daftar murid + filter cari/rombel/status/kelas |
-| `muridSimpan(token, p)` | guru | tambah/edit murid |
-| `muridImporPratinjau(token, teks)` | guru | pratinjau impor tanpa menulis |
-| `muridImpor(token, classId, teks)` | guru | impor massal + enroll opsional |
-| `kelasMurid(token, classId)` | guru | murid terdaftar di kelas |
-| `muridTersedia(token, classId)` | guru | kandidat pendaftaran |
-| `muridDaftarkan(token, classId, ids)` | guru | enroll (dedupe + reaktivasi) |
-| `muridKeluarkan(token, classId, userId)` | guru | status enrollment `keluar` |
-| `kelasSaya(token)` | semua | kelas diikuti murid / diajar guru; `mapel[]` membawa `ta_id` + `jml_topik` (publish) untuk kartu course |
-| `simpanBiodataSaya(token, p)` | murid | lengkapi email + WA (+NISN opsional) |
-| `daftarNotifikasi(token)` / `notifTandaiDibaca` | semua | notifikasi in-app |
-
-### API Tahap 4 (semua lewat `_bungkus`, role diperiksa server-side)
-
-| Endpoint | Peran | Fungsi |
-|---|---|---|
-| `mapelDaftar(token)` | guru | daftar mapel + jumlah penugasan + pemilik |
-| `mapelSimpan(token, p)` | guru | buat/edit mapel (pemilik otomatis pembuat) |
-| `mapelUbahStatus(token, id, status)` | guru | aktif/nonaktif (soft delete) |
-| `guruDaftar(token)` | guru | guru aktif — pilihan pengampu |
-| `penugasanDaftar(token, filter)` | guru | daftar TA + nama kelas/mapel/guru + `jml_topik/jml_draf/jml_murid` (kartu course ala v1), filter `class_id/subject_id/teacher_id/status/semua` |
-| `penugasanSimpan(token, p)` | guru | buat/edit TA; unik `kelas+guru+mapel` aktif; reaktivasi baris nonaktif; pengampu wajib guru aktif |
-| `penugasanUbahStatus(token, id, status)` | guru | aktif/nonaktif |
-| `topikDaftar(token, taId)` | guru | topik satu penugasan + jumlah item |
-| `topikSimpan(token, p)` | guru | buat/edit topik; `sort_order` otomatis |
-| `topikUbahStatus(token, id, status, publishAt?)` | guru | view/hide: `publish` / `draft` (membatalkan jadwal) / `scheduled` (wajib `publishAt` — otomatis terlihat saat waktunya, tanpa notif) |
-| `topikHapus(token, id)` | guru | hapus HANYA bila tanpa item |
-| `topikPindah(token, id, arah)` | guru | naik/turun (tukar `sort_order`) |
-| `coursePindah(token, jenis, id, arah)` | guru | naik/turun dalam **satu susunan gabungan course** (topik + item mandiri berdampingan, bernomor 1..N lintas sheet; item bertopik ditolak) |
-| `itemDaftar(token, topicId)` | guru | item satu topik (tanpa konten) |
-| `getItemGuru(token, itemId)` | guru | detail penuh 1 item **termasuk konten** — untuk editor (baca-saja) |
-| `itemSimpan(token, p)` | guru | buat/edit item; jenis divalidasi; konten disanitasi; `related_id`/penanda AI tidak diterima dari klien |
-| `itemUbahStatus(token, id, status, publishAt?)` | guru | publish / draft / scheduled; publish → notif `pertemuan_baru` ke kelas; scheduled tanpa notif |
-| `itemHapus(token, id)` | guru | ditolak bila item sudah tertaut |
-| `itemPindah(token, id, arah)` | guru | naik/turun dalam topik |
-| `topikKelasSaya(token, taId)` | murid | topik terlihat **+ `item[]` per topik + `mandiri[]` + `urutan[]`** (susunan campuran sama dengan guru, hanya baris terlihat; semua tanpa konten); wajib terdaftar aktif + TA & kelas aktif |
-| `bukaTopik(token, topicId)` | murid | isi satu topik — item publish tanpa konten |
-| `bacaMateri(token, itemId)` | murid | konten materi publish; jenis lain → `FITUR_BELUM_ADA` |
 
 ## Darurat
 
