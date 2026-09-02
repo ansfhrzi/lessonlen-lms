@@ -455,6 +455,28 @@ var Mapel = (function () {
    * disimpan — keyakinan sama seperti v1. related_id & penanda AI
    * TIDAK diterima dari klien (diisi tahap berikutnya).
    */
+  /**
+   * Detail penuh satu item (termasuk konten) — untuk editor guru.
+   * Baca-saja; itemDaftar sengaja tanpa konten agar daftar tetap ringan,
+   * bacaMateri khusus murid & hanya publish.
+   */
+  function itemDetail(itemId) {
+    var i = Db.cari('Items', 'item_id', itemId);
+    if (!i) throw _err('TIDAK_DITEMUKAN', 'Item tidak ditemukan.');
+    return {
+      item_id: i.item_id,
+      topic_id: i.topic_id,
+      type: i.type,
+      title: i.title,
+      description: i.description || '',
+      content: i.content || '',
+      status: i.status,
+      related_id: i.related_id || '',
+      ai_source: i.ai_source === true,
+      ai_reviewed: i.ai_reviewed === true
+    };
+  }
+
   function itemSimpan(sesi, p) {
     /* ---- edit ---- */
     if (p.item_id) {
@@ -849,7 +871,7 @@ var Mapel = (function () {
     /* item */
     itemDaftar: itemDaftar, itemSimpan: itemSimpan,
     itemUbahStatus: itemUbahStatus, itemHapus: itemHapus,
-    itemPindah: itemPindah,
+    itemPindah: itemPindah, itemDetail: itemDetail,
     /* murid */
     topikMurid: topikMurid, topikBuka: topikBuka, materiBaca: materiBaca
   };

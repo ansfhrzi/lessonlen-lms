@@ -381,6 +381,22 @@ r = bacaMateri('token-palsu', ITM1);
 cek('token palsu → SESI_INVALID', r.ok === false && r.error === 'SESI_INVALID');
 
 /* ============================================================
+ *  GET ITEM GURU (editor)
+ * ============================================================ */
+console.log('\n--- GET ITEM GURU (editor) ---');
+r = getItemGuru(TOKEN_G, ITM1);
+cek('guru membaca detail item berisi konten',
+  r.ok === true && r.data.item_id === ITM1 &&
+  String(r.data.content).indexOf('Selamat belajar') !== -1 &&
+  r.data.topic_id && r.data.status === 'publish',
+  JSON.stringify(r.data || r).slice(0, 200));
+r = getItemGuru(TOKEN_B, ITM1);
+cek('murid ditolak getItemGuru', r.ok === false && r.error === 'AKSES_DITOLAK');
+r = getItemGuru(TOKEN_G, 'ITM-tak-ada');
+cek('item tak ada → TIDAK_DITEMUKAN',
+  r.ok === false && r.error === 'TIDAK_DITEMUKAN');
+
+/* ============================================================
  *  AUDIT & RAPIH
  * ============================================================ */
 console.log('\n--- AUDIT ---');

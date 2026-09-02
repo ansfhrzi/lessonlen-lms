@@ -330,6 +330,13 @@ function itemDaftar(token, topicId) {
   });
 }
 
+/** Detail penuh item (termasuk konten) — untuk editor guru. */
+function getItemGuru(token, itemId) {
+  return _bungkus(token, 'guru', function (sesi) {
+    return Mapel.itemDetail(itemId);
+  });
+}
+
 function itemSimpan(token, p) {
   return _bungkus(token, 'guru', function (sesi) {
     return Mapel.itemSimpan(sesi, p || {});

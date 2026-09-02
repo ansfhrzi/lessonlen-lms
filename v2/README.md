@@ -171,6 +171,7 @@ mencetak `OK <nama>` / `GAGAL <nama> → <info>`, diakhiri ringkasan
 | `topikHapus(token, id)` | guru | hapus HANYA bila tanpa item |
 | `topikPindah(token, id, arah)` | guru | naik/turun (tukar `sort_order`) |
 | `itemDaftar(token, topicId)` | guru | item satu topik (tanpa konten) |
+| `getItemGuru(token, itemId)` | guru | detail penuh 1 item **termasuk konten** — untuk editor (baca-saja) |
 | `itemSimpan(token, p)` | guru | buat/edit item; jenis divalidasi; konten disanitasi; `related_id`/penanda AI tidak diterima dari klien |
 | `itemUbahStatus(token, id, status)` | guru | draft/publish; publish → notif `pertemuan_baru` ke kelas |
 | `itemHapus(token, id)` | guru | ditolak bila item sudah tertaut |
