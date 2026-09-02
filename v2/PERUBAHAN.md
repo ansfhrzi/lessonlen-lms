@@ -142,6 +142,22 @@ berkas.
 - Uji: node `test/uji-course.js` **41 kasus**; editor `ujiCourse()` 13 cek
   → `ujiSemua()` kini **83 cek**.
 
+### Tahap 3.4 — backend Status API Key (2 Sep 2026)
+
+- **BARU `ApiKey.gs`** 🔴 wajib salin: `status` (daftar key: ekor 4 digit
+  terakhir saja + status `siap`/`istirahat`/`bermasalah`, cursor rotasi),
+  `simpan` (MENIMPA seluruh daftar; **maks 10 key**; bentuk ≥30 karakter
+  tanpa spasi; daftar kosong = mencabut semua; menghapus semua cooldown),
+  `resetCooldown` (tombol "Coba Lagi Sekarang"). Key disimpan di
+  **Script Properties `GEMINI_KEYS`** — bukan spreadsheet, tak pernah
+  terkirim ke klien; nama properti & kunci cooldown identik v1
+  (`gemini_cd_<i>_<model>`, `gemini_key_rusak_<i>`) sehingga port
+  `Ai.gs` nanti kompatibel tanpa migrasi.
+- `Code.gs` 🔴 wajib salin: +3 endpoint `apiKeyStatus / apiKeySimpan /
+  apiKeyResetCooldown` (role `guru`).
+- Uji: node `test/uji-apikey.js` **31 kasus**; editor `ujiApiKey()` 12 cek
+  → `ujiSemua()` kini **95 cek**.
+
 ### Berkas yang harus ada di editor Apps Script (kondisi tahap 2)
 
 | Berkas | Isi | Status |
@@ -186,3 +202,4 @@ tidak ada — akan membuat error), `js_beranda.html`, `js_kelola.html`,
 | tahap 3.1c | (commit ini) | lupa akses mandiri: kolom `tanggal_lahir` + 3 endpoint + 32 uji node + `ujiLupaAkses()` | +32 node, +14 editor |
 | tahap 3.2 | (commit ini) | backend Kelola Kelas: `Kelas.gs` + 7 endpoint + 48 uji node + `ujiKelas()` | +48 node, +15 editor |
 | tahap 3.3 | (commit ini) | backend Kelola Course: `Course.gs` + 4 endpoint + 41 uji node + `ujiCourse()` | +41 node, +13 editor |
+| tahap 3.4 | (commit ini) | backend Status API Key: `ApiKey.gs` + 3 endpoint + 31 uji node + `ujiApiKey()` | +31 node, +12 editor |

@@ -607,6 +607,83 @@ function ujiCourse() {
   return _ujiSelesai('TAHAP 3.3');
 }
 
+/* ============================================================ SUITE 6 */
+
+/** Status API Key (jalankan sendiri: ujiApiKey). */
+function ujiApiKey() {
+  _ujiMulai('TAHAP 3.4 — STATUS API KEY');
+
+  /* --- prasyarat --- */
+  _ujiCek('BERKAS: ApiKey.gs termuat — bila GAGAL: salin ApiKey.gs',
+          typeof ApiKey !== 'undefined');
+  _ujiCek('BERKAS: endpoint apiKey* ada di Code.gs — bila GAGAL: salin ulang Code.gs',
+          typeof apiKeyStatus === 'function' && typeof apiKeySimpan === 'function');
+
+  _ujiSeed();
+  var sesiG = _ujiSesiGuru();
+
+  /* KUNCI PALSU HANYA UNTUK UJI — bentuk sah, bukan key sungguhan;
+     diganti/dicabut lagi di akhir suite. */
+  var K1 = 'AIzaUjiUjiUjiUjiUjiUjiUjiUjiUjiUjiUji1111';
+  var K2 = 'AIzaUjiUjiUjiUjiUjiUjiUjiUjiUjiUjiUji2222';
+
+  /* --- status awal --- */
+  var awal = ApiKey.status(sesiG);
+  _ujiCek('respons status berbentuk lengkap',
+          'jml' in awal && 'maks' in awal && 'key' in awal &&
+          awal.maks === 10, JSON.stringify({ j: awal.jml, m: awal.maks }));
+
+  /* --- simpan: validasi --- */
+  var r11 = _ujiCoba(function () {
+    var banyak = [];
+    for (var i = 0; i < 11; i++) banyak.push('AIzaUjiUjiUjiUjiUjiUjiUjiUjiUjiUji0' + i);
+    return ApiKey.simpan(sesiG, banyak);
+  });
+  _ujiCek('11 key ditolak (maks 10)',
+          r11.error === 'VALIDASI_GAGAL' && /Maksimal 10/.test(r11.pesan),
+          JSON.stringify(r11));
+  var rp = _ujiCoba(function () { return ApiKey.simpan(sesiG, ['pendek']); });
+  _ujiCek('key salah bentuk ditolak', rp.error === 'VALIDASI_GAGAL');
+
+  /* --- simpan benar --- */
+  var rs = ApiKey.simpan(sesiG, [K1, K2]);
+  _ujiCek('2 key tersimpan (menimpa daftar lama)', rs.jml === 2, JSON.stringify(rs));
+  var rst = ApiKey.status(sesiG);
+  _ujiCek('status: 2 key siap & hanya 4 digit terakhir terlihat',
+          rst.jml === 2 && rst.jml_siap === 2 &&
+          rst.key[0].ekor === '1111' &&
+          JSON.stringify(rst).indexOf('AIzaUjiUji') === -1,
+          JSON.stringify(rst.key));
+
+  /* --- cooldown --- */
+  try {
+    CacheService.getScriptCache().put('gemini_key_rusak_0', '400', 3600);
+  } catch (e) {}
+  _ujiCek('key rusak → "bermasalah"',
+          ApiKey.status(sesiG).key[0].status === 'bermasalah');
+  ApiKey.resetCooldown(sesiG);
+  _ujiCek('reset cooldown → kembali "siap"',
+          ApiKey.status(sesiG).jml_siap === 2 &&
+          ApiKey.status(sesiG).jml_bermasalah === 0);
+
+  /* --- cabut semua (pulihkan keadaan awal) --- */
+  ApiKey.simpan(sesiG, []);
+  _ujiCek('daftar kosong mencabut semua key',
+          ApiKey.status(sesiG).terpasang === false);
+
+  /* --- endpoint --- */
+  var tokenG = Auth.login('guru', 'guru123').data.token;
+  var re1 = apiKeyStatus(tokenG);
+  _ujiCek('endpoint apiKeyStatus (guru) OK', re1.ok === true, JSON.stringify(re1));
+  var m = _ujiBuatMuridStump('key', 'UjiKey1234');
+  var tokM = Auth.login(m.username, m.password);
+  var re2 = apiKeyStatus(tokM.ok ? tokM.data.token : '');
+  _ujiCek('endpoint apiKeyStatus ditolak utk murid',
+          re2.ok === false && re2.error === 'AKSES_DITOLAK', JSON.stringify(re2));
+
+  return _ujiSelesai('TAHAP 3.4');
+}
+
 /* ============================================================ SEMUA */
 
 /** Jalankan seluruh suite. Fungsi inilah yang dijalankan dari editor. */
@@ -617,8 +694,9 @@ function ujiSemua() {
   var c = ujiLupaAkses();
   var d = ujiKelas();
   var e = ujiCourse();
-  var total = a.jml + b.jml + c.jml + d.jml + e.jml;
-  var gagal = a.gagal + b.gagal + c.gagal + d.gagal + e.gagal;
+  var f = ujiApiKey();
+  var total = a.jml + b.jml + c.jml + d.jml + e.jml + f.jml;
+  var gagal = a.gagal + b.gagal + c.gagal + d.gagal + e.gagal + f.gagal;
   Logger.log('');
   Logger.log('====================================================');
   Logger.log(' UJI SEMUA: ' + (total - gagal) + '/' + total + ' lulus' +

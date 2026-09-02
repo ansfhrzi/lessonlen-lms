@@ -163,6 +163,33 @@ function courseHapus(token, taId) {
 }
 
 /* ============================================================
+ *  API — STATUS API KEY (menu dashboard guru — §22D)
+ *  Key tersimpan di Script Properties; panel hanya melihat
+ *  4 digit terakhir. Mekanisme persis v1 (Ai.gs).
+ * ============================================================ */
+
+/** Status seluruh key (siap / istirahat / bermasalah). */
+function apiKeyStatus(token) {
+  return _bungkus(token, 'guru', function (sesi) {
+    return ApiKey.status(sesi);
+  });
+}
+
+/** Timpa daftar key (maks 10). Daftar kosong = mencabut semua. */
+function apiKeySimpan(token, daftar) {
+  return _bungkus(token, 'guru', function (sesi) {
+    return ApiKey.simpan(sesi, daftar);
+  });
+}
+
+/** Buang seluruh cooldown — tombol "Coba Lagi Sekarang". */
+function apiKeyResetCooldown(token) {
+  return _bungkus(token, 'guru', function (sesi) {
+    return ApiKey.resetCooldown(sesi);
+  });
+}
+
+/* ============================================================
  *  API — BIODATA & LUPA AKSES MANDIRI (keputusan 2026-09-02)
  * ============================================================ */
 

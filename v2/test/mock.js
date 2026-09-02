@@ -17,13 +17,21 @@ global.Logger = { log: () => {} };
 global.CacheService = {
   getScriptCache: () => ({
     get: (k) => (_cache[k] !== undefined ? _cache[k] : null),
-    put: (k, v) => { _cache[k] = String(v); },
-    remove: (k) => { delete _cache[k]; }
+    put: (k, v, ttl) => { _cache[k] = String(v); },
+    remove: (k) => { delete _cache[k]; },
+    removeAll: (ks) => { (ks || []).forEach(k => { delete _cache[k]; }); }
   })
 };
 
+/* Script Properties tiruan (bernilai nyata — dipakai uji API key) */
+const _PROPS = {};
+global.__propsBersih = () => { Object.keys(_PROPS).forEach(k => delete _PROPS[k]); };
 global.PropertiesService = {
-  getScriptProperties: () => ({ getProperty: () => null, setProperty: () => {} })
+  getScriptProperties: () => ({
+    getProperty: (k) => (_PROPS[k] !== undefined ? _PROPS[k] : null),
+    setProperty: (k, v) => { _PROPS[k] = String(v); },
+    deleteProperty: (k) => { delete _PROPS[k]; }
+  })
 };
 
 /* ---- Db tiruan berbasis objek ---- */
