@@ -5,12 +5,32 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title><?= appNama ?></title>
-  <?!= muatCss() ?>
+  <?!= include('css') ?>
 </head>
 <body>
   <div id="app"></div>
 
-  <?!= muatJs() ?>
+  <?!= include('v_login') ?>
+  <?!= include('v_dashboard') ?>
+
+  <script>
+    /* Satu-satunya berkas dengan scriptlet — berkas include TIDAK
+       dievaluasi scriptlet-nya, jadi data merek didefinisikan di sini. */
+    var TYDATA = {
+      nama: '<?= appNama ?>',
+      versi: '<?= appVersi ?>',
+      ikon: '<?= appIkon ?>'
+    };
+  </script>
+
+  <?!= include('js_core') ?>
+  <?!= include('js_auth') ?>
+  <?!= include('js_beranda') ?>
+  <?!= include('js_murid') ?>
+  <?!= include('js_kelas') ?>
+  <?!= include('js_course') ?>
+  <?!= include('js_rekap') ?>
+  <?!= include('js_apikey') ?>
 
 </body>
 </html>

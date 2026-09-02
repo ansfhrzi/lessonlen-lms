@@ -26,23 +26,7 @@ function doGet(e) {
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
 }
 
-/** Gabungkan semua berkas CSS klien untuk index.html. */
-function muatCss() {
-  return HtmlService.createHtmlOutputFromFile('css').getContent();
-}
-
-/** Gabungkan semua berkas JS klien untuk index.html (urutan pemuatan penting). */
-function muatJs() {
-  return ['js_core', 'js_auth', 'js_beranda', 'js_murid', 'js_kelas',
-          'js_course', 'js_rekap', 'js_apikey']
-    .map(function (n) {
-      return '<script>' +
-             HtmlService.createHtmlOutputFromFile(n).getContent() +
-             '<' + '/script>';
-    }).join('\n');
-}
-
-/** Sisipkan berkas HTML lain ke dalam template. */
+/** Sisipkan berkas HTML lain ke dalam template (pola v1 — terbukti). */
 function include(nama) {
   return HtmlService.createHtmlOutputFromFile(nama).getContent();
 }

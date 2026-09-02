@@ -25,7 +25,7 @@ yang ada di akar repositori.
 
 | Berkas | Fungsi |
 |---|---|
-| `Code.gs` | `doGet`, `muatCss`/`muatJs` (gabung berkas klien), pembungkus API `_bungkus`, endpoint auth + dasbor |
+| `Code.gs` | `doGet`, `include` (satu-satunya jalur sisip berkas klien), pembungkus API `_bungkus`, endpoint auth + dasbor |
 | `Setup.gs` | Skema **23 sheet**, `setupLengkap()`, seed, migrasi, `infoDatabase()` |
 | `Db.gs` | Lapisan akses Sheets: baca/tulis batch, cache, `LockService` |
 | `Util.gs` | Generator ID (sheet `Counters` + lock), hash kata sandi, sanitasi, audit log |
@@ -35,7 +35,7 @@ yang ada di akar repositori.
 | `Course.gs` | **Tahap 3.3** — Kelola Course: "Course" = Teaching_Assignments (label `KELAS - MAPEL`); buat = kelas + mapel bebas (auto-dedupe `Subjects`), duplikat ditolak, edit ganti kelas/mapel, hapus = lepas relasi; buat ulang → reaktivasi |
 | `ApiKey.gs` | **Tahap 3.4** — Status API Key: pasang ≤10 key Gemini (Script Properties `GEMINI_KEYS`, menimpa daftar lama), panel hanya melihat 4 digit terakhir, status siap/istirahat/bermasalah, reset cooldown — mekanisme & nama kunci identik v1 (siap dipakai modul AI) |
 | `Uji.gs` | **Uji dari editor Apps Script** ke DB nyata: `ujiSemua()` (atau `ujiGate0()` / `ujiMurid()`); data uji berpenanda `uXXXXXX` + pembersihan otomatis; akun seed tak diubah |
-| `index.html` + `css.html` | Cangkang UI; `css.html` = sistem desain (token tema `:root` hijau `#2F6B2B` — ganti tema cukup ubah variabel) |
+| `index.html` + `css.html` | Cangkang UI; **scriptlet `<? ?>` hanya di index.html** (berkas include tak dievaluasi scriptlet); `css.html` = sistem desain (token tema `:root` hijau `#2F6B2B` — ganti tema cukup ubah variabel) |
 | `v_login.html`, `v_dashboard.html` | Layar masuk + cangkang dasbor (sidebar/topbar/lonceng/toast) |
 | `js_core.html` | Pembungkus `google.script.run`, token sesi, router `Core.pergiKe`, dialog & toast global, lonceng notifikasi |
 | `js_auth.html` | Login, lupa sandi, keluar, dialog wajib-ganti-sandi & biodata murid |

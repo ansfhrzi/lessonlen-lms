@@ -363,8 +363,11 @@ var Core = (function () {
   };
 })();
 
-/* Data template dari Code.gs — satu sumber kebenaran merek. */
-var TYDATA = { nama: '<?= appNama ?>', versi: '<?= appVersi ?>', ikon: '<?= appIkon ?>' };
+/* Data merek diisi index.html (satu-satunya berkas dengan scriptlet —
+ * berkas include tidak dievaluasi scriptlet-nya). Fallback bila absen. */
+if (typeof TYDATA === 'undefined') {
+  var TYDATA = { nama: 'LessonLen', versi: '', ikon: '\uD83C\uDF31' };
+}
 
 document.addEventListener('DOMContentLoaded', function () {
   Core.muat();

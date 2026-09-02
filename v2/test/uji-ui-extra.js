@@ -94,6 +94,37 @@ for (const k of [...kelasDipakai].sort()) {
   lapor('Kelas CSS "' + k + '" dipakai UI tapi tidak ada di css.html.');
 }
 
+/* ---------- E) scriptlet "<?" hanya boleh di index.html ---------- */
+/* Berkas include dimuat lewat HtmlService.createHtmlOutputFromFile()
+   yang TIDAK mengevaluasi scriptlet — teks "<?=" akan terkirim mentah
+   ke browser (pun bisa memicu escaping blok <script> di pembungkus
+   iframe GAS → "Unexpected token '&lt;'"). */
+for (const f of berkasHtml) {
+  if (f !== 'index.html' && /<\?/.test(htmlMentah[f])) {
+    lapor('Scriptlet "<?" ditemukan di ' + f +
+          ' — hanya index.html yang dievaluasi scriptlet-nya.');
+  }
+}
+for (const f of fs.readdirSync(DIR).filter(f => /\.gs$/.test(f))) {
+  const isi = baca(f);
+  if (/createHtmlOutputFromFile\(['"][\w]+['"]\)/.test(isi) &&
+      /'<script>'/.test(isi)) {
+    lapor(f + ' merakit tag <script> sebagai string — pola ini pernah ' +
+          'memicu blok ter-escape di pembungkus iframe GAS.');
+  }
+}
+
+/* ---------- F) include() di index.html menunjuk berkas yang ada ---------- */
+{
+  const idx = baca('index.html');
+  let mm; const reInc = /include\(['"]([\w]+)['"]\)/g;
+  while ((mm = reInc.exec(idx))) {
+    if (!fs.existsSync(path.join(DIR, mm[1] + '.html'))) {
+      lapor('index.html meng-include "' + mm[1] + '" yang tidak ada di v2/.');
+    }
+  }
+}
+
 /* ---------- ringkasan ---------- */
 console.log('ID terdefinisi: ' + idTerdefinisi.size +
   ' · kelas CSS terdefinisi: ' + kelasCss.size +
