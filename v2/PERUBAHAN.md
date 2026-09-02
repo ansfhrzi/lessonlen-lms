@@ -61,6 +61,30 @@ prasyarat, petunjuk di kolom pesan menunjukkan perbaikannya.
 |---|---|---|
 | `Uji.gs` | 🔴 **Wajib** (untuk yang memakai uji editor) | + suite `ujiCourse()` 18 uji; terdaftar di `ujiSemua` |
 
+### Hotfix 4.9 — `dialogTopik is not defined` (penyebab "tambah topik" gagal)
+
+Laporan: klik **+ Topik** → `Uncaught ReferenceError: dialogTopik is not
+defined`. Ini **bug UI sejati**: `dialogTopik()` dipanggil di `js_mapel.html`
+(+ Topik dan ✏️ edit topik) tapi **tidak pernah didefinisikan** di berkas
+mana pun — lolos karena seluruh uji node lama hanya menyentuh kode server
+(.gs). `ujiCourse()` di editor lulus karena memang jalur servernya benar.
+
+**Perbaikan**: definisi `dialogTopik(t, sesudah)` ditambahkan di
+`js_mapel.html` (dialog buat/edit judul + deskripsi → `topikSimpan` →
+muat ulang layar course; topik baru lahir draf sesuai rancangan).
+
+**Pencegahan**: uji statis baru `test/uji-ui.js` — tokenizer
+string/komentar/regex lalu bandingkan semua pemanggilan fungsi klien vs
+definisi global; exit 1 bila ada yang hilang. (Terverifikasi: dengan
+sumber lama tanpa `dialogTopik`, uji ini GAGAL — jadi bug kelas ini tak
+bisa lolos lagi.)
+
+| Berkas | Prioritas | Perubahan |
+|---|---|---|
+| `js_mapel.html` | 🔴 **Wajib salin ulang** | + `dialogTopik()` (44 baris) |
+| `test/uji-ui.js` | 🟡 Opsional (uji node) | baru — audit fungsi klien |
+| `README.md` | 🟡 Opsional | catat `uji-ui.js` |
+
 ### Rincian
 
 **Skema & migrasi — `Setup.gs`**
@@ -130,4 +154,5 @@ salin kata sandi sekali ketuk.
 | 4.8 | `8c7e583` | Urutan murid = campuran guru (`urutan[]`) | 113 |
 | dok | `a70119c` | Adendum rancangan §7.8b | — |
 | 4.9 | — | `Uji.gs`: suite `ujiCourse()` — repro quiz mandiri → topik baru (18 uji) | 18 |
+| hotfix | — | `js_mapel.html` + `dialogTopik()`; uji statis UI `uji-ui.js` | +1 (UI) |
 | dok | — | `PERUBAHAN.md` dibuat | — |

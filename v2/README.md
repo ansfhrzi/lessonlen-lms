@@ -34,7 +34,7 @@ yang ada di akar repositori.
 | `js_beranda.html` | Beranda guru (kisi statistik + perlu tindakan + kartu kelas) & murid (spanduk biodata + mapel), antrean reset, notifikasi |
 | `js_kelola.html` | Kelola kelas (daftar kartu + detail tabel), kelola murid (filter + tabel), impor massal dengan pratinjau |
 | `js_mapel.html` | Mapel, penugasan, topik & item (guru, baris-pertemuan bernomor + baris-item); **editor item gaya v1**: contenteditable + toolbar (tabel dinamis, video YouTube nocookie, mode HTML, pratinjau); murid: Kelas Saya → Materi → Topik → pembaca `isi-materi` |
-| `test/` | Uji logika: Gate 0 (18) + Tahap 3 (42) + Tahap 4 (84) |
+| `test/` | Uji logika: Gate 0 (18) + Tahap 3 (42) + Tahap 4 (113); uji statis UI `uji-ui.js` — deteksi fungsi klien dipanggil-tapi-tak-terdefinisi (ReferenceError) |
 
 ## Cara pasang (sekali saja)
 
@@ -96,6 +96,10 @@ di deployment `/exec` sungguhan:
 ```
 
 ## Uji di editor Apps Script
+
+Uji statis UI: `node v2/test/uji-ui.js` — memindai semua partial
+`js_*.html`/`v_*.html`; gagal bila ada fungsi yang dipanggil tapi tidak
+pernah didefinisikan (kelas bug `dialogTopik is not defined`).
 
 Selain uji Node (`test/`, jalankan dengan `node v2/test/<berkas>.js`),
 seluruh tahapan bisa diuji langsung dari editor Apps Script memakai

@@ -657,6 +657,50 @@ function gambarTopik(wadah, taId) {
     });
 }
 
+/** Dialog buat/edit Topik → simpan via topikSimpan → sesudah(). */
+function dialogTopik(t, sesudah) {
+  var edit = !!(t && t.topic_id);
+  dialog({
+    judul: edit ? '✏️ Edit Topik' : '➕ Topik Baru',
+    pesan: edit ? '' :
+      'Topik baru lahir sebagai DRAF — tak terlihat murid sampai ' +
+      'diterbitkan (👁) atau dijadwalkan (⏰).',
+    html:
+      '<div class="grup"><label for="d-tp-judul">Judul topik ' +
+        '<span class="wajib">*</span></label>' +
+        '<input class="isian" id="d-tp-judul" value="' +
+        esc(edit ? t.title : '') +
+        '" placeholder="mis. Pertemuan 1 — Pengenalan"></div>' +
+      '<div class="grup"><label for="d-tp-desk">Deskripsi</label>' +
+        '<textarea class="isian" id="d-tp-desk" rows="3" ' +
+        'placeholder="Opsional">' + esc(edit ? t.description : '') +
+        '</textarea></div>',
+    lebar: 'sedang',
+    labelYa: edit ? 'Simpan' : 'Buat'
+  }).then(function (ya) {
+    if (!ya) return;
+    var p = {
+      title: document.getElementById('d-tp-judul').value,
+      description: document.getElementById('d-tp-desk').value
+    };
+    if (edit) p.topic_id = t.topic_id;
+    else p.teaching_assignment_id = t && t.teaching_assignment_id;
+
+    tampilkanMuat(true, 'Menyimpan topik…');
+    callApi('topikSimpan', [State.token, p])
+      .then(function (hasil) {
+        tampilkanMuat(false);
+        toast(edit ? 'Topik tersimpan.' :
+          'Topik dibuat (draf). Isi materinya, lalu terbitkan.', 'sukses');
+        if (sesudah) sesudah(hasil);
+      })
+      .catch(function (res) {
+        tampilkanMuat(false);
+        toast((res && res.pesan) || 'Gagal menyimpan topik.', 'bahaya');
+      });
+  });
+}
+
 /** Dialog pilih jenis item baru → resolve('materi'|'quiz'|…). */
 function dialogJenisItem(pilih) {
   var html = '<div class="kotak-pilih">' + Object.keys(TIPE_ITEM).map(function (k) {
