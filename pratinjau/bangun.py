@@ -242,10 +242,15 @@ MOCK = r"""
       }
       return {};
     },
-    kelasMuridTersedia: function () {
-      return db.muridDaftar.filter(function (m) { return m.status === 'aktif'; })
+    /* kontrak nyata: (token, classId) → yang BELUM terdaftar di kelas itu */
+    kelasMuridTersedia: function (t, classId) {
+      var k = db.kelas.filter(function (x) { return x.class_id === classId; })[0];
+      return db.muridDaftar
+        .filter(function (m) { return m.status === 'aktif' &&
+                                     (!k || m.rombel !== k.name); })
         .map(function (m) { return { user_id: m.user_id, nama: m.nama,
-             username: m.username, kelas: m.rombel ? [m.rombel] : [] }; });
+             username: m.username,
+             kelas: m.rombel ? [{ class_id: k ? k.class_id : '', name: m.rombel }] : [] }; });
     },
     kelasEnroll: function (t, classId, pilihan) {
       var k = db.kelas.filter(function (x) { return x.class_id === classId; })[0];

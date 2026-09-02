@@ -167,6 +167,21 @@ const tunggu = (ms) => new Promise(r => setTimeout(r, ms));
   await tunggu(500);
   cek('kelas: detail terbuka (XI TKJ 1)', d.getElementById('jd-nama').textContent === 'XI TKJ 1');
   cek('kelas: tabel murid kelas ada', d.querySelectorAll('#wadah-detail tbody tr').length >= 1);
+  // --- tambah murid ke kelas (laporan pemakaian nyata) ---
+  d.getElementById('btn-enroll').click();
+  await tunggu(500);
+  cek('kelas: dialog "Tambah murid" terbuka dgn daftar tersedia',
+      d.querySelector('.kotak-dialog') &&
+      d.querySelector('.kotak-dialog').textContent.includes('Tambah murid ke kelas') &&
+      d.querySelectorAll('.slot-grid .slot').length >= 1);
+  d.querySelector('.slot-grid input[type="checkbox"]').checked = true;
+  d.querySelector('.kotak-dialog [data-aksi="ya"]').click();
+  await tunggu(600);
+  cek('kelas: enroll sukses → dialog tertutup, detail dimuat ulang',
+      !d.querySelector('.kotak-dialog') &&
+      d.getElementById('jd-sub') &&
+      d.getElementById('jd-sub').textContent.includes('murid terdaftar') &&
+      d.querySelectorAll('#wadah-detail tbody tr').length >= 4);
   d.getElementById('btn-kembali').click();
   await tunggu(300);
   cek('kelas: kembali ke kisi', !!d.getElementById('wadah-kisi'));

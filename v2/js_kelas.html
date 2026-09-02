@@ -196,7 +196,9 @@ var KelasLayar = (function () {
   /* ---------- enroll (tambah murid ke kelas) ---------- */
 
   function dialogEnroll(classId) {
-    Core.api('kelasMuridTersedia', Core.ambilToken()).then(function (daftar) {
+    /* kontrak: kelasMuridTersedia(token, classId) — sudah mengecualikan
+       murid yang terdaftar di kelas ini */
+    Core.api('kelasMuridTersedia', Core.ambilToken(), classId).then(function (daftar) {
       if (!daftar.length) {
         Core.dialog({
           judul: 'Tambah murid',
@@ -208,10 +210,11 @@ var KelasLayar = (function () {
         return;
       }
       var opsi = daftar.map(function (m) {
-        var kelasnya = (m.kelas && m.kelas.length) ? ' · sudah di ' + m.kelas.join(', ') : '';
+        var kelasnya = (m.kelas && m.kelas.length) ? ' · sudah di ' +
+          m.kelas.map(function (k) { return k.name; }).join(', ') : '';
         return '<label class="slot' + (m.kelas && m.kelas.length ? ' penuh' : '') + '">' +
-          '<input type="checkbox" value="' + Core.esc(m.user_id) + '" data-nama="' +
-          Core.esc(m.nama) + '"> <b>' + Core.esc(m.nama) + '</b>' +
+          '<input type="checkbox" value="' + Core.esc(m.user_id) + '"> <b>' +
+          Core.esc(m.nama) + '</b>' +
           '<small>' + Core.esc(m.username) + kelasnya + '</small></label>';
       }).join('');
 
@@ -225,9 +228,11 @@ var KelasLayar = (function () {
         labelYa: 'Daftarkan yang dicentang'
       }).then(function (ya) {
         if (!ya) return;
+        /* kontrak: kelasEnroll(token, classId, userIds) — array STRING
+           user_id, bukan objek (uji node uji-kelas memakai ['USR-…']) */
         var terpilih = [];
         document.querySelectorAll('.slot-grid input:checked').forEach(function (cb) {
-          terpilih.push({ user_id: cb.value, nama: cb.dataset.nama });
+          terpilih.push(cb.value);
         });
         if (!terpilih.length) return;
 
