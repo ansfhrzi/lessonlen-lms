@@ -77,6 +77,32 @@ function _bungkus(token, peran, fn) {
 }
 
 /* ============================================================
+ *  API — BIODATA & LUPA AKSES MANDIRI (keputusan 2026-09-02)
+ * ============================================================ */
+
+/** Murid melengkapi biodata: email, no WA, tanggal lahir (NISN opsional). */
+function simpanBiodata(token, p) {
+  return _bungkus(token, 'apa_saja', function (sesi) {
+    return Auth.simpanBiodata(sesi, p);
+  });
+}
+
+/** Lupa password: username + no WA + tanggal lahir → sandi baru otomatis. */
+function lupaPassword(tokenKosong, username, noWa, tglLahir) {
+  return _bungkus('', 'publik', function () {
+    return Auth.lupaPassword(username, noWa, tglLahir);
+  });
+}
+
+/** Lupa username & password: email + no WA + tanggal lahir
+ *  → username ditampilkan + sandi baru otomatis. */
+function lupaUsername(tokenKosong, email, noWa, tglLahir) {
+  return _bungkus('', 'publik', function () {
+    return Auth.lupaUsername(email, noWa, tglLahir);
+  });
+}
+
+/* ============================================================
  *  API — KELOLA MURID (menu dashboard guru — §22D)
  * ============================================================ */
 

@@ -29,13 +29,13 @@ yang ada di akar repositori.
 | `Setup.gs` | Skema **23 sheet**, `setupLengkap()`, seed, migrasi, `infoDatabase()` |
 | `Db.gs` | Lapisan akses Sheets: baca/tulis batch, cache, `LockService` |
 | `Util.gs` | Generator ID (sheet `Counters` + lock), hash kata sandi, sanitasi, audit log |
-| `Auth.gs` | Login, sesi, ganti/lupa/reset kata sandi (port v1) |
+| `Auth.gs` | Login, sesi, ganti/lupa/reset kata sandi (port v1) + biodata murid (email, no WA, **tanggal lahir**; NISN opsional) + **lupa sandi/username mandiri** (verifikasi 3 data → reset otomatis; gagal → hubungi guru) |
 | `Murid.gs` | **Tahap 3.1** — Kelola Murid: daftar/cari/filter, tambah/edit (sandi sementara), detail (+`pwd_awal`), impor massal + pratinjau (dedupe username) |
 | `Uji.gs` | **Uji dari editor Apps Script** ke DB nyata: `ujiSemua()` (atau `ujiGate0()` / `ujiMurid()`); data uji berpenanda `uXXXXXX` + pembersihan otomatis; akun seed tak diubah |
 | `index.html` + `css.html` | Cangkang UI |
 | `v_login.html`, `v_dashboard.html` | Layar masuk & dasbor guru/murid |
 | `js_core.html`, `js_auth.html` | Pembungkus `google.script.run`, token sesi, logika layar |
-| `test/` | Uji node: `uji-auth-gate0.js` (18) + `uji-murid.js` (65) + `uji-ui.js` (audit statis fungsi klien; daftar berkas auto) |
+| `test/` | Uji node: `uji-auth-gate0.js` (18) + `uji-murid.js` (65) + `uji-lupa-akses.js` (32) + `uji-ui.js` (audit statis fungsi klien; daftar berkas auto) |
 
 ## Cara pasang (sekali saja)
 
@@ -85,6 +85,11 @@ di deployment `/exec` sungguhan:
 - ✅ Tahap 1 — Database initializer (23 sheet + seed + migrasi)
 - ✅ Tahap 2 — Auth + session + audit log + UI login/dasbor
 - ✅ Tahap 3.1 — backend Kelola Murid (`Murid.gs` + endpoint + 65 uji)
+- ✅ Tahap 3.1c — **lupa sandi/username mandiri**: biodata murid +
+  tanggal lahir (NISN opsional; kolom baru `Users.tanggal_lahir` —
+  DB lama jalankan `migrasiStruktur()`); lupa password = username +
+  no WA + tgl lahir; lupa keduanya = email + no WA + tgl lahir →
+  username tampil + sandi baru; gagal → hubungi guru
 - ⬜ Tahap 3.2 — backend Kelola Kelas (CRUD + enroll ala v1)
 - ⬜ Tahap 3.3 — backend Kelola Course (kelas + mapel auto-dedupe)
 - ⬜ Tahap 3.4 — backend Status API Key (Script Properties ≤10)

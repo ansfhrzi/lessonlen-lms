@@ -147,9 +147,10 @@ var Auth = (function () {
     var biodata = null;
     if (biodataKurang) {
       biodata = {
-        nisn:  String(user.nisn || ''),
-        email: String(user.email || ''),
-        no_wa: String(user.no_wa || '')
+        nisn:          String(user.nisn || ''),
+        email:         String(user.email || ''),
+        no_wa:         String(user.no_wa || ''),
+        tanggal_lahir: String(user.tanggal_lahir || '')
       };
     }
 
@@ -319,8 +320,134 @@ var Auth = (function () {
     }));
   }
 
+  /* ------------------------------------------------ biodata murid */
+
+  /**
+   * Murid menyimpan/melengkapi biodatanya sendiri:
+   * email, no WA, tanggal lahir WAJIB; NISN opsional (2026-09-02).
+   * Biodata ini syarat alur lupa sandi/username mandiri.
+   */
+  function simpanBiodata(sesi, p) {
+    if (sesi.role !== 'murid') {
+      throw _err('AKSES_DITOLAK', 'Hanya murid yang memiliki biodata.');
+    }
+    var u = Db.cari('Users', 'user_id', sesi.user_id);
+    if (!u) throw _err('TIDAK_DITEMUKAN', 'Pengguna tidak ditemukan.');
+
+    var email = String(p && p.email || '').trim().toLowerCase();
+    if (!Util.emailSah(email)) {
+      throw _err('VALIDASI_GAGAL', 'Alamat email wajib diisi dengan benar.');
+    }
+    var wa = Util.normalisasiWa(p && p.no_wa);
+    if (!wa) {
+      throw _err('VALIDASI_GAGAL',
+        'Nomor WhatsApp wajib diisi dengan benar. Contoh: 081234567890');
+    }
+    var tgl = Util.tglLahirSah(p && p.tanggal_lahir);
+    if (!tgl) {
+      throw _err('VALIDASI_GAGAL',
+        'Tanggal lahir wajib diisi (format: HARI/BULAN/TAHUN).');
+    }
+    var nisn = String(p && p.nisn || '').trim();
+    if (nisn && !Util.nisnSah(nisn)) {
+      throw _err('VALIDASI_GAGAL', 'NISN hanya boleh angka (4–20 digit).');
+    }
+
+    Db.perbarui('Users', u._baris, {
+      email: email, no_wa: wa, tanggal_lahir: tgl, nisn: nisn,
+      updated_at: Util.sekarang()
+    });
+    Util.catatLog(sesi.user_id, 'SIMPAN_BIODATA', '', 'ok', sesi.role,
+                  'Users', sesi.user_id);
+    return { berhasil: true, biodata_kurang: false };
+  }
+
+  /* ------------------------------------- lupa sandi/username mandiri */
+
+  /**
+   * Pesan penolakan NETRAL — sama untuk "data tidak cocok", akun tak
+   * ada, atau akun bukan murid, agar tidak bisa dipakai menebak data.
+   */
+  var _PESAN_LUPA_GAGAL = 'Data tidak cocok. Silakan hubungi guru Anda ' +
+                          'untuk mereset akses.';
+
+  function _lupaTerlaluSering(kunci) {
+    try {
+      var cache = CacheService.getScriptCache();
+      var k = 'lupa_' + kunci;
+      var n = Number(cache.get(k)) || 0;
+      if (n >= 5) return true;
+      cache.put(k, String(n + 1), 900);   /* jendela 15 menit */
+      return false;
+    } catch (e) { return false; }
+  }
+
+  function _lupaResetDanJawab(user) {
+    var pwd = Util.passwordSementara();
+    var salt = Util.buatSalt();
+    Db.perbarui('Users', user._baris, {
+      password_hash: Util.hashPassword(pwd, salt), salt: salt,
+      pwd_awal: pwd,
+      harus_ganti_password: true,
+      updated_at: Util.sekarang()
+    });
+    _hapusSesiUser(user.user_id);
+    Util.catatLog(user.user_id, 'LUPA_AKSES_OTOMATIS',
+                  'reset mandiri ' + user.username, 'ok', 'murid',
+                  'Users', user.user_id);
+    return { diterima: true, username: user.username,
+             password_sementara: pwd };
+  }
+
+  /**
+   * LUPA PASSWORD (mandiri): verifikasi username + no WA + tanggal lahir
+   * → sandi langsung direset, sandi sementara baru dikembalikan sekali.
+   * Gagal apa pun → jawaban netral "hubungi guru" (keputusan 2026-09-02).
+   */
+  function lupaPassword(username, noWa, tglLahir) {
+    var u = Util.normalisasiUsername(username);
+    if (!u) return { diterima: false, pesan: _PESAN_LUPA_GAGAL };
+    if (_lupaTerlaluSering(u)) {
+      return { diterima: false, pesan: 'Terlalu banyak percobaan. ' +
+               'Silakan hubungi guru Anda.' };
+    }
+    var user = Db.cari('Users', 'username', u);
+    var cocok = !!user && user.role === 'murid' && user.status === 'aktif' &&
+      !!user.tanggal_lahir &&
+      Util.normalisasiWa(noWa) === Util.normalisasiWa(user.no_wa) &&
+      Util.tglLahirSah(tglLahir) === String(user.tanggal_lahir);
+    if (!cocok) return { diterima: false, pesan: _PESAN_LUPA_GAGAL };
+    return _lupaResetDanJawab(user);
+  }
+
+  /**
+   * LUPA USERNAME + PASSWORD (mandiri): verifikasi email + no WA +
+   * tanggal lahir → username ditampilkan DAN sandi direset.
+   */
+  function lupaUsername(email, noWa, tglLahir) {
+    var e = String(email || '').trim().toLowerCase();
+    if (!e) return { diterima: false, pesan: _PESAN_LUPA_GAGAL };
+    if (_lupaTerlaluSering('u:' + e)) {
+      return { diterima: false, pesan: 'Terlalu banyak percobaan. ' +
+               'Silakan hubungi guru Anda.' };
+    }
+    var kandidat = Db.saring('Users', { email: e })
+      .filter(function (x) { return x.role === 'murid' && x.status === 'aktif'; });
+    var user = null;
+    kandidat.forEach(function (x) {
+      if (x.tanggal_lahir &&
+          Util.normalisasiWa(noWa) === Util.normalisasiWa(x.no_wa) &&
+          Util.tglLahirSah(tglLahir) === String(x.tanggal_lahir)) user = x;
+    });
+    if (!user) return { diterima: false, pesan: _PESAN_LUPA_GAGAL };
+    return _lupaResetDanJawab(user);
+  }
+
   return {
     validasiToken: validasiToken,
+    simpanBiodata: simpanBiodata,
+    lupaPassword: lupaPassword,
+    lupaUsername: lupaUsername,
     login: login,
     gantiPassword: gantiPassword,
     ajukanReset: ajukanReset,

@@ -28,7 +28,7 @@ global.PropertiesService = {
 
 /* ---- Db tiruan berbasis objek ---- */
 const HEAD = {
-  Users: ['user_id','username','password_hash','salt','pwd_awal','nama','role','rombel','email','nisn','no_wa','status','harus_ganti_password','last_login','created_at','updated_at'],
+  Users: ['user_id','username','password_hash','salt','pwd_awal','nama','role','rombel','email','nisn','no_wa','tanggal_lahir','status','harus_ganti_password','last_login','created_at','updated_at'],
   Session: ['token','user_id','dibuat_at','expired_at'],
   Permintaan_Reset: ['request_id','user_id','input_user','status','dibuat_at','diproses_at'],
   Notifications: ['notif_id','user_id','jenis','judul','pesan','link','dibaca','created_at'],

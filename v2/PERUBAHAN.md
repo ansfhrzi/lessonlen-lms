@@ -91,6 +91,28 @@ editor terhadap DB sungguhan — pasangan uji node:
   tidak pernah diubah; akun seed dibuat otomatis bila DB kosong.
 - Terverifikasi: 41/41 lulus (mock harness lokal).
 
+### Tahap 3.1c — lupa sandi/username mandiri (keputusan 2026-09-02)
+
+Alur baru (§5.5 dokumen): murid membuktikan biodata → sandi direset
+otomatis. **PERUBAHAN SKEMA: kolom `Users.tanggal_lahir`** — bila DB
+sudah dipasang, jalankan **`migrasiStruktur()`** sekali setelah salin
+berkas.
+
+- `Setup.gs` 🔴 — SKEMA Users +`tanggal_lahir` (teks `YYYY-MM-DD`).
+- `Util.gs` 🔴 — +`tglLahirSah()` (terima `YYYY-MM-DD`/`DD/MM/YYYY`,
+  bakukan, tolak tanggal nyata-tak-sah & masa depan); biodata lengkap =
+  email + no WA + tanggal lahir (**NISN opsional**).
+- `Auth.gs` 🔴 — +`simpanBiodata` (murid isi biodatanya), `lupaPassword`
+  (username + no WA + tgl lahir → sandi baru), `lupaUsername` (email +
+  no WA + tgl lahir → username tampil + sandi baru); jawaban gagal
+  netral anti-enumerasi; batas 5×/15 menit; sesi lama tercabut;
+  hanya murid aktif.
+- `Code.gs` 🔴 — +3 endpoint: `simpanBiodata`, `lupaPassword` (publik),
+  `lupaUsername` (publik).
+- Uji: node `test/uji-lupa-akses.js` **32 kasus**; editor `ujiLupaAkses()`
+  **14 cek** (pra-cek kolom → petunjuk `migrasiStruktur()`); `Uji.gs`
+  kini `ujiSemua()` = 55 cek.
+
 ### Berkas yang harus ada di editor Apps Script (kondisi tahap 2)
 
 | Berkas | Isi | Status |
@@ -132,3 +154,4 @@ tidak ada — akan membuat error), `js_beranda.html`, `js_kelola.html`,
 | desain | (commit ini) | prototipe tampilan interaktif `desain/tampilan-v2.html` — bahan kesepakatan UI Tahap 3 | — |
 | tahap 3.1 | (commit ini) | backend Kelola Murid: `Murid.gs` baru + 5 endpoint + 65 uji node | +65 |
 | tahap 3.1b | (commit ini) | `Uji.gs` — uji editor (`ujiGate0` + `ujiMurid`) | +41 |
+| tahap 3.1c | (commit ini) | lupa akses mandiri: kolom `tanggal_lahir` + 3 endpoint + 32 uji node + `ujiLupaAkses()` | +32 node, +14 editor |

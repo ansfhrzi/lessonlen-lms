@@ -327,6 +327,80 @@ function ujiMurid() {
   return _ujiSelesai('TAHAP 3.1');
 }
 
+/* ============================================================ SUITE 3 */
+
+/** Biodata + lupa sandi/username mandiri (jalankan sendiri: ujiLupaAkses). */
+function ujiLupaAkses() {
+  _ujiMulai('LUPA AKSES MANDIRI — BIODATA, TANGGAL LAHIR');
+
+  /* --- prasyarat --- */
+  _ujiCek('SKEMA: Users punya kolom "tanggal_lahir" — bila GAGAL: jalankan migrasiStruktur()',
+          Db.header('Users').indexOf('tanggal_lahir') !== -1);
+  _ujiCek('BERKAS: Auth.lupaPassword/lupaUsername ada — bila GAGAL: salin ulang Auth.gs',
+          typeof Auth !== 'undefined' &&
+          typeof Auth.lupaPassword === 'function' &&
+          typeof Auth.lupaUsername === 'function');
+  _ujiCek('BERKAS: endpoint lupaPassword/lupaUsername ada — bila GAGAL: salin ulang Code.gs',
+          typeof lupaPassword === 'function' && typeof lupaUsername === 'function' &&
+          typeof simpanBiodata === 'function');
+
+  _ujiSeed();
+  var S = __UJI.stamp;
+
+  /* --- murid uji TANPA biodata --- */
+  var m = _ujiBuatMuridStump('lupa', 'UjiLupa123');
+  var login = Auth.login(m.username, m.password);
+  _ujiCek('login tanpa biodata → diminta melengkapi',
+          login.ok && login.data.biodata_kurang === true, JSON.stringify(login));
+  var tokM = login.data.token;
+
+  /* --- simpan biodata: NISN opsional, tgl lahir wajib --- */
+  var rb = simpanBiodata(tokM, { email: S + '@uji.sch.id',
+    no_wa: '081234567890', tanggal_lahir: '17/05/2010' });
+  _ujiCek('biodata tersimpan TANPA NISN (opsional)',
+          rb.ok === true && rb.data.biodata_kurang === false, JSON.stringify(rb));
+  var uB = Db.cari('Users', 'user_id', m.user_id);
+  _ujiCek('tgl lahir dibakukan YYYY-MM-DD & WA jadi 62…',
+          uB.tanggal_lahir === '2010-05-17' && uB.no_wa === '6281234567890');
+
+  /* --- lupa password: salah lalu benar --- */
+  var r1 = lupaPassword('', m.username, '628999999999', '2010-05-17');
+  _ujiCek('WA salah → ditolak dengan pesan "hubungi guru"',
+          r1.ok && r1.data.diterima === false &&
+          /hubungi guru/.test(r1.data.pesan), JSON.stringify(r1));
+  _ujiCek('sandi lama masih berlaku saat gagal',
+          Auth.login(m.username, m.password).ok === true);
+
+  var r2 = lupaPassword('', m.username, '081234567890', '17/05/2010');
+  _ujiCek('lupa password sukses → sandi sementara baru 8 kar.',
+          r2.ok && r2.data.diterima === true &&
+          (r2.data.password_sementara || '').length === 8, JSON.stringify(r2));
+  _ujiCek('login dgn sandi baru sukses',
+          Auth.login(m.username, r2.data.password_sementara).ok === true);
+  _ujiCek('sesi lama tercabut setelah reset mandiri',
+          Auth.validasiToken(tokM) === null);
+
+  /* --- lupa username & password: salah lalu benar --- */
+  var r3 = lupaUsername('', S + '@uji.sch.id', '628112233445', '17/05/2010');
+  _ujiCek('WA salah → ditolak', r3.ok && r3.data.diterima === false);
+  var r4 = lupaUsername('', S + '@uji.sch.id', '081234567890', '17/05/2010');
+  _ujiCek('lupa username sukses → username terlihat + sandi baru',
+          r4.ok && r4.data.diterima === true &&
+          r4.data.username === m.username &&
+          (r4.data.password_sementara || '').length === 8, JSON.stringify(r4));
+
+  /* --- batas 5×/15 menit --- */
+  for (var i = 0; i < 5; i++) {
+    lupaPassword('', m.username, '628000000000', '2010-05-17');
+  }
+  var r5 = lupaPassword('', m.username, '081234567890', '17/05/2010');
+  _ujiCek('percobaan ke-6 diblokir (data benar pun)',
+          r5.ok && r5.data.diterima === false &&
+          /Terlalu banyak/.test(r5.data.pesan), JSON.stringify(r5));
+
+  return _ujiSelesai('LUPA AKSES MANDIRI');
+}
+
 /* ============================================================ SEMUA */
 
 /** Jalankan seluruh suite. Fungsi inilah yang dijalankan dari editor. */
@@ -334,8 +408,9 @@ function ujiSemua() {
   var t0 = Date.now();
   var a = ujiGate0();
   var b = ujiMurid();
-  var total = a.jml + b.jml;
-  var gagal = a.gagal + b.gagal;
+  var c = ujiLupaAkses();
+  var total = a.jml + b.jml + c.jml;
+  var gagal = a.gagal + b.gagal + c.gagal;
   Logger.log('');
   Logger.log('====================================================');
   Logger.log(' UJI SEMUA: ' + (total - gagal) + '/' + total + ' lulus' +

@@ -264,7 +264,9 @@ username + password
 8. User nonaktif ditolak.
 9. Server membuat sesi token (TTL 12 jam) + cache 1 jam.
 10. last_login dicatat; login dicatat di Audit_Logs.
-11. Murid dengan biodata belum lengkap (email + no WA) diminta melengkapinya.
+11. Murid dengan biodata belum lengkap (email, no WA, tanggal lahir —
+    NISN opsional) diminta melengkapinya; biodata ini dipakai alur
+    lupa sandi/username mandiri (§5.5).
 12. User dengan harus_ganti_password = true dipaksa mengganti kata sandi.
 ```
 
@@ -291,6 +293,34 @@ login berhasil
 → CacheService 'sesi_<token>' berisi snapshot user (TTL 1 jam)
 → setiap google.script.run mengirim token sebagai parameter pertama
 ```
+
+### 5.5 Lupa sandi & username mandiri (keputusan 2026-09-02)
+
+Murid dapat memulihkan aksesnya sendiri dengan membuktikan biodata yang
+pernah diisi (§5.2 langkah 11). Dua jalur:
+
+```text
+LUPA PASSWORD      : username + no WA + tanggal lahir
+LUPA KEDUANYA      : email + no WA + tanggal lahir → username ditampilkan
+                   → keduanya: sandi langsung direset otomatis,
+                     sandi sementara baru ditampilkan SEKALI di layar,
+                     murid wajib menggantinya di login berikutnya
+```
+
+Aturan:
+
+- Pencocokan tegas: `no_wa` ternormalisasi `62…`, `tanggal_lahir` bentuk
+  baku `YYYY-MM-DD`; hanya akun **murid aktif**; akun guru tidak dapat
+  memakai jalur ini (guru lupa → `resetGuruDarurat()`).
+- Jawaban gagal SELALU sama ("Data tidak cocok — hubungi guru Anda")
+  untuk sebab apa pun (data salah, akun tak ada) — anti-enumerasi.
+- Batas percobaan 5×/15 menit per akun/email (CacheService); melebihi →
+  diminta menghubungi guru walau data benar.
+- Reset mandiri mencabut seluruh sesi aktif, memasang
+  `harus_ganti_password`, dan tercatat di `Audit_Logs`.
+- **Biodata belum diisi atau data tak cocok → wajib menghubungi guru
+  secara langsung** — guru mereset lewat antrean §5.3 seperti sebelumnya
+  (jalur guru TIDAK berubah).
 
 Bila cache hilang, server jatuh ke sheet `Session` selama belum kedaluwarsa. Role dan status user selalu dibaca ulang dari `Users`; sesi otomatis dihapus bila user menjadi nonaktif, dan seluruh sesi milik satu user dicabut saat kata sandinya direset.
 
@@ -486,6 +516,7 @@ Struktur sama seperti v1 (nama field mengikuti `Setup.gs` LessonLen).
 | `email` | ❌ | Email (murid diminta mengisi; dipakai pengajuan reset) |
 | `nisn` | ❌ | NISN murid (boleh kosong, disimpan sebagai teks) |
 | `no_wa` | ❌ | Nomor WA ternormalisasi `62xxxxxxxxxx` |
+| `tanggal_lahir` | ⚠️ kondisional | Wajib bagi murid (biodata §5.2 langkah 11) — bentuk baku `YYYY-MM-DD`; dipakai verifikasi lupa akses mandiri (§5.5). DB lama: jalankan `migrasiStruktur()` |
 | `status` | ✅ | `aktif`, `nonaktif` |
 | `harus_ganti_password` | ✅ | Paksa ganti kata sandi pada login berikutnya |
 | `last_login` | ❌ | Login terakhir |
@@ -1616,6 +1647,7 @@ Sebelum implementasi, Admin/developer harus menyetujui jawaban atas pertanyaan b
 19. (Adendum 2026-09, penerapan tahap 4.6–4.8 di folder `v2/`) Status `Topics`/`Items` menjadi `draft|publish|scheduled` + kolom `publish_at`; quiz/refleksi dapat mandiri tanpa topik via `Items.ta_id`; satu susunan course gabungan (`coursePindah`, renumber 1..N); murid menerima `urutan[]` campuran yang sama dengan guru. Lihat §7.8b.
 20. (Rollback 2026-09-02) Implementasi **tahap 3** (kelas/murid/enrollment + UI kelola) dan **tahap 4** (mapel/penugasan/topik/course/editor, port UI/UX gaya v1) dihapus dari folder `v2/` — UI/UX dinilai masih acak dan akan dibangun ulang dengan rancangan tampilan yang lebih matang. Kondisi kembali ke **tahap 2** (fondasi: skema 23 sheet, Auth lengkap, UI login + cangkang dasbor). Skema dan keputusan §7.7/§7.8/§7.8b TETAP menjadi acuan pembangunan ulang. Arsip kode tahap 3: commit `a63527b`; tahap 4: rentang `a63527b..c1c0157`.
 21. (Keputusan 2026-09-02, §22D; direvisi hari itu juga) Alur dashboard guru: lima menu (Kelola Kelas, Kelola Course, Kelola Murid, Rekap Nilai, Status API Key). Kata sandi murid tetap model v1 — hash+salt, `pwd_awal` terlihat guru sampai murid mengganti; skema `Users` tidak berubah.
+22. (Tambahan 2026-09-02, §5.5) Lupa sandi/username **mandiri** untuk murid: verifikasi username/email + no WA + tanggal lahir → sandi direset otomatis (lupa keduanya: username ikut ditampilkan). Biodata wajib murid bertambah **tanggal lahir** (kolom `Users.tanggal_lahir`); NISN opsional. Gagal/belum isi biodata → hubungi guru (jalur §5.3 tetap).
 19. Menetapkan database final menjadi 21 sheet dengan `Audit_Logs`.
 20. Membersihkan konsep arsitektur lama “1 project/spreadsheet per guru”.
 

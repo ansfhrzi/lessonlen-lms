@@ -139,10 +139,31 @@ var Util = (function () {
     return /^[0-9]{4,20}$/.test(s);
   }
 
-  /** Biodata murid lengkap = email sah + no WA terisi (sama seperti v1). */
+  /** Tanggal lahir — terima YYYY-MM-DD atau DD/MM/YYYY; kembalikan
+      bentuk baku YYYY-MM-DD, atau '' bila tidak sah. */
+  function tglLahirSah(v) {
+    var s = String(v || '').trim();
+    var m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+    if (!m) {
+      m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+      if (m) m = [s, m[3], m[2], m[1]];
+    }
+    if (!m) return '';
+    var t = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+    if (t.getFullYear() !== Number(m[1]) || t.getMonth() !== Number(m[2]) - 1 ||
+        t.getDate() !== Number(m[3])) return '';
+    if (Number(m[1]) < 1900 || new Date(t.getTime() + 365 * 864e5) > new Date()) {
+      return '';   /* tak masuk akal: <1900 atau lahir di masa depan */
+    }
+    return m[1] + '-' + ('0' + m[2]).slice(-2) + '-' + ('0' + m[3]).slice(-2);
+  }
+
+  /** Biodata murid lengkap = email sah + no WA + tanggal lahir.
+      NISN OPSIONAL (keputusan 2026-09-02) — tidak dihitung. */
   function biodataLengkap(u) {
     if (!u) return false;
-    return emailSah(u.email) && !!normalisasiWa(u.no_wa);
+    return emailSah(u.email) && !!normalisasiWa(u.no_wa) &&
+           !!tglLahirSah(u.tanggal_lahir);
   }
 
   function sekarang() { return new Date(); }
@@ -276,7 +297,7 @@ var Util = (function () {
     passwordSementara: passwordSementara, periksaPassword: periksaPassword,
     normalisasiUsername: normalisasiUsername,
     normalisasiWa: normalisasiWa, emailSah: emailSah,
-    nisnSah: nisnSah, biodataLengkap: biodataLengkap,
+    nisnSah: nisnSah, tglLahirSah: tglLahirSah, biodataLengkap: biodataLengkap,
     sekarang: sekarang, tambahJam: tambahJam, lewat: lewat,
     formatTanggal: formatTanggal,
     sanitasi: sanitasi, escapeHtml: escapeHtml,

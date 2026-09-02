@@ -36,16 +36,16 @@ var SKEMA = {
   Users: {
     /* Sama seperti v1 (keputusan final v2.1): username + kata sandi. */
     head: ['user_id','username','password_hash','salt','pwd_awal','nama','role',
-           'rombel','email','nisn','no_wa',
+           'rombel','email','nisn','no_wa','tanggal_lahir',
            'status','harus_ganti_password','last_login','created_at','updated_at'],
     lebar: { user_id:90, username:120, password_hash:200, salt:120,
              pwd_awal:110, nama:180, role:80, rombel:110, email:180,
-             nisn:120, no_wa:140, status:90,
+             nisn:120, no_wa:140, tanggal_lahir:110, status:90,
              harus_ganti_password:110, last_login:140, created_at:140,
              updated_at:140 },
     enum: { role: ['guru','murid'], status: ['aktif','nonaktif'],
             harus_ganti_password: [true,false] },
-    teks: ['nisn','no_wa','username','pwd_awal','rombel']
+    teks: ['nisn','no_wa','tanggal_lahir','username','pwd_awal','rombel']
   },
 
   Classes: {
