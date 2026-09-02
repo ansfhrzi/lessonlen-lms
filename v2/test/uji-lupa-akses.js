@@ -174,6 +174,27 @@ r = lupaPassword('token-sampah', 'budi.siswa', '081234567890', '2010-05-17');
 cek('endpoint publik tidak butuh sesi (token apa pun diterima)',
     r.ok === true);
 
+console.log('\n== ENDPOINT getBiodata (layar Biodata Saya) ==');
+
+/* sandi budi sudah direset mandiri dua kali → pakai sandi terakhir */
+const PWD1B = r.data.password_sementara ||
+              lupaUsername('', 'budi@sekolah.sch.id', '081234567890',
+                           '2010-05-17').data.password_sementara;
+const TOK1C = Auth.login('budi.siswa', PWD1B).data.token;
+r = getBiodata(TOK1C);
+cek('getBiodata → biodata tersimpan terbaca balik (baku 62… & YYYY-MM-DD)',
+    r.ok === true && r.data.email === 'budi@sekolah.sch.id' &&
+    r.data.no_wa === '6281234567890' &&
+    r.data.tanggal_lahir === '2010-05-17' &&
+    r.data.nisn === '0091234501', JSON.stringify(r));
+const TOK_GURU = Auth.login('guru', PWD_GURU).data.token;
+r = getBiodata(TOK_GURU);
+cek('getBiodata ditolak untuk guru (AKSES_DITOLAK)',
+    r.ok === false && r.error === 'AKSES_DITOLAK', JSON.stringify(r));
+r = getBiodata('token-sampah');
+cek('getBiodata tanpa sesi → SESI_INVALID',
+    r.ok === false && r.error === 'SESI_INVALID', JSON.stringify(r));
+
 /* ============ hasil ============ */
 console.log('\n----------------------------------------------------');
 if (gagal === 0) console.log('SEMUA ' + no + ' UJI LUPA-AKSES LULUS ✔');

@@ -109,6 +109,25 @@ var Core = (function () {
     el.classList.remove('tampil');
   }
 
+  /* ---------- salin ke papan klip ---------- */
+
+  function salin(teks) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(teks).then(function () {
+        toast('Disalin ke papan klip.', 'sukses');
+      }).catch(function () { salinCadangan(teks); });
+    } else salinCadangan(teks);
+  }
+  function salinCadangan(teks) {
+    var ta = document.createElement('textarea');
+    ta.value = teks;
+    document.body.appendChild(ta);
+    ta.select();
+    try { document.execCommand('copy'); toast('Disalin.', 'sukses'); }
+    catch (e) { toast('Gagal menyalin — salin manual.', 'bahaya'); }
+    ta.remove();
+  }
+
   /* ---------- toast ---------- */
 
   function toast(pesan, jenis) {
@@ -176,7 +195,11 @@ var Core = (function () {
         var b = e.target.closest('[data-aksi]');
         if (!b) return;
         var aksi = b.dataset.aksi;
-        if (aksi === 'ya' && opsi.saatYa) opsi.saatYa(tirai);
+        if (aksi === 'ya' && opsi.saatYa) {
+          /* saatYa boleh mengembalikan false utk menahan dialog terbuka
+             (mis. validasi gagal → pesan tampil di tempat) */
+          if (opsi.saatYa(tirai) === false) return;
+        }
         tutup(aksi === 'ya' ? true : (aksi === 'batal' ? false : aksi));
       });
       tirai.addEventListener('click', function (e) {
@@ -217,7 +240,8 @@ var Core = (function () {
   var JUDUL_RUTE = {
     beranda: 'Beranda', murid: 'Kelola Murid', kelas: 'Kelola Kelas',
     kelas_detail: 'Detail Kelas', course: 'Kelola Course',
-    rekap: 'Rekap Nilai', apikey: 'Status API Key'
+    rekap: 'Rekap Nilai', apikey: 'Status API Key',
+    biodata: 'Biodata Saya'
   };
 
   function daftarRute(nama, render) { RUTE[nama] = render; }
@@ -290,6 +314,12 @@ var Core = (function () {
     var av = $('profil-inisial');
     if (av) av.textContent = inisial(nama);
 
+    /* menu hanya utk role-nya (laporan: murid melihat menu guru) */
+    var peran = (state.user && state.user.role) || 'murid';
+    document.querySelectorAll('#menu-utama a[data-role]').forEach(function (a) {
+      a.style.display = a.dataset.role === peran ? '' : 'none';
+    });
+
     document.querySelectorAll('#menu-utama a').forEach(function (a) {
       a.addEventListener('click', function (e) {
         e.preventDefault();
@@ -347,7 +377,7 @@ var Core = (function () {
             user.harus_ganti_password === 'TRUE') {
           Auth.bukaGantiSandi();
         } else if (user.role === 'murid' && r && r.biodata_kurang === true) {
-          Auth.bukaBiodata();
+          pergiKe('biodata');
         }
       });
     }).catch(function () {
@@ -363,7 +393,7 @@ var Core = (function () {
     kirimForm: kirimForm,
     tampilkanPesanError: tampilkanPesanError,
     sembunyikanPesanError: sembunyikanPesanError,
-    toast: toast, dialog: dialog, konfirmasi: konfirmasi,
+    toast: toast, dialog: dialog, konfirmasi: konfirmasi, salin: salin,
     daftarRute: daftarRute, pergiKe: pergiKe,
     pasangCangkang: pasangCangkang,
     muatLonceng: muatLonceng,

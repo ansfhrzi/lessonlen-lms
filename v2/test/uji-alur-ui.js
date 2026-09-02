@@ -59,6 +59,36 @@ const tunggu = (ms) => new Promise(r => setTimeout(r, ms));
   cek('boot menampilkan form login', !!d.getElementById('form-login'));
   cek('merek = LessonLen', d.getElementById('merek-nama-login').textContent === 'LessonLen');
 
+  // --- alur LUPA AKSES §5.5 ---
+  d.getElementById('btn-lupa').click();
+  await tunggu(250);
+  cek('lupa: dialog pilihan jalur tampil',
+      d.querySelector('.kotak-dialog').textContent.includes('Pilih yang Anda lupa'));
+  d.querySelector('.kotak-dialog [data-aksi="sandi"]').click();
+  await tunggu(250);
+  cek('lupa: form lupa kata sandi (username+WA+tgl lahir)', !!d.getElementById('in-lp-user'));
+  // salah data → pesan netral, dialog TETAP terbuka
+  d.getElementById('in-lp-user').value = 'siswa02';
+  d.getElementById('in-lp-wa').value = '089900000000';
+  d.getElementById('in-lp-tgl').value = '2008-08-08';
+  d.querySelector('.kotak-dialog [data-aksi="ya"]').click();
+  await tunggu(500);
+  cek('lupa: data salah → pesan netral "hubungi guru", dialog tetap',
+      d.getElementById('salah-lupa').textContent.includes('hubungi guru') &&
+      !!d.getElementById('in-lp-user'));
+  cek('lupa: gagal → tawaran jalur guru tampil',
+      d.getElementById('salah-lupa').textContent.includes('permintaan ke guru'));
+  // data benar → sandi sementara tampil sekali
+  d.getElementById('in-lp-wa').value = '081234567002';
+  d.querySelector('.kotak-dialog [data-aksi="ya"]').click();
+  await tunggu(500);
+  cek('lupa: sukses → sandi sementara tampil SEKALI',
+      d.querySelector('.kotak-dialog').textContent.includes('hanya ditampilkan sekali') &&
+      d.querySelector('.kotak-dialog code') !== null);
+  d.querySelector('.kotak-dialog [data-aksi="ya"]').click();   // Masuk sekarang
+  await tunggu(300);
+  cek('lupa: kembali ke layar login', !!d.getElementById('form-login'));
+
   // login salah dulu
   d.getElementById('in-username').value = 'guru';
   d.getElementById('in-password').value = 'salah';
@@ -72,6 +102,10 @@ const tunggu = (ms) => new Promise(r => setTimeout(r, ms));
   d.getElementById('btn-masuk').click();
   await tunggu(700);
   cek('login guru → sidebar tampil', !!d.getElementById('sidebar'));
+  cek('guru: menu Biodata Saya tersembunyi', (() => {
+    const b = d.querySelector('#menu-utama a[data-rute="biodata"]');
+    return b && b.style.display === 'none';
+  })());
   cek('profil guru terisi', d.getElementById('profil-nama').textContent.includes('Ahmad'));
   cek('beranda: 4 kartu angka', d.querySelectorAll('.kisi-stat .stat').length === 4);
   cek('beranda: perlu tindakan tampil (2)', d.getElementById('layar').textContent.includes('2 permintaan reset'));
@@ -175,23 +209,36 @@ const tunggu = (ms) => new Promise(r => setTimeout(r, ms));
   d.getElementById('in-password').value = 'siswa123';
   d.getElementById('btn-masuk').click();
   await tunggu(700);
-  cek('murid: beranda murid (2 stat)', d.querySelectorAll('.kisi-stat .stat').length === 2);
-  cek('murid: kartu biodata kurang tampil', d.getElementById('layar').textContent.includes('belum lengkap'));
-  // dialog biodata muncul otomatis (biodata_kurang) — tutup dulu bila ada
-  if (d.querySelector('.kotak-dialog')) {
-    cek('murid: dialog biodata otomatis', d.querySelector('.kotak-dialog').textContent.includes('biodata'));
-    d.getElementById('in-bio-email').value = 'rara@contoh.id';
-    d.getElementById('in-bio-wa').value = '081234567001';
-    d.getElementById('in-bio-tgl').value = '2009-04-17';
-    d.querySelector('.kotak-dialog [data-aksi="ya"]').click();
-    await tunggu(500);
-    cek('murid: biodata tersimpan (toast)', d.getElementById('toast-wadah').textContent.includes('tersimpan') || true);
-  } else {
-    // klik tombol manual
-    d.getElementById('btn-isi-bio').click();
-    await tunggu(200);
-    cek('murid: dialog biodata via tombol', !!d.querySelector('.kotak-dialog'));
-  }
+  cek('murid: sidebar TANPA menu guru (5 menu tersembunyi)', (() => {
+    const rute = ['kelas', 'course', 'murid', 'rekap', 'apikey'];
+    return rute.every(r => {
+      const a = d.querySelector('#menu-utama a[data-rute="' + r + '"]');
+      return a && a.style.display === 'none';
+    });
+  })());
+  cek('murid: menu Biodata Saya tampil', (() => {
+    const a = d.querySelector('#menu-utama a[data-rute="biodata"]');
+    return a && a.style.display !== 'none';
+  })());
+  // biodata kurang → langsung diarahkan ke layar Biodata Saya
+  cek('murid: biodata kurang → layar Biodata Saya otomatis',
+      d.getElementById('layar').textContent.includes('Biodata Saya') &&
+      !!d.getElementById('in-bio-email'));
+  d.getElementById('in-bio-email').value = 'rara@contoh.id';
+  d.getElementById('in-bio-wa').value = '081234567001';
+  d.getElementById('in-bio-tgl').value = '2009-04-17';
+  d.getElementById('btn-simpan-bio').click();
+  await tunggu(500);
+  cek('murid: biodata tersimpan → kembali ke beranda',
+      d.getElementById('layar').textContent.includes('Halo'));
+  cek('murid: kartu "belum lengkap" hilang',
+      !d.getElementById('layar').textContent.includes('belum lengkap'));
+  // buka lagi lewat menu → form TERISI dari getBiodata
+  d.querySelector('#menu-utama a[data-rute="biodata"]').click();
+  await tunggu(500);
+  cek('murid: biodata terbaca balik (email terisi)',
+      d.getElementById('in-bio-email').value === 'rara@contoh.id' &&
+      d.getElementById('in-bio-tgl').value === '2009-04-17');
 
   console.log('');
   console.log(gagal ? `ALUR UI GAGAL ✘ — ${gagal} cek` : 'SEMUA CEK ALUR UI LULUS ✔');

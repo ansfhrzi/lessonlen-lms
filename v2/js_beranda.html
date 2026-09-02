@@ -149,7 +149,7 @@ var Beranda = (function () {
 
     layar.innerHTML = html;
     var btn = Core.$('btn-isi-bio');
-    if (btn) btn.addEventListener('click', function () { Auth.bukaBiodata(true); });
+    if (btn) btn.addEventListener('click', function () { Core.pergiKe('biodata'); });
   }
 
   Core.daftarRute('beranda', render);

@@ -402,6 +402,17 @@ function ujiLupaAkses() {
   _ujiCek('tgl lahir dibakukan YYYY-MM-DD & WA jadi 62…',
           uB.tanggal_lahir === '2010-05-17' && uB.no_wa === '6281234567890');
 
+  /* --- getBiodata: layar Biodata Saya (laporan pemakaian nyata) --- */
+  _ujiCek('BERKAS: endpoint getBiodata ada — bila GAGAL: salin ulang Code.gs',
+          typeof getBiodata === 'function');
+  var rg = getBiodata(tokM);
+  _ujiCek('getBiodata → biodata tersimpan terbaca balik',
+          rg.ok === true && rg.data.email === S + '@uji.sch.id' &&
+          rg.data.tanggal_lahir === '2010-05-17', JSON.stringify(rg));
+  var rg2 = getBiodata(Auth.login('guru', 'guru123').data.token);
+  _ujiCek('getBiodata ditolak untuk guru (AKSES_DITOLAK)',
+          rg2.ok === false && rg2.error === 'AKSES_DITOLAK', JSON.stringify(rg2));
+
   /* --- lupa password: salah lalu benar --- */
   var r1 = lupaPassword('', m.username, '628999999999', '2010-05-17');
   _ujiCek('WA salah → ditolak dengan pesan "hubungi guru"',

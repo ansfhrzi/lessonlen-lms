@@ -201,6 +201,21 @@ function simpanBiodata(token, p) {
 }
 
 /** Lupa password: username + no WA + tanggal lahir → sandi baru otomatis. */
+/** Biodata milik murid sendiri — dipakai layar "Biodata Saya"
+ *  (lihat/edit setelah lengkap) & acuan lupa akses mandiri §5.5. */
+function getBiodata(token) {
+  return _bungkus(token, 'murid', function (sesi) {
+    var u = Db.cari('Users', 'user_id', sesi.user_id);
+    if (!u) throw { kode: 'TIDAK_DITEMUKAN', message: 'Pengguna tidak ditemukan.' };
+    return {
+      nisn: String(u.nisn || ''),
+      email: String(u.email || ''),
+      no_wa: String(u.no_wa || ''),
+      tanggal_lahir: String(u.tanggal_lahir || '')
+    };
+  });
+}
+
 function lupaPassword(tokenKosong, username, noWa, tglLahir) {
   return _bungkus('', 'publik', function () {
     return Auth.lupaPassword(username, noWa, tglLahir);

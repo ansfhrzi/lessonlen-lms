@@ -25,7 +25,7 @@ yang ada di akar repositori.
 
 | Berkas | Fungsi |
 |---|---|
-| `Code.gs` | `doGet`, `include` (satu-satunya jalur sisip berkas klien), pembungkus API `_bungkus`, endpoint auth + dasbor |
+| `Code.gs` | `doGet`, `include` (satu-satunya jalur sisip berkas klien), pembungkus API `_bungkus`, endpoint auth + dasbor + `getBiodata` (biodata murid sendiri utk layar Biodata Saya) |
 | `Setup.gs` | Skema **23 sheet**, `setupLengkap()`, seed, migrasi, `infoDatabase()` |
 | `Db.gs` | Lapisan akses Sheets: baca/tulis batch, cache, `LockService` |
 | `Util.gs` | Generator ID (sheet `Counters` + lock), hash kata sandi, sanitasi, audit log |
@@ -38,14 +38,14 @@ yang ada di akar repositori.
 | `index.html` + `css.html` | Cangkang UI; **scriptlet `<? ?>` hanya di index.html** (berkas include tak dievaluasi scriptlet); `css.html` = sistem desain (token tema `:root` hijau `#2F6B2B` — ganti tema cukup ubah variabel; responsif 4 breakpoint: 1024/900/700/380 — ponsel: sidebar off-canvas, dialog bottom-sheet) |
 | `v_login.html`, `v_dashboard.html` | Layar masuk + cangkang dasbor (sidebar/topbar/lonceng/toast) |
 | `js_core.html` | Pembungkus `google.script.run`, token sesi, router `Core.pergiKe`, dialog & toast global, lonceng notifikasi |
-| `js_auth.html` | Login, lupa sandi, keluar, dialog wajib-ganti-sandi & biodata murid |
+| `js_auth.html` | Login, keluar, wajib ganti sandi, **lupa akses §5.5** (2 jalur mandiri + jalur guru; sandi sementara tampil sekali; gagal → pesan netral) + layar **Biodata Saya** (murid: lihat/edit) |
 | `js_beranda.html` | **UI Tahap 3** — beranda §22D: guru (4 angka + perlu tindakan + **Course saya**: daftar course nyata milik guru) & murid |
 | `js_murid.html` | **UI Tahap 3** — Kelola Murid: daftar+cari/filter, tambah (dialog sandi + kirim WA), detail (+`pwd_awal`, reset), edit, nonaktif, impor massal + pratinjau |
 | `js_kelas.html` | **UI Tahap 3** — Kelola Kelas: kisi kartu, form buat/edit, detail (murid + tambah/keluarkan), arsip |
 | `js_course.html` | **UI Tahap 3** — Kelola Course: tabel, buat/edit (kelas + mapel), hapus = nonaktif |
 | `js_rekap.html` | **UI Tahap 3** — Rekap Nilai placeholder "menyusul" |
 | `js_apikey.html` | **UI Tahap 3** — Status API Key: 10 slot + status, timpa daftar, reset cooldown |
-| `test/` | Uji node: `uji-auth-gate0.js` (18) + `uji-murid.js` (65) + `uji-lupa-akses.js` (32) + `uji-kelas.js` (48) + `uji-course.js` (41) + `uji-apikey.js` (31) + `uji-beranda.js` (18) + `uji-ui.js` (audit statis fungsi klien; daftar berkas auto) + `uji-ui-extra.js` (audit id/endpoint/CSS/rute) + `uji-alur-ui.js` (opsional: alur klik di jsdom, dilewati bila jsdom/pratinjau tak ada) |
+| `test/` | Uji node: `uji-auth-gate0.js` (18) + `uji-murid.js` (65) + `uji-lupa-akses.js` (35) + `uji-kelas.js` (48) + `uji-course.js` (41) + `uji-apikey.js` (31) + `uji-beranda.js` (18) + `uji-ui.js` (audit statis fungsi klien; daftar berkas auto) + `uji-ui-extra.js` (audit id/endpoint/CSS/rute) + `uji-alur-ui.js` (opsional: alur klik di jsdom, dilewati bila jsdom/pratinjau tak ada) |
 
 ## Cara pasang (sekali saja)
 
