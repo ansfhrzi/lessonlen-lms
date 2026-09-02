@@ -161,7 +161,10 @@ var Core = (function () {
         '</div>';
 
       function tutup(hasil) {
-        tirai.remove();
+        /* Jangan langsung menghapus DOM: .then() penelepon membaca isian
+           form lewat Core.$() — microtask promise harus jalan lebih dulu,
+           maka penghapusan ditunda satu tick. */
+        setTimeout(function () { tirai.remove(); }, 0);
         resolve(hasil);
       }
 

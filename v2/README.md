@@ -45,7 +45,7 @@ yang ada di akar repositori.
 | `js_course.html` | **UI Tahap 3** — Kelola Course: tabel, buat/edit (kelas + mapel), hapus = nonaktif |
 | `js_rekap.html` | **UI Tahap 3** — Rekap Nilai placeholder "menyusul" |
 | `js_apikey.html` | **UI Tahap 3** — Status API Key: 10 slot + status, timpa daftar, reset cooldown |
-| `test/` | Uji node: `uji-auth-gate0.js` (18) + `uji-murid.js` (65) + `uji-lupa-akses.js` (32) + `uji-kelas.js` (48) + `uji-course.js` (41) + `uji-apikey.js` (31) + `uji-beranda.js` (18) + `uji-ui.js` (audit statis fungsi klien; daftar berkas auto) |
+| `test/` | Uji node: `uji-auth-gate0.js` (18) + `uji-murid.js` (65) + `uji-lupa-akses.js` (32) + `uji-kelas.js` (48) + `uji-course.js` (41) + `uji-apikey.js` (31) + `uji-beranda.js` (18) + `uji-ui.js` (audit statis fungsi klien; daftar berkas auto) + `uji-ui-extra.js` (audit id/endpoint/CSS/rute) + `uji-alur-ui.js` (opsional: alur klik di jsdom, dilewati bila jsdom/pratinjau tak ada) |
 
 ## Cara pasang (sekali saja)
 
