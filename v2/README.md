@@ -31,11 +31,12 @@ yang ada di akar repositori.
 | `Util.gs` | Generator ID (sheet `Counters` + lock), hash kata sandi, sanitasi, audit log |
 | `Auth.gs` | Login, sesi, ganti/lupa/reset kata sandi (port v1) + biodata murid (email, no WA, **tanggal lahir**; NISN opsional) + **lupa sandi/username mandiri** (verifikasi 3 data → reset otomatis; gagal → hubungi guru) |
 | `Murid.gs` | **Tahap 3.1** — Kelola Murid: daftar/cari/filter, tambah/edit (sandi sementara), detail (+`pwd_awal`), impor massal + pratinjau (dedupe username) |
+| `Kelas.gs` | **Tahap 3.2** — Kelola Kelas: CRUD + arsip (ditolak bila dipakai course aktif), detail + murid ter-enroll, murid tersedia utk enroll, enroll (dedupe + reaktivasi + notif `enroll_kelas`), keluarkan |
 | `Uji.gs` | **Uji dari editor Apps Script** ke DB nyata: `ujiSemua()` (atau `ujiGate0()` / `ujiMurid()`); data uji berpenanda `uXXXXXX` + pembersihan otomatis; akun seed tak diubah |
 | `index.html` + `css.html` | Cangkang UI |
 | `v_login.html`, `v_dashboard.html` | Layar masuk & dasbor guru/murid |
 | `js_core.html`, `js_auth.html` | Pembungkus `google.script.run`, token sesi, logika layar |
-| `test/` | Uji node: `uji-auth-gate0.js` (18) + `uji-murid.js` (65) + `uji-lupa-akses.js` (32) + `uji-ui.js` (audit statis fungsi klien; daftar berkas auto) |
+| `test/` | Uji node: `uji-auth-gate0.js` (18) + `uji-murid.js` (65) + `uji-lupa-akses.js` (32) + `uji-kelas.js` (48) + `uji-ui.js` (audit statis fungsi klien; daftar berkas auto) |
 
 ## Cara pasang (sekali saja)
 
@@ -90,7 +91,7 @@ di deployment `/exec` sungguhan:
   DB lama jalankan `migrasiStruktur()`); lupa password = username +
   no WA + tgl lahir; lupa keduanya = email + no WA + tgl lahir →
   username tampil + sandi baru; gagal → hubungi guru
-- ⬜ Tahap 3.2 — backend Kelola Kelas (CRUD + enroll ala v1)
+- ✅ Tahap 3.2 — backend Kelola Kelas (`Kelas.gs` + 7 endpoint + 48 uji)
 - ⬜ Tahap 3.3 — backend Kelola Course (kelas + mapel auto-dedupe)
 - ⬜ Tahap 3.4 — backend Status API Key (Script Properties ≤10)
 - ⬜ Tahap 3.5 — backend Beranda ringkas

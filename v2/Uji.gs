@@ -18,7 +18,7 @@
  *    · jejak di Audit_Logs sengaja dibiarkan — itu fungsinya
  * ============================================================ */
 
-var __UJI = { jml: 0, gagal: 0, stamp: '', ids: [], t0: 0 };
+var __UJI = { jml: 0, gagal: 0, stamp: '', ids: [], kelas: [], t0: 0 };
 
 /* ============================================================/helper */
 
@@ -27,6 +27,7 @@ function _ujiMulai(judul) {
   __UJI.gagal = 0;
   __UJI.stamp = 'u' + Math.floor(100000 + Math.random() * 900000);
   __UJI.ids = [];
+  __UJI.kelas = [];
   __UJI.t0 = Date.now();
   Logger.log('');
   Logger.log('====================================================');
@@ -53,6 +54,9 @@ function _ujiCoba(fn) {
 /** Catat user_id yang dibuat uji → disapu di akhir. */
 function _ujiLacak(userId) { __UJI.ids.push(String(userId)); }
 
+/** Catat class_id kelas uji → disapu di akhir (beserta enrollment-nya). */
+function _ujiLacakKelas(classId) { __UJI.kelas.push(String(classId)); }
+
 function _ujiSelesai(nama) {
   _ujiBersihkan();
   var lulus = __UJI.jml - __UJI.gagal;
@@ -66,20 +70,33 @@ function _ujiSelesai(nama) {
 /** Sapu seluruh jejak data uji milik stamp ini. */
 function _ujiBersihkan() {
   var sisa = 0;
+
+  /* kelas uji: enrollment-nya dulu, lalu baris kelasnya */
+  __UJI.kelas.forEach(function (cid) {
+    try {
+      var enr = Db.saring('Enrollment', { class_id: cid });
+      if (enr.length) Db.hapusBanyak('Enrollment', enr.map(function (x) { return x._baris; }));
+      var k = Db.cari('Classes', 'class_id', cid);
+      if (k) Db.hapus('Classes', k._baris);
+    } catch (e) { sisa++; }
+  });
+
   __UJI.ids.forEach(function (uid) {
     try {
       var u = Db.cari('Users', 'user_id', uid);
       if (!u) return;
-      ['Session', 'Permintaan_Reset'].forEach(function (sh) {
+      ['Session', 'Permintaan_Reset', 'Notifications'].forEach(function (sh) {
         var r = Db.saring(sh, { user_id: uid });
         if (r.length) {
           Db.hapusBanyak(sh, r.map(function (x) { return x._baris; }));
         }
       });
       try { CacheService.getScriptCache().remove('gagal_' + u.username); } catch (e) {}
+      try { CacheService.getScriptCache().remove('lupa_' + u.username); } catch (e) {}
       Db.hapus('Users', u._baris);
     } catch (e) { sisa++; }
   });
+
   if (sisa) {
     Logger.log('  !! ' + sisa + ' data uji gagal dibersihkan — cari penanda "' +
                __UJI.stamp + '" lalu hapus manual.');
@@ -401,6 +418,84 @@ function ujiLupaAkses() {
   return _ujiSelesai('LUPA AKSES MANDIRI');
 }
 
+/* ============================================================ SUITE 4 */
+
+/** Kelola Kelas (jalankan sendiri: ujiKelas). */
+function ujiKelas() {
+  _ujiMulai('TAHAP 3.2 — KELOLA KELAS');
+
+  /* --- prasyarat --- */
+  _ujiCek('BERKAS: Kelas.gs termuat — bila GAGAL: salin Kelas.gs',
+          typeof Kelas !== 'undefined');
+  _ujiCek('BERKAS: endpoint kelas* ada di Code.gs — bila GAGAL: salin ulang Code.gs',
+          typeof kelasDaftar === 'function' && typeof kelasEnroll === 'function');
+  _ujiCek('SKEMA: Classes/Enrollment/Notifications ada — bila GAGAL: jalankan setupLengkap()/migrasiStruktur()',
+          Db.header('Classes').indexOf('class_id') !== -1 &&
+          Db.header('Enrollment').indexOf('enroll_id') !== -1 &&
+          Db.header('Notifications').indexOf('notif_id') !== -1);
+
+  _ujiSeed();
+  var sesiG = _ujiSesiGuru();
+  var S = __UJI.stamp;
+
+  /* --- buat & duplikat --- */
+  var r = Kelas.simpan(sesiG, { name: 'Uji ' + S });
+  _ujiCek('kelas dibuat (KLS-…)', r.baru === true && /^KLS-/.test(r.class_id),
+          JSON.stringify(r));
+  var K = r.class_id;
+  _ujiLacakKelas(K);
+  var rdup = _ujiCoba(function () {
+    return Kelas.simpan(sesiG, { name: 'uji ' + S });
+  });
+  _ujiCek('nama kembar (tak peka huruf) ditolak DUPLIKAT', rdup.error === 'DUPLIKAT');
+
+  /* --- murid uji 2 orang + enroll --- */
+  var m1 = _ujiBuatMuridStump('k1', 'UjiKelas12');
+  var m2 = _ujiBuatMuridStump('k2', 'UjiKelas34');
+  var re = Kelas.enroll(sesiG, K, [m1.user_id, m2.user_id]);
+  _ujiCek('enroll 2 murid', re.ditambah === 2 && re.dilewati === 0,
+          JSON.stringify(re));
+  var rd = Kelas.detail(sesiG, K);
+  _ujiCek('detail: 2 murid, pwd_awal terlihat, urut nama',
+          rd.jml_murid === 2 && rd.murid[0].nama === 'Uji k1' &&
+          rd.murid[0].pwd_awal === 'UjiKelas12' && rd.murid[0].sudah_ganti === false);
+  _ujiCek('notif enroll_kelas terkirim ke 2 murid',
+          Db.saring('Notifications', { jenis: 'enroll_kelas' })
+            .filter(function (n) {
+              return n.user_id === m1.user_id || n.user_id === m2.user_id;
+            }).length === 2);
+  var rt = Kelas.muridTersedia(sesiG, K);
+  _ujiCek('murid uji tak muncul lagi di "tersedia"',
+          rt.every(function (x) {
+            return x.user_id !== m1.user_id && x.user_id !== m2.user_id;
+          }));
+
+  /* --- keluarkan lalu enroll ulang → reaktivasi --- */
+  Kelas.keluarkan(sesiG, K, m2.user_id);
+  _ujiCek('keluarkan → detail 1 murid', Kelas.detail(sesiG, K).jml_murid === 1);
+  var rr = Kelas.enroll(sesiG, K, [m2.user_id]);
+  _ujiCek('enroll ulang → reaktivasi baris (bukan baris baru)',
+          rr.diaktifkan === 1 && Kelas.detail(sesiG, K).jml_murid === 2,
+          JSON.stringify(rr));
+
+  /* --- arsip --- */
+  var ra = Kelas.arsip(sesiG, K);
+  _ujiCek('arsip sukses (tak dipakai course)', ra.diarsipkan === true);
+  _ujiCek('kelas arsip hilang dari daftar',
+          Kelas.daftar(sesiG).every(function (x) { return x.class_id !== K; }));
+
+  /* --- endpoint --- */
+  var tokenG = Auth.login('guru', 'guru123').data.token;
+  var re1 = kelasDaftar(tokenG);
+  _ujiCek('endpoint kelasDaftar (guru) OK', re1.ok === true, JSON.stringify(re1));
+  var tokMurid = Auth.login(m1.username, m1.password);
+  var re2 = kelasDaftar(tokMurid.ok ? tokMurid.data.token : '');
+  _ujiCek('endpoint kelasDaftar ditolak utk murid',
+          re2.ok === false && re2.error === 'AKSES_DITOLAK');
+
+  return _ujiSelesai('TAHAP 3.2');
+}
+
 /* ============================================================ SEMUA */
 
 /** Jalankan seluruh suite. Fungsi inilah yang dijalankan dari editor. */
@@ -409,8 +504,9 @@ function ujiSemua() {
   var a = ujiGate0();
   var b = ujiMurid();
   var c = ujiLupaAkses();
-  var total = a.jml + b.jml + c.jml;
-  var gagal = a.gagal + b.gagal + c.gagal;
+  var d = ujiKelas();
+  var total = a.jml + b.jml + c.jml + d.jml;
+  var gagal = a.gagal + b.gagal + c.gagal + d.gagal;
   Logger.log('');
   Logger.log('====================================================');
   Logger.log(' UJI SEMUA: ' + (total - gagal) + '/' + total + ' lulus' +

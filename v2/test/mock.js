@@ -66,6 +66,13 @@ global.Db = {
     const r = (TABEL[n]||[])[baris-2];
     if (r) Object.assign(r, obj);
   },
+  perbaruiBanyak: (n, items) => {
+    items.forEach(it => {
+      const r = (TABEL[n]||[])[it._baris-2];
+      if (r) Object.keys(it).forEach(k => { if (k !== '_baris') r[k] = it[k]; });
+    });
+    return items.length;
+  },
   hapus: (n, baris) => { (TABEL[n]||[]).splice(baris-2, 1); },
   hapusBanyak: (n, daftar) => {
     daftar.slice().sort((a,b)=>b-a).forEach(b => global.Db.hapus(n,b));

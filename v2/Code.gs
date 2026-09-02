@@ -77,6 +77,59 @@ function _bungkus(token, peran, fn) {
 }
 
 /* ============================================================
+ *  API — KELOLA KELAS (menu dashboard guru — §22D)
+ * ============================================================ */
+
+/** Daftar semua kelas aktif + hitungan murid & course. */
+function kelasDaftar(token) {
+  return _bungkus(token, 'guru', function (sesi) {
+    return Kelas.daftar(sesi);
+  });
+}
+
+/** Detail kelas + daftar murid yang ter-enroll (dengan pwd_awal). */
+function kelasDetail(token, classId) {
+  return _bungkus(token, 'guru', function (sesi) {
+    return Kelas.detail(sesi, classId);
+  });
+}
+
+/** Buat/edit kelas. */
+function kelasSimpan(token, p) {
+  return _bungkus(token, 'guru', function (sesi) {
+    return Kelas.simpan(sesi, p);
+  });
+}
+
+/** Arsipkan kelas (ditolak bila masih dipakai course aktif). */
+function kelasArsip(token, classId) {
+  return _bungkus(token, 'guru', function (sesi) {
+    return Kelas.arsip(sesi, classId);
+  });
+}
+
+/** Murid aktif yang belum terdaftar di kelas — bahan dialog enroll. */
+function kelasMuridTersedia(token, classId) {
+  return _bungkus(token, 'guru', function (sesi) {
+    return Kelas.muridTersedia(sesi, classId);
+  });
+}
+
+/** Enroll murid (dedupe + reaktivasi otomatis, proses v1). */
+function kelasEnroll(token, classId, userIds) {
+  return _bungkus(token, 'guru', function (sesi) {
+    return Kelas.enroll(sesi, classId, userIds);
+  });
+}
+
+/** Keluarkan murid dari kelas (akunnya tetap ada). */
+function kelasKeluarkan(token, classId, userId) {
+  return _bungkus(token, 'guru', function (sesi) {
+    return Kelas.keluarkan(sesi, classId, userId);
+  });
+}
+
+/* ============================================================
  *  API — BIODATA & LUPA AKSES MANDIRI (keputusan 2026-09-02)
  * ============================================================ */
 

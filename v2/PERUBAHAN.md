@@ -113,6 +113,21 @@ berkas.
   **14 cek** (pra-cek kolom → petunjuk `migrasiStruktur()`); `Uji.gs`
   kini `ujiSemua()` = 55 cek.
 
+### Tahap 3.2 — backend Kelola Kelas (2 Sep 2026)
+
+- **BARU `Kelas.gs`** 🔴 wajib salin: `daftar` (+jml murid/course),
+  `simpan` (buat/edit; nama dedupe tak-peka-huruf; tahun ajaran otomatis),
+  `arsip` (soft delete; **ditolak** bila masih dipakai course aktif),
+  `detail` (murid ter-enroll + `pwd_awal`/`sudah_ganti`),
+  `muridTersedia` (bahan dialog enroll + kelas lain yang diikuti),
+  `enroll` (proses persis v1: aktif→dilewati, keluar→reaktivasi;
+  notif `enroll_kelas` hanya ke yang berubah), `keluarkan`.
+- `Code.gs` 🔴 wajib salin: +7 endpoint `kelasDaftar / kelasDetail /
+  kelasSimpan / kelasArsip / kelasMuridTersedia / kelasEnroll /
+  kelasKeluarkan` (semua role `guru`).
+- Uji: node `test/uji-kelas.js` **48 kasus**; editor `ujiKelas()` 15 cek
+  → `ujiSemua()` kini **70 cek**. `test/mock.js` +`perbaruiBanyak`.
+
 ### Berkas yang harus ada di editor Apps Script (kondisi tahap 2)
 
 | Berkas | Isi | Status |
@@ -155,3 +170,4 @@ tidak ada — akan membuat error), `js_beranda.html`, `js_kelola.html`,
 | tahap 3.1 | (commit ini) | backend Kelola Murid: `Murid.gs` baru + 5 endpoint + 65 uji node | +65 |
 | tahap 3.1b | (commit ini) | `Uji.gs` — uji editor (`ujiGate0` + `ujiMurid`) | +41 |
 | tahap 3.1c | (commit ini) | lupa akses mandiri: kolom `tanggal_lahir` + 3 endpoint + 32 uji node + `ujiLupaAkses()` | +32 node, +14 editor |
+| tahap 3.2 | (commit ini) | backend Kelola Kelas: `Kelas.gs` + 7 endpoint + 48 uji node + `ujiKelas()` | +48 node, +15 editor |
