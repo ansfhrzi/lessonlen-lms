@@ -31,7 +31,11 @@ const HEAD = {
   Permintaan_Reset: ['request_id','user_id','input_user','status','dibuat_at','diproses_at'],
   Notifications: ['notif_id','user_id','jenis','judul','pesan','link','dibaca','created_at'],
   Counters: ['entity','last_number'],
-  Audit_Logs: ['log_id','user_id','role','action','entity','entity_id','detail','status','timestamp']
+  Audit_Logs: ['log_id','user_id','role','action','entity','entity_id','detail','status','timestamp'],
+  Classes: ['class_id','name','academic_year','status','created_at','updated_at'],
+  Subjects: ['subject_id','name','code','owner_teacher_id','status','created_at','updated_at'],
+  Teaching_Assignments: ['teaching_assignment_id','class_id','teacher_id','subject_id','academic_year','status','created_at','updated_at'],
+  Enrollment: ['enroll_id','class_id','user_id','tanggal_daftar','status']
 };
 const TABEL = {};   // nama -> array objek (sudah termasuk _baris)
 
@@ -46,6 +50,11 @@ global.Db = {
     for (const k in krit) if (r[k] !== krit[k]) return false;
     return true;
   }),
+  /* versi cepat di Db.gs nyata; di mock cukup didelegasikan */
+  cariCepat: function (n, kol, val) { return global.Db.cari(n, kol, val); },
+  cariCepat2: function (n, k1, v1, k2, v2) {
+    return global.Db.baca(n).filter(r => r[k1] === v1 && r[k2] === v2)[0] || null;
+  },
   tambah: (n, arr) => {
     const a = Array.isArray(arr) ? arr : [arr];
     (TABEL[n] = TABEL[n] || []).push(...a);
@@ -69,7 +78,11 @@ global.Db = {
       getLastRow: () => TABEL[n].length + 1,
       getRange: (row, col, nrows) => ({
         getValues: () => TABEL[n].slice(row-2, row-2+(nrows||1)).map(r=>[r[HEAD[n][col-1]]]),
-        setValue: (v) => { TABEL[n][row-2][HEAD[n][col-1]] = v; },
+        getValue: () => { const r = TABEL[n][row-2]; return r ? r[HEAD[n][col-1]] : null; },
+        setValue: (v) => {
+          TABEL[n][row-2] = TABEL[n][row-2] || {};
+          TABEL[n][row-2][HEAD[n][col-1]] = v;
+        },
         setValues: (vs) => { vs.forEach((v,i)=>{ TABEL[n][row-2+i] = {}; HEAD[n].forEach((h,c)=>TABEL[n][row-2+i][h]=v[c]); }); }
       })
     };

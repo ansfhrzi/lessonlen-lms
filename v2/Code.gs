@@ -77,6 +77,45 @@ function _bungkus(token, peran, fn) {
 }
 
 /* ============================================================
+ *  API — KELOLA MURID (menu dashboard guru — §22D)
+ * ============================================================ */
+
+/** Daftar seluruh murid + cari/filter status. */
+function muridDaftar(token, filter) {
+  return _bungkus(token, 'guru', function (sesi) {
+    return Murid.daftar(sesi, filter || {});
+  });
+}
+
+/** Detail satu murid (biodata + sandi sementara + kelas diikuti). */
+function muridDetail(token, userId) {
+  return _bungkus(token, 'guru', function (sesi) {
+    return Murid.detail(sesi, userId);
+  });
+}
+
+/** Tambah/edit murid. Buat → kembalikan password_sementara. */
+function muridSimpan(token, p) {
+  return _bungkus(token, 'guru', function (sesi) {
+    return Murid.simpan(sesi, p);
+  });
+}
+
+/** Uji impor tanpa menulis — untuk pratinjau di layar. */
+function muridPratinjauImpor(token, teks) {
+  return _bungkus(token, 'guru', function (sesi) {
+    return Murid.pratinjauImpor(sesi, teks);
+  });
+}
+
+/** Impor massal (maks 100) — kembalikan daftar sandi untuk guru. */
+function muridImpor(token, teks) {
+  return _bungkus(token, 'guru', function (sesi) {
+    return Murid.impor(sesi, teks);
+  });
+}
+
+/* ============================================================
  *  API — AUTENTIKASI (sama seperti v1)
  * ============================================================ */
 

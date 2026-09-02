@@ -53,6 +53,27 @@ API Key (10 slot + status). Ada pengalih tema (Indigo/Biru/Hijau) dan
 peta layar. **Bukan berkas Apps Script** — tidak disalin ke editor;
 nanti dipecah menjadi partial sesuai hasil kesepakatan.
 
+### Tahap 3.1 — backend Kelola Murid (2 Sep 2026)
+
+Backend menu **Kelola Murid** (alur §22D) — port setia perilaku v1:
+
+- **BARU `Murid.gs`** 🔴 wajib salin: `daftar` (cari/filter status + kelas
+  diikuti), `detail` (+`pwd_awal` & `sudah_ganti`), `simpan`
+  (tambah/edit sebagian; sandi sementara otomatis; nonaktif → sesi
+  dicabut), `pratinjauImpor` & `impor` (format `nama, rombel, username,
+  password`; dedupe username pakai akhiran; sandi kustom guru
+  divalidasi aturan sama; maks 100 baris).
+- `Code.gs` 🔴 wajib salin: +5 endpoint `muridDaftar / muridDetail /
+  muridSimpan / muridPratinjauImpor / muridImpor` (semua `_bungkus`
+  role `guru`).
+- `Auth.gs` **tidak berubah** — `resetPasswordMurid` sudah ada dari
+  tahap 2; `pwd_awal` dikosongkan otomatis saat murid ganti sandi.
+- Uji node **`test/uji-murid.js` — 65 kasus lulus** (tambah/edit/filter/
+  detail/impor/pratinjau/pencabutan sesi/endpoint); `test/mock.js` +
+  header sheet baru & `cariCepat`/`getValue` (untuk uji saja — tidak
+  disalin ke editor).
+- Total uji node kini: gate0 18 + murid 65 = **83**, plus `uji-ui.js`.
+
 ### Berkas yang harus ada di editor Apps Script (kondisi tahap 2)
 
 | Berkas | Isi | Status |
@@ -92,3 +113,4 @@ tidak ada — akan membuat error), `js_beranda.html`, `js_kelola.html`,
 | keputusan alur | (commit ini) | §22D: 5 menu dashboard, sandi teks (`Users.password`), beranda ringkas, rekap menyusul — **dokumen saja** | — |
 | revisi keputusan | (commit ini) | sandi murid kembali model v1 (hash+salt + `pwd_awal`) — §22D diperbarui; **nol perubahan skema** | — |
 | desain | (commit ini) | prototipe tampilan interaktif `desain/tampilan-v2.html` — bahan kesepakatan UI Tahap 3 | — |
+| tahap 3.1 | (commit ini) | backend Kelola Murid: `Murid.gs` baru + 5 endpoint + 65 uji node | +65 |
