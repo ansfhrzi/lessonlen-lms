@@ -27,9 +27,13 @@ yang ada di akar repositori.
 | `Kelas.gs` | CRUD kelas, murid + impor massal, enrollment (enroll/reaktivasi/keluarkan), kelas saya, biodata murid |
 | `Mapel.gs` | CRUD mapel, penugasan mengajar (unik per kelas+guru+mapel, reaktivasi), topik (urut, draft/publish, hapus kosong saja), item (jenis materi/quiz/tugas/refleksi, konten disanitasi), bacaan murid (publish + terdaftar) |
 | `Uji.gs` | **Uji tahapan dari EDITOR Apps Script**: `ujiGate0()`, `ujiTahap3()`, `ujiTahap4()`, `ujiSemua()` — data uji dibuat & dihapus otomatis |
-| `index.html` + `css.html` | Cangkang UI + gaya |
-| `v_login.html`, `v_dashboard.html` | Layar masuk & dasbor bernavigasi (Beranda/Kelas/Murid/Mapel/Penugasan/Topik/Kelas Saya/Materi/Notifikasi) |
-| `js_core.html`, `js_auth.html`, `js_kelola.html`, `js_mapel.html` | Pembungkus `google.script.run`, token sesi, logika layar |
+| `index.html` + `css.html` | Cangkang UI + sistem gaya **port dari v1** (Plus Jakarta Sans, palet hijau, topbar + lonceng, toast, tirai muat, dialog global, sidebar menu dengan laci HP) |
+| `v_login.html`, `v_dashboard.html` | Layar masuk (gradient + kartu) & cangkang dasbor `topbar-slot + isi-halaman` |
+| `js_core.html` | `callApi`, **router hash** (`#/beranda`, `#/kelas/<id>`, …), topbar + lonceng, **sidebar menu** (pintasan layar + daftar kelas), toast, dialog global, laci HP |
+| `js_auth.html` | Login, ganti sandi (layar terkunci ala v1), lupa sandi, profil, biodata (dialog, isian dipertahankan) |
+| `js_beranda.html` | Beranda guru (kisi statistik + perlu tindakan + kartu kelas) & murid (spanduk biodata + mapel), antrean reset, notifikasi |
+| `js_kelola.html` | Kelola kelas (daftar kartu + detail tabel), kelola murid (filter + tabel), impor massal dengan pratinjau |
+| `js_mapel.html` | Mapel, penugasan, topik & item (guru, baris-item + ikon tipe); murid: Kelas Saya → Materi → Topik → pembaca `isi-materi` |
 | `test/` | Uji logika: Gate 0 (18) + Tahap 3 (42) + Tahap 4 (84) |
 
 ## Cara pasang (sekali saja)
@@ -38,7 +42,7 @@ yang ada di akar repositori.
 2. Salin seluruh berkas folder ini ke project (nama file harus sama persis,
    tanpa awalan folder). Untuk berkas HTML, nama file di Apps Script adalah
    `index`, `css`, `v_login`, `v_dashboard`, `js_core`, `js_auth`,
-   `js_kelola`, `js_mapel`.
+   `js_beranda`, `js_kelola`, `js_mapel`.
 3. Jalankan fungsi **`setupLengkap`** dari editor → izinkan akses.
    Spreadsheet `DB_LMS_V2` (23 sheet) dibuat otomatis dan `DB_ID`
    tersimpan di Script Properties.

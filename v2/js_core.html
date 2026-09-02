@@ -1,217 +1,519 @@
 <script>
 /* ============================================================
- *  LMS v2 — js_core.html
- *  Inti klien: token sesi, pembungkus google.script.run,
- *  escape HTML, router layar sederhana
- * ============================================================ */
+   LMS v2 — js_core.html
+   Port arsitektur klien LessonLen v1 (js_core + js_menu):
+   router hash, topbar + lonceng, sidebar menu dengan laci HP,
+   toast, tirai muat, dialog global, panel gesir.
+   ============================================================ */
 
-var Core = (function () {
+var State = {
+  token: null,
+  user: null,          /* hasil cekSesi */
+  ringkasan: null,     /* hasil ringkasDashboard */
+  biodata: null        /* benih biodata dari login (bila kurang) */
+};
 
-  var KUNCI_TOKEN = 'lmsv2_token';
+var KUNCI_TOKEN = 'lmsv2_token';
 
-  var state = {
-    token: null,
-    user: null,          /* hasil cekSesi */
-    ringkas: null        /* hasil ringkasDashboard */
-  };
+/* -------------------------------------------------- token */
+function ambilToken() {
+  try { return sessionStorage.getItem(KUNCI_TOKEN) || ''; } catch (e) { return ''; }
+}
+function simpanToken(t) {
+  if (!t) t = '';
+  try {
+    if (t) sessionStorage.setItem(KUNCI_TOKEN, t);
+    else sessionStorage.removeItem(KUNCI_TOKEN);
+  } catch (e) { /* mode privat → abaikan */ }
+  State.token = t || null;
+}
 
-  /* ---------- token ---------- */
+/* -------------------------------------------------- api */
 
-  function ambilToken() {
-    try { return sessionStorage.getItem(KUNCI_TOKEN) || ''; } catch (e) { return ''; }
-  }
-  function simpanToken(t) {
-    try { sessionStorage.setItem(KUNCI_TOKEN, t); } catch (e) {}
-    state.token = t;
-  }
-  function buangToken() {
-    try { sessionStorage.removeItem(KUNCI_TOKEN); } catch (e) {}
-    state.token = null;
-    state.user = null;
-    state.ringkas = null;
-  }
-
-  /* ---------- api ---------- */
-
-  /**
-   * Panggil fungsi server lewat google.script.run.
-   * Mengembalikan Promise; resolusi = data (bukan seluruh {ok,...}).
-   * SESI_INVALID otomatis memaksa kembali ke layar login.
-   */
-  function api(namaFn) {
-    var args = Array.prototype.slice.call(arguments, 1);
-    return new Promise(function (resolve, reject) {
-      var runner = google.script.run
-        .withSuccessHandler(function (res) {
-          if (res && res.ok === false) {
-            if (res.error === 'SESI_INVALID') {
-              buangToken();
-              Auth.tampilkanLogin('Sesi berakhir. Silakan masuk kembali.');
-            }
-            reject(new Error(res.pesan || res.error || 'Gagal'));
-            return;
+/**
+ * Panggil fungsi server lewat google.script.run.
+ * Mengembalikan Promise yang SELESAI = data (bukan {ok,...}).
+ * Kegagalan ditampilkan toast — kecuali opsi { diam: true }.
+ * SESI_INVALID → token dibuang, dialihkan ke layar masuk.
+ *
+ * Galat dibuang SEBAGAI objek {fn, error, pesan} (bukan Error) agar
+ * .catch() pemanggil bisa membaca res.pesan ala v1.
+ */
+function callApi(fn, args, opsi) {
+  opsi = opsi || {};
+  args = args || [];
+  return new Promise(function (selesai, gagal) {
+    var runner = google.script.run
+      .withSuccessHandler(function (res) {
+        if (res && res.ok === false) {
+          if (res.error === 'SESI_INVALID') {
+            simpanToken('');
+            State.user = null;
+            State.ringkasan = null;
+            pergiKe('#/login');
           }
-          resolve(res ? res.data : null);
-        })
-        .withFailureHandler(function (err) {
-          reject(new Error((err && err.message) || 'Kesalahan jaringan'));
-        });
-      runner[namaFn].apply(runner, args);
-    });
+          _lapor(fn, args, res);
+          if (!opsi.diam) toast(res.pesan || res.error || 'Gagal', 'bahaya');
+          gagal(res);
+          return;
+        }
+        selesai(res ? res.data : null);
+      })
+      .withFailureHandler(function (err) {
+        var res = { error: 'JARINGAN', pesan: (err && err.message) || 'Kesalahan jaringan' };
+        _lapor(fn, args, res);
+        if (!opsi.diam) toast(res.pesan, 'bahaya');
+        gagal(res);
+      });
+    runner[fn].apply(runner, args);
+  });
+}
+
+function _lapor(fn, args, res) {
+  try {
+    console.error('[LessonLen] ' + fn + '() gagal: ' +
+      (res && res.error ? res.error : 'GALAT') + ' — ' +
+      (res && res.pesan ? res.pesan : 'tanpa pesan'));
+    console.error('  argumen :', JSON.stringify(args));
+  } catch (e) { /* console tidak tersedia → abaikan */ }
+}
+
+/* Jaring pengaman ala v1: penolakan yang sudah ditangani tidak
+   memenuhi console dengan "Uncaught (in promise)". */
+window.addEventListener('unhandledrejection', function (e) {
+  var r = e.reason;
+  if (r && (r.error || r.pesan)) {
+    console.warn('[LessonLen] galat sudah ditangani: ' +
+      (r.fn ? r.fn + '() ' : '') + (r.error || '') + ' — ' + (r.pesan || ''));
+    e.preventDefault();
+  }
+});
+
+/* -------------------------------------------------- bantu dasar */
+function esc(t) {
+  return String(t == null ? '' : t)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+function $(sel, induk) { return (induk || document).querySelector(sel); }
+function $$(sel, induk) {
+  return Array.prototype.slice.call((induk || document).querySelectorAll(sel));
+}
+function ambilTemplate(id) {
+  var t = document.getElementById(id);
+  if (!t) throw new Error('Template tidak ada: ' + id);
+  return t.content.cloneNode(true);
+}
+/** Render template ke #app. */
+function render(idTemplate) {
+  var app = document.getElementById('app');
+  app.innerHTML = '';
+  app.appendChild(ambilTemplate(idTemplate));
+  window.scrollTo(0, 0);
+  return app;
+}
+
+/** Kotak "tidak ada isi" — pola v1. */
+function kosongkan(ikon, judul, pesan, tombol) {
+  return '<div class="kartu kosong">' +
+    '<div class="ikon">' + (ikon || '📭') + '</div>' +
+    '<h3>' + esc(judul || '') + '</h3>' +
+    '<p class="kecil">' + esc(pesan || '') + '</p>' +
+    (tombol || '') + '</div>';
+}
+
+/** Kerangka abu-abu selagi memuat. */
+function rangkaMuat(tinggi, jml) {
+  var out = '';
+  for (var i = 0; i < (jml || 3); i++) {
+    out += '<div class="rangka mb-8" style="height:' +
+           (tinggi || 76) + 'px"></div>';
+  }
+  return out;
+}
+
+/* -------------------------------------------------- muat & toast */
+function tampilkanMuat(tampil, pesan) {
+  var el = document.getElementById('tirai-muat');
+  if (!el) return;
+  var p = document.getElementById('pesan-muat');
+  if (p) p.textContent = tampil ? (pesan || '') : '';
+  el.classList.toggle('tampil', !!tampil);
+}
+
+function toast(pesan, jenis, detik) {
+  var wadah = document.getElementById('toast-wadah');
+  if (!wadah) return;
+  var d = document.createElement('div');
+  d.className = 'toast' + (jenis ? ' toast-' + jenis : '');
+  d.textContent = pesan;
+  wadah.appendChild(d);
+  setTimeout(function () {
+    d.style.opacity = '0';
+    d.style.transition = 'opacity .25s';
+    setTimeout(function () { d.remove(); }, 260);
+  }, (detik || 3) * 1000);
+}
+
+/* -------------------------------------------------- dialog */
+
+/**
+ * Dialog global — port setia dari v1.
+ * opsi: { judul, pesan, html, labelYa, labelBatal, bahaya,
+ *         tanpaBatal, lebar ('sedang'|'penuh') }
+ * Resolve: 'ya' → true, tombol lain → nilai data-aksi, batal → false.
+ * Isi dialog TIDAK dihapus saat ditutup — nilai isian masih terbaca.
+ */
+function dialog(opsi) {
+  return new Promise(function (resolve) {
+    var tirai = document.getElementById('tirai-dialog');
+    var isi   = document.getElementById('isi-dialog');
+
+    isi.classList.remove('dialog-lebar', 'dialog-penuh');
+    if (opsi.lebar === 'sedang') isi.classList.add('dialog-lebar');
+    else if (opsi.lebar === 'penuh') isi.classList.add('dialog-penuh');
+
+    var tombolTambahan = opsi.tombolTambahan || '';
+    var isiHtml = (typeof opsi.html === 'string') ? opsi.html : '';
+
+    isi.innerHTML =
+      '<h3>' + esc(opsi.judul) + '</h3>' +
+      '<p class="lembut kecil">' + (opsi.pesan || '') + '</p>' +
+      isiHtml +
+      '<div class="dialog-aksi">' +
+        tombolTambahan +
+        (opsi.tanpaBatal ? '' :
+          '<button class="btn btn-hantu" data-aksi="__batal">' +
+          esc(opsi.labelBatal || 'Batal') + '</button>') +
+        (opsi.tanpaYa ? '' :
+          '<button class="btn ' + (opsi.bahaya ? 'btn-bahaya' : '') +
+          '" data-aksi="ya">' + esc(opsi.labelYa || 'Ya') + '</button>') +
+      '</div>';
+
+    /* isi berupa Node/<template> (mis. ambilTemplate('tpl-lupa')) */
+    if (opsi.html && opsi.html.nodeType) {
+      var wadahNode = document.createElement('div');
+      wadahNode.appendChild(opsi.html);
+      isi.insertBefore(wadahNode, isi.querySelector('.dialog-aksi'));
+    }
+
+    function tutup(hasil) {
+      tirai.classList.remove('tampil');
+      isi.onclick = null;
+      resolve(hasil);
+    }
+    isi.onclick = function (e) {
+      var b = e.target.closest('[data-aksi]');
+      if (!b) return;
+      var aksi = b.dataset.aksi;
+      tutup(aksi === 'ya' ? true : (aksi === '__batal' ? false : aksi));
+    };
+    tirai.classList.add('tampil');
+    var fokus = isi.querySelector('input, textarea, select');
+    if (fokus) fokus.focus();
+  });
+}
+
+function konfirmasi(judul, pesan, opsi) {
+  opsi = opsi || {};
+  opsi.judul = judul;
+  opsi.pesan = pesan;
+  return dialog(opsi);
+}
+
+/* -------------------------------------------------- router */
+var RUTE = {};
+function daftarRute(pola, penangan) { RUTE[pola] = penangan; }
+
+function pergiKe(hash) {
+  if (location.hash === hash) router();
+  else location.hash = hash;
+}
+
+function router() {
+  var hash = location.hash || '#/';
+  var bagian = hash.slice(2).split('/').filter(function (x) { return x !== ''; });
+
+  /* belum login → paksa ke login */
+  if (!State.token && bagian[0] !== 'login') {
+    if (location.hash !== '#/login') { location.hash = '#/login'; return; }
   }
 
-  /* ---------- util ---------- */
-
-  function esc(t) {
-    return String(t == null ? '' : t)
-      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
-  }
-
-  function $(id) { return document.getElementById(id); }
-
-  /** Instansiasi <template> ke #app. */
-  function pasangTemplate(idTpl) {
-    var tpl = $(idTpl);
-    var app = $('app');
-    app.innerHTML = '';
-    app.appendChild(tpl.content.cloneNode(true));
-  }
-
-  function kirimForm(btn, sedang, teksAksi) {
-    if (btn) {
-      btn.disabled = sedang;
-      if (sedang) {
-        btn.dataset.teks = btn.textContent;
-        btn.textContent = teksAksi || 'Memproses…';
-      } else if (btn.dataset.teks) {
-        btn.textContent = btn.dataset.teks;
-      }
+  /* wajib ganti password → terkunci di layar itu (pola v1) */
+  if (State.user && State.user.harus_ganti_password &&
+      bagian[0] !== 'ganti-password') {
+    if (location.hash !== '#/ganti-password') {
+      location.hash = '#/ganti-password';
+      return;
     }
   }
 
-  function tampilkanPesanError(el, pesan) {
-    if (!el) return;
-    el.textContent = pesan || 'Terjadi kesalahan.';
-    el.classList.add('tampil');
+  var kunci = bagian[0] || (State.token ? 'beranda' : 'login');
+  var fn = RUTE[kunci];
+
+  if (!fn) {
+    try {
+      console.error('[LessonLen] rute tidak dikenal: "' + kunci + '"');
+      console.error('  rute tersedia :', Object.keys(RUTE).sort().join(', '));
+    } catch (e) {}
+    var adaBeranda = typeof RUTE.beranda === 'function';
+    if (kunci !== 'beranda' && adaBeranda) {
+      location.hash = State.token ? '#/beranda' : '#/login';
+      return;
+    }
+    var wadah = document.getElementById('isi-halaman');
+    if (!wadah) { try { render('tpl-dashboard'); } catch (e) {} }
+    wadah = document.getElementById('isi-halaman') || document.body;
+    wadah.innerHTML =
+      '<div class="kartu" style="text-align:center;margin:24px">' +
+        '<div style="font-size:2rem">🤷</div>' +
+        '<h3>Halaman tidak dapat dibuka</h3>' +
+        '<p class="kecil">Rute "' + String(kunci).replace(/[<>&]/g, '') +
+          '" tidak dikenali. Berkas JS kemungkinan belum tersalin ' +
+          'lengkap ke editor Apps Script.</p>' +
+        '<button class="btn btn-hantu btn-kecil mt-16" ' +
+          'onclick="location.reload()">Muat Ulang</button>' +
+      '</div>';
+    return;
   }
-  function sembunyikanPesanError(el) {
-    if (!el) return;
-    el.textContent = '';
-    el.classList.remove('tampil');
-  }
+  fn(bagian.slice(1));
+}
 
-  /* ---------- tampilan & dialog ---------- */
+window.addEventListener('hashchange', router);
 
-  /** Tampilkan satu .tampilan dan sorot tombol menunya. */
-  function tampilkanTampilan(id) {
-    document.querySelectorAll('.tampilan').forEach(function (s) {
-      s.classList.toggle('aktif', s.id === 'tampilan-' + id);
-    });
-    document.querySelectorAll('#menu-utama button').forEach(function (b) {
-      b.classList.toggle('aktif', b.dataset.tampilan === id);
-    });
-  }
+/* -------------------------------------------------- topbar (pola v1) */
+function pasangTopbar(induk) {
+  var el = $('#topbar-slot', induk);
+  if (!el || !State.user) return;
 
-  /**
-   * Dialog modal serbaguna.
-   * @param {string}   judul
-   * @param {Node}     isi       node konten (form dsb.)
-   * @param {Array}    tombol    [{teks, kelas, klik(btn, tirai)}]
-   *                             klik mengembalikan false → dialog tetap terbuka
-   */
-  function dialog(judul, isi, tombol) {
-    var tirai = document.createElement('div');
-    tirai.className = 'tirai';
-
-    var kotak = document.createElement('div');
-    kotak.className = 'kotak-dialog';
-    kotak.innerHTML = '<h3>' + esc(judul) + '</h3>';
-    kotak.appendChild(isi);
-
-    var aksi = document.createElement('div');
-    aksi.className = 'aksi';
-    (tombol || []).forEach(function (t) {
-      var b = document.createElement('button');
-      b.className = 'btn ' + (t.kelas || 'btn-sekunder');
-      b.textContent = t.teks;
-      b.addEventListener('click', function () {
-        var r = t.klik ? t.klik(b, tirai) : undefined;
-        if (r !== false) tirai.remove();
-      });
-      aksi.appendChild(b);
-    });
-
-    kotak.appendChild(aksi);
-    tirai.appendChild(kotak);
-    document.body.appendChild(tirai);
-
-    tirai.addEventListener('click', function (e) {
-      if (e.target === tirai) tirai.remove();
-    });
-    var inputPertama = kotak.querySelector('input, textarea, select');
-    if (inputPertama) inputPertama.focus();
-    return tirai;
+  var jml = 0;
+  if (State.ringkasan) {
+    jml = (State.user.role === 'murid')
+      ? (State.ringkasan.notif_baru || 0)
+      : (State.ringkasan.reset_antre || 0);
   }
 
-  /* ---------- merek ---------- */
+  el.innerHTML =
+    '<div class="topbar"><div class="topbar-isi">' +
+      '<div class="merek" id="tb-merek"><span class="merek-ikon">' +
+        (typeof APP_IKON !== 'undefined' ? APP_IKON : '🌱') +
+        '</span>' +
+        '<span class="sembunyi-hp">' +
+        (typeof APP_NAMA !== 'undefined' ? esc(APP_NAMA) : 'LessonLen') +
+        '</span></div>' +
+      '<div class="tumbuh"></div>' +
+      '<button class="btn btn-teks lonceng" id="btn-lonceng" title="Notifikasi">🔔' +
+        (jml > 0 ? '<span class="lonceng-titik">' +
+          (jml > 9 ? '9+' : jml) + '</span>' : '') +
+      '</button>' +
+      '<button class="btn btn-teks tombol-profil" id="btn-profil" ' +
+        'title="Profil saya">👤 <span class="sembunyi-hp">' +
+        esc(State.user.nama) + '</span></button>' +
+      '<button class="btn btn-teks" id="btn-keluar">Keluar</button>' +
+    '</div></div>';
 
-  function pasangMerek() {
-    var ikon = TYDATA.ikon, nama = TYDATA.nama;
-    ['merek-ikon-login', 'merek-ikon-topbar'].forEach(function (id) {
-      var el = $(id);
-      if (el) el.textContent = ikon;
-    });
-    ['merek-nama-login', 'merek-nama-topbar'].forEach(function (id) {
-      var el = $(id);
-      if (el) el.textContent = nama;
-    });
-    var v = $('versi-app');
-    if (v) v.textContent = 'v' + TYDATA.versi;
-  }
-
-  /* ---------- boot ---------- */
-
-  function muat() {
-    pasangMerek();
-    var t = ambilToken();
-    if (!t) { Auth.tampilkanLogin(); return; }
-    state.token = t;
-
-    pasangTemplate('tpl-dashboard');
-    $('app').querySelector('.konten').style.visibility = 'hidden';
-
-    api('cekSesi', t).then(function (user) {
-      state.user = user;
-      if (!user) return;
-      return api('ringkasDashboard', t).then(function (r) {
-        state.ringkas = r;
-        Dashboard.tampilkan(user, r);
-        $('app').querySelector('.konten').style.visibility = 'visible';
-      });
-    }).catch(function () {
-      /* api() sudah mengarahkan ke login bila SESI_INVALID */
-    });
-  }
-
-  return {
-    state: state,
-    ambilToken: ambilToken, simpanToken: simpanToken, buangToken: buangToken,
-    api: api, esc: esc, $: $,
-    pasangTemplate: pasangTemplate, pasangMerek: pasangMerek,
-    kirimForm: kirimForm,
-    tampilkanPesanError: tampilkanPesanError,
-    sembunyikanPesanError: sembunyikanPesanError,
-    tampilkanTampilan: tampilkanTampilan,
-    dialog: dialog,
-    muat: muat
+  $('#btn-lonceng', el).onclick = function () { pergiKe('#/notifikasi'); };
+  $('#btn-profil', el).onclick = function () {
+    if (State.user.role === 'guru') {
+      if (typeof dialogProfilGuru === 'function') dialogProfilGuru();
+    } else {
+      if (typeof dialogBiodata === 'function') dialogBiodata();
+    }
   };
-})();
+  $('#btn-keluar', el).onclick = keluarAkun;
+  var m = $('#tb-merek', el);
+  if (m) m.onclick = function () { pergiKe('#/beranda'); };
+}
 
-/* Data template dari Code.gs — satu sumber kebenaran merek. */
-var TYDATA = { nama: '<?= appNama ?>', versi: '<?= appVersi ?>', ikon: '<?= appIkon ?>' };
+/* -------------------------------------------------- sidebar menu (v1) */
 
-document.addEventListener('DOMContentLoaded', function () {
-  Core.muat();
-});
+var MENU_GURU = [
+  { kunci: 'beranda',   tautan: '#/beranda',   ikon: '🏠', label: 'Beranda' },
+  { kunci: 'kelas',     tautan: '#/kelas',     ikon: '📚', label: 'Kelola Kelas' },
+  { kunci: 'murid',     tautan: '#/murid',     ikon: '👥', label: 'Kelola Murid' },
+  { kunci: 'mapel',     tautan: '#/mapel',     ikon: '📗', label: 'Mapel' },
+  { kunci: 'penugasan', tautan: '#/penugasan', ikon: '🧑‍🏫', label: 'Penugasan' },
+  { kunci: 'topik',     tautan: '#/topik',     ikon: '🧩', label: 'Topik & Materi' },
+  { kunci: 'notifikasi',tautan: '#/notifikasi',ikon: '🔔', label: 'Notifikasi' }
+];
+
+var MENU_MURID = [
+  { kunci: 'beranda',    tautan: '#/beranda',    ikon: '🏠', label: 'Beranda' },
+  { kunci: 'kelas-saya', tautan: '#/kelas-saya', ikon: '🏫', label: 'Kelas Saya' },
+  { kunci: 'notifikasi', tautan: '#/notifikasi', ikon: '🔔', label: 'Notifikasi' }
+];
+
+var Menu = { kelas: null, diisi: 0 };
+var UMUR_MENU_KELAS = 300000;
+
+function bataliMenuKelas() {
+  Menu.kelas = null;
+  Menu.diisi = 0;
+}
+
+/**
+ * Pasang tata letak sidebar + kembalikan wadah isi halaman.
+ * Guru: pintasan layar + daftar kelas yang diajar.
+ * Murid: pintasan layar + daftar kelas yang diikuti.
+ */
+function menuRangka(app, aktif) {
+  var luar = document.getElementById('isi-halaman');
+  if (!luar) return app;
+
+  var daftar = (State.user && State.user.role === 'guru')
+    ? MENU_GURU : MENU_MURID;
+
+  luar.innerHTML =
+    '<button class="btn btn-hantu btn-kecil tombol-laci" ' +
+      'onclick="menuBuka()">☰ Menu</button>' +
+    '<div class="tata-nav">' +
+      '<aside class="sisi-nav" id="sisi-menu">' +
+        '<div class="sisi-kepala">' +
+          '<span class="tebal">' +
+            (State.user.role === 'guru' ? 'Menu Guru' : 'Menu') + '</span>' +
+          '<button class="tutup-laci" onclick="menuTutup()">✕</button>' +
+        '</div>' +
+        '<div class="sisi-daftar">' +
+          '<div class="menu-label">Layar</div>' +
+          daftar.map(function (m) {
+            return '<button class="menu-tautan' +
+              (m.kunci === aktif ? ' aktif' : '') + '" data-menu="' +
+              m.tautan + '"><span class="menu-ikon">' + m.ikon +
+              '</span><span class="menu-teks">' + esc(m.label) +
+              '</span></button>';
+          }).join('') +
+          '<div class="menu-label">' +
+            (State.user.role === 'guru' ? 'Kelas yang diajar'
+                                        : 'Kelas yang diikuti') + '</div>' +
+          '<div id="menu-daftar-kelas">' + rangkaMuat(34, 3) + '</div>' +
+        '</div>' +
+      '</aside>' +
+      '<div class="isi-nav" id="isi-menu"></div>' +
+    '</div>' +
+    '<div class="tirai-sisi" id="tirai-sisi" onclick="menuTutup()"></div>';
+
+  $$('#sisi-menu [data-menu]').forEach(function (b) {
+    b.onclick = function () {
+      menuTutup();
+      pergiKe(b.dataset.menu);
+    };
+  });
+
+  _menuMuatKelas();
+
+  return document.getElementById('isi-menu');
+}
+
+function _menuMuatKelas() {
+  var wadah = document.getElementById('menu-daftar-kelas');
+  if (!wadah) return;
+
+  /* cache hangat — hindari panggilan tambahan ala v1 */
+  if (Menu.kelas && (Date.now() - Menu.diisi) < UMUR_MENU_KELAS) {
+    _menuGambarKelas(wadah);
+    return;
+  }
+
+  callApi('kelasSaya', [State.token], { diam: true })
+    .then(function (daftar) {
+      Menu.kelas = daftar || [];
+      Menu.diisi = Date.now();
+      _menuGambarKelas(wadah);
+    })
+    .catch(function () {
+      wadah.innerHTML = '<div class="menu-kosong">Gagal memuat kelas.</div>';
+    });
+}
+
+function _menuGambarKelas(wadah) {
+  if (!Menu.kelas.length) {
+    wadah.innerHTML = '<div class="menu-kosong">Belum ada kelas.</div>';
+    return;
+  }
+  var tujuan = State.user.role === 'guru' ? '#/kelas/' : '#/kelas-saya';
+  wadah.innerHTML = Menu.kelas.map(function (k) {
+    var jml = (k.mapel || []).length;
+    return '<button class="menu-tautan menu-kelas-baris" data-menu="' +
+      tujuan + k.class_id + '" title="' + esc(k.name) + '">' +
+      '<span class="menu-ikon">🏫</span>' +
+      '<span class="menu-teks">' + esc(k.name) +
+      (jml ? ' <span class="lembut">(' + jml + ' mapel)</span>' : '') +
+      '</span></button>';
+  }).join('');
+
+  $$('#menu-daftar-kelas [data-menu]').forEach(function (b) {
+    b.onclick = function () {
+      menuTutup();
+      pergiKe(b.dataset.menu);
+    };
+  });
+}
+
+function menuBuka() {
+  var s = document.getElementById('sisi-menu');
+  var t = document.getElementById('tirai-sisi');
+  if (s) s.classList.add('tampil');
+  if (t) t.classList.add('tampil');
+}
+function menuTutup() {
+  var s = document.getElementById('sisi-menu');
+  var t = document.getElementById('tirai-sisi');
+  if (s) s.classList.remove('tampil');
+  if (t) t.classList.remove('tampil');
+}
+
+/* -------------------------------------------------- keluar */
+function keluarAkun() {
+  konfirmasi('Keluar', 'Anda yakin ingin keluar dari LessonLen?',
+             { labelYa: 'Keluar', bahaya: true })
+    .then(function (ya) {
+      if (!ya) return;
+      callApi('logout', [State.token], { diam: true }).catch(function () {})
+        .then(function () {
+          simpanToken('');
+          State.user = null;
+          State.ringkasan = null;
+          State.biodata = null;
+          bataliMenuKelas();
+          location.hash = '#/login';
+          router();
+        });
+    });
+}
+
+/* -------------------------------------------------- awal jalan */
+function mulai() {
+  /* merek layar login */
+  ['merek-ikon-login'].forEach(function (id) {
+    var el = document.getElementById(id);
+    if (el && typeof APP_IKON !== 'undefined') el.textContent = APP_IKON;
+  });
+  var nm = document.getElementById('merek-nama-login');
+  if (nm && typeof APP_NAMA !== 'undefined') nm.textContent = APP_NAMA;
+  var vs = document.getElementById('versi-login');
+  if (vs && typeof APP_VERSI !== 'undefined') vs.textContent = 'v' + APP_VERSI;
+
+  if (!State.token) { router(); return; }
+
+  tampilkanMuat(true);
+  callApi('cekSesi', [State.token], { diam: true })
+    .then(function (d) {
+      State.user = d;
+      return callApi('ringkasDashboard', [State.token], { diam: true });
+    })
+    .then(function (r) {
+      State.ringkasan = r;
+      tampilkanMuat(false);
+      router();
+    })
+    .catch(function () {
+      tampilkanMuat(false);
+      simpanToken('');
+      State.user = null;
+      location.hash = '#/login';
+      router();
+    });
+}
+
+document.addEventListener('DOMContentLoaded', mulai);
 </script>

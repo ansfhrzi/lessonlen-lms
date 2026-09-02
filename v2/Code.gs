@@ -230,6 +230,23 @@ function simpanBiodataSaya(token, p) {
   });
 }
 
+/** Biodata sendiri — untuk dialog profil (pola v1). */
+function getBiodataSaya(token) {
+  return _bungkus(token, 'apa_saja', function (sesi) {
+    var u = Db.cari('Users', 'user_id', sesi.user_id);
+    if (!u) throw { kode: 'TIDAK_DITEMUKAN', message: 'Pengguna tidak ditemukan.' };
+    return {
+      nama: u.nama,
+      username: u.username,
+      role: u.role,
+      rombel: u.rombel || '',
+      email: u.email || '',
+      no_wa: u.no_wa || '',
+      nisn: String(u.nisn || '')
+    };
+  });
+}
+
 /* ============================================================
  *  API — MAPEL, PENUGASAN, TOPIK, ITEM (Tahap 4)
  * ============================================================ */
