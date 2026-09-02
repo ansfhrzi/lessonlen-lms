@@ -75,7 +75,15 @@ const tunggu = (ms) => new Promise(r => setTimeout(r, ms));
   cek('profil guru terisi', d.getElementById('profil-nama').textContent.includes('Ahmad'));
   cek('beranda: 4 kartu angka', d.querySelectorAll('.kisi-stat .stat').length === 4);
   cek('beranda: perlu tindakan tampil (2)', d.getElementById('layar').textContent.includes('2 permintaan reset'));
-  cek('beranda: 5 pintasan', d.querySelectorAll('.pintasan a').length === 5);
+  cek('beranda: seksi "Course saya" tampil', d.getElementById('layar').textContent.includes('Course saya'));
+  await tunggu(500);
+  cek('beranda: 4 course terdaftar', d.querySelectorAll('#wadah-course .barang-course').length === 4);
+  cek('beranda: course pertama = aktif teratas', d.querySelector('#wadah-course .barang-course .badge').textContent.includes('Aktif'));
+  d.querySelector('#wadah-course .barang-course').click();
+  await tunggu(400);
+  cek('klik course → layar Kelola Course', d.getElementById('layar').textContent.includes('Kelola Course'));
+  d.querySelector('#menu-utama a[data-rute="beranda"]').click();
+  await tunggu(300);
 
   // --- Kelola Murid
   d.querySelector('#menu-utama a[data-rute="murid"]').click();

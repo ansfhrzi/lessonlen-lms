@@ -214,6 +214,18 @@ textarea.isian { resize: vertical; }
 .pintasan small { color: var(--teks-lembut); font-size: .74rem; }
 .judul-seksi { font-size: .78rem; font-weight: 700; letter-spacing: .06em;
                text-transform: uppercase; color: var(--teks-lembut); margin: 22px 0 10px; }
+.judul-seksi.aksi { display: flex; align-items: center; justify-content: space-between;
+                    gap: 10px; }
+.judul-seksi.aksi .btn-teks { font-size: .78rem; text-transform: none; letter-spacing: 0; }
+.barang-course { display: flex; align-items: center; gap: 12px; padding: 13px 16px;
+                 border-bottom: 1px solid var(--tepi); text-decoration: none;
+                 color: var(--teks); }
+.barang-course:last-child { border-bottom: none; }
+.barang-course:hover { background: var(--bg); }
+.barang-tengah { flex: 1; min-width: 0; }
+.barang-tengah b { display: block; font-size: .9rem;
+                   white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.barang-tengah small { color: var(--teks-lembut); font-size: .76rem; }
 
 /* ---------- tabel ---------- */
 .tabel-alat { display: flex; gap: 10px; align-items: center;

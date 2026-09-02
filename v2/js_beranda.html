@@ -53,28 +53,67 @@ var Beranda = (function () {
     }
 
     html +=
-      '<div class="judul-seksi">Pintasan menu</div><div class="pintasan">' +
-        '<a href="#" data-ke="kelas"><span class="pintasan-ikon">🏫</span>' +
-          '<span><b>Kelola Kelas</b><small>Buat kelas & atur muridnya</small></span></a>' +
-        '<a href="#" data-ke="course"><span class="pintasan-ikon">📚</span>' +
-          '<span><b>Kelola Course</b><small>Gabungan kelas & mapel</small></span></a>' +
-        '<a href="#" data-ke="murid"><span class="pintasan-ikon">🧑‍🎓</span>' +
-          '<span><b>Kelola Murid</b><small>Tambah, impor, nonaktifkan</small></span></a>' +
-        '<a href="#" data-ke="rekap"><span class="pintasan-ikon">📊</span>' +
-          '<span><b>Rekap Nilai</b><small>Per course + export</small></span></a>' +
-        '<a href="#" data-ke="apikey"><span class="pintasan-ikon">🔑</span>' +
-          '<span><b>Status API Key</b><small>Maks. 10 key Gemini</small></span></a>' +
-      '</div>';
+      '<div class="judul-seksi aksi"><span>Course saya</span>' +
+        '<button class="btn-teks kecil" id="btn-course-semua">Kelola semua →</button></div>' +
+      '<div class="kartu"><div id="wadah-course">' +
+        '<div class="pemuat"><span class="ikon">⏳</span>Memuat…</div></div></div>';
 
     layar.innerHTML = html;
 
     var btnPt = Core.$('btn-pt-murid');
     if (btnPt) btnPt.addEventListener('click', function () { Core.pergiKe('murid'); });
-    layar.querySelectorAll('[data-ke]').forEach(function (a) {
-      a.addEventListener('click', function (e) {
-        e.preventDefault();
-        Core.pergiKe(a.dataset.ke);
+    var btnSemua = Core.$('btn-course-semua');
+    if (btnSemua) btnSemua.addEventListener('click', function () { Core.pergiKe('course'); });
+
+    muatCourseSaya();
+  }
+
+  /* Daftar course nyata milik guru (menggantikan pintasan statis).
+     Klik course → layar Kelola Course; konten per course menyusul
+     pada Tahap 4. */
+  function muatCourseSaya() {
+    var wadah = Core.$('wadah-course');
+    Core.api('courseDaftar', Core.ambilToken()).then(function (daftar) {
+      /* layar sudah berganti bila elemen tak ada lagi */
+      if (!wadah || !Core.$('btn-course-semua')) return;
+      daftar = (daftar || []).slice().sort(function (a, b) {
+        if ((a.status === 'aktif') !== (b.status === 'aktif'))
+          return a.status === 'aktif' ? -1 : 1;
+        return String(a.label) < String(b.label) ? -1 : 1;
       });
+
+      if (!daftar.length) {
+        wadah.innerHTML = '<div class="kosong"><b>Belum ada course</b>' +
+          'Course = gabungan kelas & mata pelajaran yang Anda ampu.' +
+          '<div class="mt-8"><button class="btn btn-kecil" id="btn-course-buat">' +
+          '＋ Buat course pertama</button></div></div>';
+        var b = Core.$('btn-course-buat');
+        if (b) b.addEventListener('click', function () { Core.pergiKe('course'); });
+        return;
+      }
+
+      wadah.innerHTML = daftar.map(function (c) {
+        return '<a href="#" class="barang-course" data-id="' +
+          Core.esc(c.teaching_assignment_id) + '">' +
+          '<span class="avatar">📚</span>' +
+          '<span class="barang-tengah"><b>' + Core.esc(c.subject_name) + '</b>' +
+          '<small>' + Core.esc(c.class_name) + ' · ' +
+          Core.esc(c.academic_year || '—') + ' · ' + c.jml_murid + ' murid</small></span>' +
+          (c.status === 'aktif'
+            ? '<span class="badge badge-aktif">● Aktif</span>'
+            : '<span class="badge badge-nonaktif">● Nonaktif</span>') +
+          '</a>';
+      }).join('');
+
+      wadah.querySelectorAll('.barang-course').forEach(function (a) {
+        a.addEventListener('click', function (e) {
+          e.preventDefault();
+          Core.pergiKe('course');
+        });
+      });
+    }).catch(function (err) {
+      if (wadah) wadah.innerHTML = '<div class="kosong">' +
+        Core.esc(err.message) + '</div>';
     });
   }
 
