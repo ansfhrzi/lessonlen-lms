@@ -338,9 +338,9 @@ halaman = f"""<!DOCTYPE html>
 <title>LessonLen — Pratinjau UI Tahap 3 (data contoh)</title>
 <style>
 .pratinjau-pita {{ position:fixed; left:0; right:0; bottom:0; z-index:999;
-  background:#13290f; color:#c2d3c0; font-size:.75rem; text-align:center;
+  background:#233524; color:#DDE7DC; font-size:.75rem; text-align:center;
   padding:4px 10px; }}
-.pratinjau-pita b {{ color:#fff; }}
+.pratinjau-pita b {{ color:#D9F2D4; }}
 </style>
 </head>
 <body>
