@@ -18,9 +18,14 @@ var CourseLayar = (function () {
     { ikon: '🪞', nama: 'Refleksi mandiri', ket: 'Refleksi belajar mandiri murid' }
   ];
 
+  /* 5 jenis item dalam topik — persis enum §7.8 Items.type:
+     materi, tugas_individu, tugas_kelompok, quiz, refleksi.
+     (Materi & tugas WAJIB bertopik; quiz/refleksi boleh mandiri
+     di course — §7.8b poin 1.) */
   var ITEM_TOPIK = [
     { ikon: '📖', nama: 'Materi', ket: 'Bahan bacaan topik ini' },
-    { ikon: '📝', nama: 'LKPD', ket: 'Lembar kerja peserta didik' },
+    { ikon: '👤', nama: 'Tugas Individu', ket: 'Dikerjakan sendiri, dinilai guru' },
+    { ikon: '👥', nama: 'Tugas Kelompok', ket: 'Dikerjakan berkelompok' },
     { ikon: '❓', nama: 'Quiz', ket: 'Quiz atas topik ini' },
     { ikon: '🪞', nama: 'Refleksi', ket: 'Refleksi atas topik ini' }
   ];
@@ -170,8 +175,10 @@ var CourseLayar = (function () {
             '</button>';
         }).join('') +
       '</div>' +
-      '<p class="bantuan mt-8">💡 Daftar topik per course (bernomor, bisa ' +
-      'diurut) beserta jadwal tayang dirancang pada Tahap 4.</p>';
+      '<p class="bantuan mt-8">💡 Sesuai §7.8/§7.8b: materi &amp; tugas wajib ' +
+      'bertopik; quiz/refleksi boleh mandiri di course. Daftar topik ' +
+      'bernomor (↑↓), view/hide 👁/🙈, dan jadwal tayang dirancang ' +
+      'pada Tahap 4.</p>';
 
     Core.$('btn-kembali-t').addEventListener('click', function () {
       Core.pergiKe('course_detail', { id: params.id });

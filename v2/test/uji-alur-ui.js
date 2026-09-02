@@ -251,8 +251,10 @@ const tunggu = (ms) => new Promise(r => setTimeout(r, ms));
   // buka Topik → 4 item di dalamnya
   d.querySelector('.item-course[data-dalam="1"]').click();
   await tunggu(500);
-  cek('topik: 4 item (Materi/LKPD/Quiz/Refleksi)',
-      d.querySelectorAll('#topik-detail ~ * .item-course, .kisi-item .item-course').length === 4 &&
+  cek('topik: 5 item sesuai §7.8 (Materi/Tugas Individu/Tugas Kelompok/Quiz/Refleksi)',
+      d.querySelectorAll('.kisi-item .item-course').length === 5 &&
+      d.getElementById('layar').textContent.includes('Tugas Individu') &&
+      d.getElementById('layar').textContent.includes('Tugas Kelompok') &&
       d.getElementById('layar').textContent.includes('Isi topik') &&
       d.getElementById('jd-t-sub').textContent.includes('Matematika'));
   d.querySelector('.kisi-item .item-course').click();
