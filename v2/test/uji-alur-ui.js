@@ -194,6 +194,9 @@ const tunggu = (ms) => new Promise(r => setTimeout(r, ms));
   cek('kelas: dropdown terisi (3 kelas + opsi kosong)',
       d.getElementById('sel-kelas') &&
       d.getElementById('sel-kelas').options.length === 4);
+  cek('kelas: tombol Arsipkan ada & mati sebelum memilih',
+      !!d.getElementById('btn-arsip-kelas') &&
+      d.getElementById('btn-arsip-kelas').disabled);
   cek('kelas: tombol aksi mati sebelum memilih',
       d.getElementById('btn-enroll').disabled === true &&
       d.getElementById('btn-edit-kelas').disabled === true);
@@ -234,6 +237,21 @@ const tunggu = (ms) => new Promise(r => setTimeout(r, ms));
       !d.querySelector('.kotak-dialog') &&
       d.querySelectorAll('#wadah-tabel tbody tr').length === 4 &&
       d.getElementById('info-kelas').textContent.includes('4 siswa terdaftar'));
+
+  // --- Arsip kelas (FR-011) ---
+  const selK = d.getElementById('sel-kelas');
+  selK.value = 'k3';
+  selK.dispatchEvent(new w.Event('change', { bubbles: true }));
+  await tunggu(500);
+  d.getElementById('btn-arsip-kelas').click();
+  await tunggu(300);
+  cek('kelas: konfirmasi arsip tampil',
+      d.querySelector('.kotak-dialog').textContent.includes('Arsipkan'));
+  d.querySelector('.kotak-dialog [data-aksi="ya"]').click();
+  await tunggu(500);
+  cek('kelas: k3 diarsipkan → dropdown tersisa 2 kelas (+opsi kosong)',
+      d.getElementById('sel-kelas').options.length === 3 &&
+      d.getElementById('toast-wadah').textContent.includes('diarsipkan'));
 
   // --- Kelola Course: kisi kartu → layar Kelola Topik & Item (poin 1) ---
   d.querySelector('#menu-utama a[data-rute="course"]').click();
@@ -345,7 +363,8 @@ const tunggu = (ms) => new Promise(r => setTimeout(r, ms));
       d.querySelectorAll('#wadah-kisi .kartu-barang').length === 4);
   d.getElementById('btn-tambah').click();
   await tunggu(400);
-  cek('course: dialog buat (pilih kelas)', d.getElementById('in-c-kelas').options.length >= 4);
+  cek('course: dialog buat (pilih kelas — k3 terarsip, tersisa 2)',
+      d.getElementById('in-c-kelas').options.length === 3);
   d.getElementById('in-c-kelas').value = 'k1';
   d.getElementById('in-c-mapel').value = 'Informatika';
   d.querySelector('.kotak-dialog [data-aksi="ya"]').click();
@@ -367,6 +386,12 @@ const tunggu = (ms) => new Promise(r => setTimeout(r, ms));
   d.getElementById('btn-lonceng').click();
   await tunggu(500);
   cek('lonceng: panel tampil dgn notif', d.querySelectorAll('#lonceng-isi .notif-item').length === 3);
+  d.getElementById('btn-lonceng').click();   // tutup
+  await tunggu(250);
+  d.getElementById('btn-lonceng').click();   // buka lagi
+  await tunggu(500);
+  cek('lonceng: buka kedua kali → semua dibaca (tanpa titik belum)',
+      d.querySelectorAll('#lonceng-isi .notif-item.belum').length === 0);
 
   // --- dialog ganti sandi dari profil (wajib ganti)
   // (dipicu boot hanya saat harus_ganti_password; lewati untuk guru)

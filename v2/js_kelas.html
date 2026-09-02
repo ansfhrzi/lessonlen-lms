@@ -26,6 +26,7 @@ var KelasLayar = (function () {
             '<option value="">— pilih kelas —</option></select>' +
           '<button class="btn btn-sekunder btn-kecil" id="btn-edit-kelas" disabled>✏️ Edit kelas</button>' +
           '<button class="btn btn-kecil" id="btn-enroll" disabled>＋ Tambah murid</button>' +
+          '<button class="btn-teks kecil merah" id="btn-arsip-kelas" disabled>🗑 Arsipkan</button>' +
           '<span class="kecil" id="info-kelas" style="margin-left:auto"></span>' +
         '</div>' +
         '<div class="tabel-gulir" id="wadah-tabel">' +
@@ -53,6 +54,9 @@ var KelasLayar = (function () {
     Core.$('btn-enroll').addEventListener('click', function () {
       if (KELAS_DIPILIH) dialogEnroll(KELAS_DIPILIH);
     });
+    Core.$('btn-arsip-kelas').addEventListener('click', function () {
+      if (KELAS_DIPILIH) arsipKelas(KELAS_DIPILIH);
+    });
 
     muatPilihan();
   }
@@ -61,6 +65,30 @@ var KelasLayar = (function () {
     var ada = !!KELAS_DIPILIH;
     Core.$('btn-edit-kelas').disabled = !ada;
     Core.$('btn-enroll').disabled = !ada;
+    Core.$('btn-arsip-kelas').disabled = !ada;
+  }
+
+  /* ---------- arsip kelas (FR-011 — backend Kelas.arsip) ---------- */
+
+  function arsipKelas(classId) {
+    Core.konfirmasi('Arsipkan kelas ini?',
+      'Kelas hilang dari daftar & dropdown, riwayatnya tetap ada. Kelas ' +
+      'yang masih dipakai course aktif tidak bisa diarsipkan.',
+      { labelYa: 'Ya, arsipkan', bahaya: true })
+      .then(function (ya) {
+        if (!ya) return;
+        Core.api('kelasArsip', Core.ambilToken(), classId)
+          .then(function () {
+            Core.toast('Kelas diarsipkan.', 'sukses');
+            KELAS_DIPILIH = '';
+            Core.$('wadah-tabel').innerHTML =
+              '<div class="kosong">Pilih kelas di atas untuk melihat daftar siswanya.</div>';
+            Core.$('info-kelas').textContent = '';
+            segarkanTombol();
+            muatPilihan();
+          })
+          .catch(function (err) { Core.toast(err.message, 'bahaya'); });
+      });
   }
 
   /* ---------- dropdown kelas ---------- */

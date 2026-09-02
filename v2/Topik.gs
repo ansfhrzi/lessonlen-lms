@@ -201,6 +201,8 @@ var Topik = (function () {
         created_at: _kini(), updated_at: _kini()
       });
       if (status === 'publish') _notifikasiPertemuanBaru(ta, judul);
+      Util.catatLog(sesi.user_id, 'BUAT_TOPIK', id + ' ' + judul,
+                    'ok', sesi.role, 'Topics', id);
       return { baru: true, tipe: 'topik', id: id };
     }
 
@@ -212,6 +214,9 @@ var Topik = (function () {
       created_at: _kini(), updated_at: _kini()
     });
     if (status === 'publish') _notifikasiPertemuanBaru(ta, judul);
+    Util.catatLog(sesi.user_id, 'BUAT_ITEM',
+                  idItm + ' ' + judul + ' (mandiri)',
+                  'ok', sesi.role, 'Items', idItm);
     return { baru: true, tipe: 'mandiri', id: idItm };
   }
 
@@ -243,6 +248,12 @@ var Topik = (function () {
     if (b.tipe === 'topik') {
       var anak = _itemTopik(id);
       Db.hapusBanyak('Items', anak.map(function (x) { return x._baris; }));
+      Util.catatLog(sesi.user_id, 'HAPUS_TOPIK',
+        id + ' ' + b.row.title + ' (beserta ' + anak.length + ' item)',
+        'ok', sesi.role, 'Topics', id);
+    } else {
+      Util.catatLog(sesi.user_id, 'HAPUS_ITEM', id + ' ' + b.row.title,
+                    'ok', sesi.role, 'Items', id);
     }
     Db.hapus(b.sheet, b.row._baris);
     return { terhapus: true };
@@ -346,6 +357,8 @@ var Topik = (function () {
     if (status === 'publish') {
       _notifikasiPertemuanBaru(_ta(sesi, t.teaching_assignment_id), judul);
     }
+    Util.catatLog(sesi.user_id, 'BUAT_ITEM', id + ' ' + judul,
+                  'ok', sesi.role, 'Items', id);
     return { baru: true, id: id };
   }
 
@@ -372,6 +385,8 @@ var Topik = (function () {
   function hapusItem(sesi, itemId) {
     var it = _item(sesi, itemId);
     Db.hapus('Items', it._baris);
+    Util.catatLog(sesi.user_id, 'HAPUS_ITEM', itemId + ' ' + it.title,
+                  'ok', sesi.role, 'Items', itemId);
     return { terhapus: true };
   }
 

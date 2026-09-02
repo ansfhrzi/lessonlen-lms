@@ -193,6 +193,16 @@ cek('hapus topik → seluruh item di dalamnya ikut terhapus',
 r = Topik.hapusBaris(SESI_GURU, 'mandiri', ITM_REF);
 cek('hapus mandiri → Items berkurang', !Db.cari('Items', 'item_id', ITM_REF));
 
+console.log('\n== AUDIT LOG (§16.2) ==');
+cek('audit BUAT_TOPIK tercatat',
+    Db.saring('Audit_Logs', { action: 'BUAT_TOPIK' }).length >= 1);
+cek('audit HAPUS_TOPIK tercatat (sebut jml item kaskade)',
+    Db.saring('Audit_Logs', { action: 'HAPUS_TOPIK' }).length === 1 &&
+    Db.saring('Audit_Logs', { action: 'HAPUS_TOPIK' })[0].detail.indexOf('2 item') >= 0);
+cek('audit BUAT_ITEM & HAPUS_ITEM tercatat',
+    Db.saring('Audit_Logs', { action: 'BUAT_ITEM' }).length >= 2 &&
+    Db.saring('Audit_Logs', { action: 'HAPUS_ITEM' }).length >= 1);
+
 console.log('\n== KEPEMILIKAN & ENDPOINT ==');
 
 const saltG2 = Util.buatSalt();

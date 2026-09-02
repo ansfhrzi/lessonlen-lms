@@ -248,7 +248,23 @@ MOCK = r"""
       });
       return { jml_baru: p.siap.length, jml_gagal: p.masalah.length, hasil: p.siap, gagal: [] };
     },
-    kelasDaftar: function () { return db.kelas; },
+    kelasDaftar: function () {
+      return db.kelas.filter(function (k) { return k.status !== 'arsip'; });
+    },
+    kelasArsip: function (t, id) {
+      var dipakai = db.course.filter(function (c) {
+        return c.class_id === id && c.status === 'aktif'; }).length;
+      if (dipakai) return { ok: false, error: 'VALIDASI_GAGAL',
+        pesan: 'Kelas masih dipakai ' + dipakai + ' course aktif.' };
+      var k = db.kelas.filter(function (x) { return x.class_id === id; })[0];
+      if (k) k.status = 'arsip';
+      return { diarsipkan: true };
+    },
+    notifTandaiDibaca: function () {
+      var n = 0;
+      db.notif.forEach(function (x) { if (!x.dibaca) { x.dibaca = true; n++; } });
+      return { ditandai: n };
+    },
     /* kartu Kelas Saya (murid): kelas yang diikuti + mapel aktif */
     kelasSaya: function () {
       if (!db.sesi || db.sesi.role !== 'murid')

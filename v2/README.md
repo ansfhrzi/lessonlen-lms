@@ -50,6 +50,8 @@ yang ada di akar repositori.
 
 ## Cara pasang (sekali saja)
 
+> **DB lama (dipasang pra-Tahap 4):** jalankan **`migrasiStruktur()`** sekali — menambah kolom `Topics.publish_at`, `Items.ta_id`, `Items.publish_at` — lalu **`pasangTriggerSesi()`** sekali (pembersihan session tiap jam, §16.3).
+
 1. Buat **project Apps Script baru** (script.google.com → New project).
 2. Salin seluruh berkas folder ini ke project (nama file harus sama persis,
    tanpa awalan folder). Untuk berkas HTML, nama file di Apps Script adalah

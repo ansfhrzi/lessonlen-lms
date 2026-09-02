@@ -82,24 +82,25 @@ var SKEMA = {
   },
 
   Topics: {
-    head: ['topic_id','teaching_assignment_id','title','description','status',
-           'sort_order','created_at','updated_at'],
+    head: ['topic_id','teaching_assignment_id','title','description',
+           'status','publish_at','sort_order','created_at','updated_at'],
     lebar: { topic_id:100, teaching_assignment_id:130, title:240,
-             description:300, status:90, sort_order:80,
+             description:300, status:90, publish_at:140, sort_order:80,
              created_at:140, updated_at:140 },
-    enum: { status: ['draft','publish'] },
+    enum: { status: ['draft','publish','scheduled'] },
     wrap: ['description']
   },
 
   Items: {
-    head: ['item_id','topic_id','type','title','description','content',
-           'status','related_id','sort_order','ai_source','ai_reviewed',
-           'created_at','updated_at'],
-    lebar: { item_id:90, topic_id:100, type:110, title:220, description:280,
-             content:400, status:90, related_id:110, sort_order:80,
+    head: ['item_id','topic_id','ta_id','type','title','description','content',
+           'status','publish_at','related_id','sort_order','ai_source',
+           'ai_reviewed','created_at','updated_at'],
+    lebar: { item_id:90, topic_id:100, ta_id:100, type:110, title:220,
+             description:280, content:400, status:90, publish_at:140,
+             related_id:110, sort_order:80,
              ai_source:90, ai_reviewed:100, created_at:140, updated_at:140 },
     enum: { type: ['materi','tugas_individu','tugas_kelompok','quiz','refleksi'],
-            status: ['draft','publish'],
+            status: ['draft','publish','scheduled'],
             ai_source: [true,false], ai_reviewed: [true,false] },
     wrap: ['description','content']
   },
@@ -539,7 +540,7 @@ function isiSeedData() {
     teaching_assignment_id: ta.teaching_assignment_id,
     title: 'Konsep Dasar VLAN',
     description: 'Pengertian, manfaat, dan jenis VLAN pada jaringan switch.',
-    status: 'publish', sort_order: 1,
+    status: 'publish', publish_at: '', sort_order: 1,
     created_at: now, updated_at: now
   };
   _tambah('Topics', [topic]);
@@ -547,6 +548,7 @@ function isiSeedData() {
   var item = {
     item_id: Util.buatId('ITM'),
     topic_id: topic.topic_id,
+    ta_id: '',
     type: 'materi',
     title: 'Apa itu VLAN',
     description: 'Pengenalan konsep VLAN beserta manfaatnya.',
@@ -555,7 +557,7 @@ function isiSeedData() {
              'jaringan logis yang saling terpisah.</p>' +
              '<p>Contoh di sekolah: VLAN 10 untuk Lab Komputer, VLAN 20 untuk ' +
              'Ruang Guru — memakai switch yang sama namun tidak saling ganggu.</p>',
-    status: 'publish', related_id: '', sort_order: 1,
+    status: 'publish', publish_at: '', related_id: '', sort_order: 1,
     ai_source: false, ai_reviewed: false,
     created_at: now, updated_at: now
   };
@@ -824,4 +826,32 @@ function _pad(s, n) {
   s = String(s);
   while (s.length < n) s += ' ';
   return s;
+}
+
+/* ============================================================
+ *  TRIGGER (§16.3) — pembersihan session kedaluwarsa
+ * ============================================================ */
+
+/** Hapus seluruh Session kedaluwarsa. Dipasang sbg trigger waktu
+ *  (tiap jam — pasangTriggerSesi); aman juga dipanggil manual. */
+function sesiBersihkan() {
+  var kini = new Date();
+  var kadaluarsa = Db.baca('Session').filter(function (s) {
+    try { return kini > new Date(s.expired_at); } catch (e) { return false; }
+  }).map(function (s) { return s._baris; });
+  if (kadaluarsa.length) Db.hapusBanyak('Session', kadaluarsa);
+  Logger.log('sesiBersihkan: ' + kadaluarsa.length + ' sesi dibuang');
+  return { dibuang: kadaluarsa.length };
+}
+
+/** Pasang trigger waktu sesiBersihkan (anti duplikat). Jalankan
+ *  sekali setelah setup; dibuang otomatis saat project dihapus. */
+function pasangTriggerSesi() {
+  var ada = ScriptApp.getProjectTriggers().some(function (t) {
+    return t.getHandlerFunction() === 'sesiBersihkan';
+  });
+  if (!ada) {
+    ScriptApp.newTrigger('sesiBersihkan').timeBased().everyHours(1).create();
+  }
+  return { terpasang: true };
 }

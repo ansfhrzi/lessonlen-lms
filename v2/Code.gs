@@ -520,3 +520,21 @@ function daftarNotifikasi(token) {
       });
   });
 }
+
+/** FR-092: tandai notifikasi milik sesi sebagai dibaca.
+ *  notifId kosong = tandai SEMUA yang belum dibaca. */
+function notifTandaiDibaca(token, notifId) {
+  return _bungkus(token, 'apa_saja', function (sesi) {
+    var belum = Db.baca('Notifications').filter(function (n) {
+      return n.user_id === sesi.user_id &&
+             (n.dibaca === false || n.dibaca === 'FALSE' || n.dibaca === '');
+    });
+    if (notifId) {
+      belum = belum.filter(function (n) { return n.notif_id === notifId; });
+    }
+    belum.forEach(function (n) {
+      Db.perbarui('Notifications', n._baris, { dibaca: true });
+    });
+    return { ditandai: belum.length };
+  });
+}

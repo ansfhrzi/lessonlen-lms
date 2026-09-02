@@ -298,6 +298,12 @@ var Core = (function () {
           '<div class="kecil">' + esc(n.created_at) + '</div></div>';
         isi.appendChild(div);
       });
+      /* FR-092: membuka panel = menandai semuanya sudah dibaca */
+      api('notifTandaiDibaca', ambilToken(), '').then(function () {
+        isi.querySelectorAll('.notif-item.belum').forEach(function (el) {
+          el.classList.remove('belum');
+        });
+      }).catch(function () {});
     }).catch(function () {
       isi.innerHTML = '<div class="pemuat">Notifikasi gagal dimuat.</div>';
     });
