@@ -13,8 +13,10 @@ yang ada di akar repositori.
 
 ## Keputusan yang dipegang (v2.1)
 
-1. **Login sama seperti v1** — nama pengguna + kata sandi (SHA-256 + salt),
-   sesi token TTL 12 jam, kunci otomatis 5× gagal/15 menit, reset oleh guru.
+1. **Login sama seperti v1** — nama pengguna + kata sandi, sesi token TTL
+   12 jam, kunci otomatis 5× gagal/15 menit, reset oleh guru.
+   *(Revisi 2 Sep 2026, §22D: kata sandi tersimpan **teks** agar guru
+   selalu dapat melihat sandi murid — menggantikan SHA-256+salt.)*
 2. **Role dua saja** — `guru` (sekaligus admin) dan `murid`.
 3. **Proses enrollment sama seperti v1** — sheet `Enrollment`
    (aktif/keluar), guru mendaftarkan murid, notifikasi `enroll_kelas`.
@@ -82,13 +84,16 @@ di deployment `/exec` sungguhan:
 
 - ✅ Tahap 1 — Database initializer (23 sheet + seed + migrasi)
 - ✅ Tahap 2 — Auth + session + audit log + UI login/dasbor
-- ↩️ Tahap 3 — Kelas, murid, enrollment (Kelas.gs) — **dibangun ulang** (rollback 2 Sep 2026; arsip: commit `a63527b`)
-- ⬜ Tahap 4 — Subjects, Teaching_Assignments, Topics, Items (arsip: `a63527b..c1c0157`)
-- ⬜ Tahap 5 — Quiz + soal + penilaian
-- ⬜ Tahap 6 — Tugas individu & kelompok
-- ⬜ Tahap 7 — Rekap nilai & progres
-- ⬜ Tahap 8 — Porting `Ai.gs` v1 (generator Gemini, perilaku tidak berubah)
-- ⬜ Tahap 9 — Notifikasi lengkap + email terbatas
+- ↩️ **Rollback 2 Sep 2026** — UI/UX & fungsi tahap 3–4 lama dihapus
+  (arsip: `a63527b..c1c0157`); keputusan alur baru: §22D dokumen rancangan
+- ⬜ Tahap 3 (baru) — Dashboard 5 menu ala §22D, urutan bangun:
+  **Beranda ringkas → Kelola Murid → Kelola Kelas → Kelola Course →
+  Status API Key**; menu Rekap Nilai tampil sebagai placeholder "menyusul"
+- ⬜ Tahap 4 — Konten course: topik, materi, quiz, tugas (rancangan UI
+  disepakati lebih dulu)
+- ⬜ Tahap 5 — Rekap nilai per course + export Excel
+- ⬜ Tahap 6 — Porting `Ai.gs` v1 (Gemini, perilaku tak berubah); API key
+  dari menu Status terhubung penuh ke generator
 
 ## Darurat
 

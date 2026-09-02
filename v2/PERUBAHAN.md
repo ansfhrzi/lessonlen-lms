@@ -24,6 +24,24 @@ rancangan tampilan yang lebih matang.
   `DOKUMENTASI_RANCANGAN_LMS_GAS_v2.md`) **tetap berlaku** — yang diulang
   hanyalah implementasi UI/UX-nya.
 
+### Kesepakatan alur baru — 2 Sep 2026 (§22D dokumen rancangan)
+
+Dashboard guru = **5 menu**: Kelola Kelas · Kelola Course · Kelola Murid ·
+Rekap Nilai · Status API Key. Keputusan turunan yang menyentuh kode tahap 2:
+
+- **Kata sandi murid tersimpan teks** (`Users.password`) — SATU-SATUNYA
+  perubahan skema: kolom `password_hash`, `salt`, `pwd_awal` ganti satu
+  kolom `password`. Menyentuh `Setup.gs` (skema), `Auth.gs`
+  (login/ganti/reset — tanpa hash), `Util.gs` (util hash tak terpakai lagi),
+  seed, dan uji gate0. Diterapkan saat Tahap 3 baru dimulai.
+- **"Course" = istilah UI** untuk sheet `Teaching_Assignments`; mapel
+  diketik bebas → auto-dedupe ke `Subjects`.
+- **Status API Key** = Script Properties (≤10 key, cooldown) — tanpa sheet.
+- **Beranda ringkas** tetap ada; notifikasi cukup lonceng (tanpa menu).
+- **Rekap Nilai** dibangun setelah quiz & tugas; sementara placeholder.
+- 23 sheet: **tidak ada sheet baru yang ditambah/dihapus** selain kolom
+  `Users` di atas.
+
 ### Berkas yang harus ada di editor Apps Script (kondisi tahap 2)
 
 | Berkas | Isi | Status |
@@ -59,4 +77,5 @@ tidak ada — akan membuat error), `js_beranda.html`, `js_kelola.html`,
 | tahap 1–2 (fondasi) | `7cc93e9` | skema 23 sheet, auth lengkap, UI login + dasbor | gate0 18 |
 | tahap 3 | `a63527b` | kelas/murid/enrollment + UI kelola | +42 |
 | tahap 4 → 4.9 | `8e443c0` → `c1c0157` | mapel/penugasan/topik/course/editor + port UI/UX v1 (riwayat per sub-tahap: `git log --oneline a63527b..c1c0157`) | hingga 113+18 |
-| **rollback ke tahap 2** | (commit ini) | hapus seluruh UI/UX & fungsi tahap 3–4; pohon = `7cc93e9`; + `test/uji-ui.js` | gate0 18 ✔, UI ✔ |
+| **rollback ke tahap 2** | `f1d10e2` | hapus seluruh UI/UX & fungsi tahap 3–4; pohon = `7cc93e9`; + `test/uji-ui.js` | gate0 18 ✔, UI ✔ |
+| keputusan alur | (commit ini) | §22D: 5 menu dashboard, sandi teks (`Users.password`), beranda ringkas, rekap menyusul — **dokumen saja** | — |
