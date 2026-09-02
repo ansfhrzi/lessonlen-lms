@@ -147,14 +147,14 @@ var Mapel = (function () {
       .forEach(function (u) { petaGuru[u.user_id] = u.nama; });
 
     /* topik per penugasan — jumlah untuk kolom informasi.
-       Kartu course ala v1 menampilkan total topik + berapa yang
-       masih draf, dan jumlah murid kelasnya. */
+       Kartu course ala v1: total topik + berapa yang masih draf
+       (terjadwal TIDAK dihitung draf — ia punya lencananya sendiri). */
     var topikPer = {}, drafPer = {};
     Db.bacaKolom('Topics', ['topic_id', 'teaching_assignment_id', 'status'])
       .forEach(function (t) {
         topikPer[t.teaching_assignment_id] =
           (topikPer[t.teaching_assignment_id] || 0) + 1;
-        if (t.status !== 'publish') {
+        if (t.status === 'draft') {
           drafPer[t.teaching_assignment_id] =
             (drafPer[t.teaching_assignment_id] || 0) + 1;
         }
@@ -322,10 +322,23 @@ var Mapel = (function () {
     if (!ta) throw _err('TIDAK_DITEMUKAN', 'Penugasan tidak ditemukan.');
 
     var itemPer = {};
-    Db.bacaKolom('Items', ['item_id', 'topic_id'])
-      .forEach(function (i) {
-        itemPer[i.topic_id] = (itemPer[i.topic_id] || 0) + 1;
-      });
+    var mandiri = [];
+    Db.baca('Items').forEach(function (i) {
+      if (i.ta_id === taId) {
+        /* item mandiri milik course ini */
+        mandiri.push({
+          item_id: i.item_id,
+          type: i.type,
+          title: i.title,
+          description: i.description || '',
+          status: i.status,
+          publish_at: i.publish_at || '',
+          sort_order: Number(i.sort_order) || 0
+        });
+        return;
+      }
+      itemPer[i.topic_id] = (itemPer[i.topic_id] || 0) + 1;
+    });
 
     var topik = Db.saring('Topics', { teaching_assignment_id: taId })
       .map(function (t) {
@@ -334,6 +347,7 @@ var Mapel = (function () {
           title: t.title,
           description: t.description || '',
           status: t.status,
+          publish_at: t.publish_at || '',
           sort_order: Number(t.sort_order) || 0,
           jml_item: itemPer[t.topic_id] || 0
         };
@@ -343,7 +357,12 @@ var Mapel = (function () {
                String(a.topic_id).localeCompare(String(b.topic_id));
       });
 
-    return { jml_topik: topik.length, topik: topik };
+    mandiri.sort(function (a, b) {
+      return a.sort_order - b.sort_order ||
+             String(a.item_id).localeCompare(String(b.item_id));
+    });
+
+    return { jml_topik: topik.length, topik: topik, mandiri: mandiri };
   }
 
   function topikSimpan(sesi, p) {
@@ -361,6 +380,13 @@ var Mapel = (function () {
       if (ubah.title === '') {
         throw _err('VALIDASI_GAGAL', 'Judul topik tidak boleh dikosongkan.');
       }
+      if (p.publish_at !== undefined) {
+        var jadwal = _waktuJadwal(p.publish_at);
+        ubah.publish_at = jadwal ? Util.formatTanggal(jadwal) : '';
+        /* jadwal dipasang pada topik draf → langsung terjadwal */
+        if (jadwal && ada.status === 'draft') ubah.status = 'scheduled';
+        if (!jadwal && ada.status === 'scheduled') ubah.status = 'draft';
+      }
       ubah.updated_at = Util.sekarang();
       Db.perbarui('Topics', ada._baris, ubah);
       Util.catatLog(sesi.user_id, 'UPDATE', 'edit_topik ' +
@@ -376,12 +402,14 @@ var Mapel = (function () {
     var judul = _judul(p.title);
     if (!judul) throw _err('VALIDASI_GAGAL', 'Judul topik wajib diisi.');
 
+    var jadwal = _waktuJadwal(p.publish_at);
     var isi = {
       topic_id: Util.buatId('TPC'),
       teaching_assignment_id: ta.teaching_assignment_id,
       title: judul,
       description: String(p.description || '').trim().slice(0, 1000),
-      status: 'draft',
+      status: jadwal ? 'scheduled' : 'draft',
+      publish_at: jadwal ? Util.formatTanggal(jadwal) : '',
       sort_order: _urutBerikut('Topics', 'teaching_assignment_id',
                                ta.teaching_assignment_id),
       created_at: Util.sekarang(),
@@ -394,19 +422,37 @@ var Mapel = (function () {
     return { topic_id: isi.topic_id, baru: true };
   }
 
-  /** Terbitkan / jadikan draf kembali. */
-  function topikUbahStatus(sesi, topicId, status) {
-    if (['draft', 'publish'].indexOf(status) === -1) {
+  /**
+   * Ubah pandangan topik:
+   *  - publish  → terlihat murid (sekarang)
+   *  - draft    → tersembunyi (juga membatalkan jadwal)
+   *  - scheduled→ terlihat otomatis pada publishAt (wajib diisi,
+   *               atau pakai jadwal yang sudah pernah dipasang)
+   */
+  function topikUbahStatus(sesi, topicId, status, publishAt) {
+    if (['draft', 'publish', 'scheduled'].indexOf(status) === -1) {
       throw _err('VALIDASI_GAGAL', 'Status tidak sah.');
     }
     var t = Db.cari('Topics', 'topic_id', topicId);
     if (!t) throw _err('TIDAK_DITEMUKAN', 'Topik tidak ditemukan.');
 
-    Db.perbarui('Topics', t._baris,
-                { status: status, updated_at: Util.sekarang() });
+    var ubah = { status: status, updated_at: Util.sekarang() };
+    if (status === 'scheduled') {
+      var jadwal = _waktuJadwal(publishAt || t.publish_at);
+      if (!jadwal) {
+        throw _err('VALIDASI_GAGAL',
+          'Isi dulu waktu terbit untuk menjadwalkan.');
+      }
+      ubah.publish_at = Util.formatTanggal(jadwal);
+    } else if (status === 'draft') {
+      ubah.publish_at = '';   /* draf = tanpa jadwal */
+    }
+
+    Db.perbarui('Topics', t._baris, ubah);
     Util.catatLog(sesi.user_id, 'UPDATE', 'topik_' + status, 'ok',
                   sesi.role, 'Topics', topicId);
-    return { topic_id: topicId, status: status };
+    return { topic_id: topicId, status: status,
+             publish_at: ubah.publish_at || '' };
   }
 
   /**
@@ -505,6 +551,12 @@ var Mapel = (function () {
       if (ubah.title === '') {
         throw _err('VALIDASI_GAGAL', 'Judul item tidak boleh dikosongkan.');
       }
+      if (p.publish_at !== undefined) {
+        var jadwal = _waktuJadwal(p.publish_at);
+        ubah.publish_at = jadwal ? Util.formatTanggal(jadwal) : '';
+        if (jadwal && ada.status === 'draft') ubah.status = 'scheduled';
+        if (!jadwal && ada.status === 'scheduled') ubah.status = 'draft';
+      }
       /* tipe hanya boleh berubah selama item belum tertaut */
       if (p.type !== undefined && !(ada.related_id)) {
         var tipe = String(p.type || '');
@@ -520,29 +572,55 @@ var Mapel = (function () {
       return { item_id: p.item_id, baru: false };
     }
 
-    /* ---- buat ---- */
-    var topik = Db.cari('Topics', 'topic_id', p.topic_id);
-    if (!topik) throw _err('TIDAK_DITEMUKAN', 'Topik tidak ditemukan.');
+    /* ---- buat ----
+       Item BERTOPIK: topic_id wajib (semua jenis).
+       Item MANDIRI: tanpa topic_id — hanya quiz & refleksi,
+       wajib membawa ta_id (course tempat ia berdiri). */
+    var topik = null, taId = '';
+    if (p.topic_id) {
+      topik = Db.cari('Topics', 'topic_id', p.topic_id);
+      if (!topik) throw _err('TIDAK_DITEMUKAN', 'Topik tidak ditemukan.');
+      taId = topik.teaching_assignment_id;
+    } else {
+      var taMandiri = Db.cari('Teaching_Assignments',
+                              'teaching_assignment_id', p.ta_id);
+      if (!taMandiri) {
+        throw _err('TIDAK_DITEMUKAN',
+          'Item wajib milik topik atau penugasan mengajar.');
+      }
+      taId = taMandiri.teaching_assignment_id;
+    }
 
     var tipe = String(p.type || '');
     if (TIPE_ITEM.indexOf(tipe) === -1) {
       throw _err('VALIDASI_GAGAL', 'Jenis item tidak dikenal: ' + tipe);
     }
+    if (!topik && tipe !== 'quiz' && tipe !== 'refleksi') {
+      throw _err('VALIDASI_GAGAL',
+        'Hanya quiz dan refleksi yang dapat berdiri mandiri ' +
+        'tanpa topik.');
+    }
     var judul = _judul(p.title);
     if (!judul) throw _err('VALIDASI_GAGAL', 'Judul item wajib diisi.');
 
-    var status = p.status === 'publish' ? 'publish' : 'draft';
+    var jadwal = _waktuJadwal(p.publish_at);
+    var status = p.status === 'publish' ? 'publish'
+               : (jadwal ? 'scheduled' : 'draft');
 
     var isi = {
       item_id: Util.buatId('ITM'),
-      topic_id: topik.topic_id,
+      topic_id: topik ? topik.topic_id : '',
+      ta_id: topik ? '' : taId,
       type: tipe,
       title: judul,
       description: _deskripsiItem(p.description),
       content: _konten(p.content),
       status: status,
+      publish_at: jadwal ? Util.formatTanggal(jadwal) : '',
       related_id: '',
-      sort_order: _urutBerikut('Items', 'topic_id', topik.topic_id),
+      sort_order: topik
+        ? _urutBerikut('Items', 'topic_id', topik.topic_id)
+        : _urutBerikut('Items', 'ta_id', taId),
       ai_source: false,
       ai_reviewed: false,
       created_at: Util.sekarang(),
@@ -562,26 +640,49 @@ var Mapel = (function () {
    * Terbitkan / jadikan draf. Draf → publish menotify murid kelas
    * (jenis pertemuan_baru, judul khusus materi).
    */
-  function itemUbahStatus(sesi, itemId, status) {
-    if (['draft', 'publish'].indexOf(status) === -1) {
+  /**
+   * Ubah pandangan item (pola sama dengan topik):
+   * publish / draft / scheduled (publishAt wajib atau pakai yang lama).
+   * draf→publish menotify murid; scheduled TIDAK menotify — murid
+   * menemukannya sendiri di daftar isi saat waktunya tiba.
+   */
+  function itemUbahStatus(sesi, itemId, status, publishAt) {
+    if (['draft', 'publish', 'scheduled'].indexOf(status) === -1) {
       throw _err('VALIDASI_GAGAL', 'Status tidak sah.');
     }
     var i = Db.cari('Items', 'item_id', itemId);
     if (!i) throw _err('TIDAK_DITEMUKAN', 'Item tidak ditemukan.');
 
+    var ubah = { status: status, updated_at: Util.sekarang() };
+    if (status === 'scheduled') {
+      var jadwal = _waktuJadwal(publishAt || i.publish_at);
+      if (!jadwal) {
+        throw _err('VALIDASI_GAGAL',
+          'Isi dulu waktu terbit untuk menjadwalkan.');
+      }
+      ubah.publish_at = Util.formatTanggal(jadwal);
+    } else if (status === 'draft') {
+      ubah.publish_at = '';
+    }
+
     var terbit = i.status !== 'publish' && status === 'publish';
-    Db.perbarui('Items', i._baris,
-                { status: status, updated_at: Util.sekarang() });
+    Db.perbarui('Items', i._baris, ubah);
 
     if (terbit) {
-      var topik = Db.cari('Topics', 'topic_id', i.topic_id);
-      if (topik && topik.status === 'publish') {
-        _beriTahuKelas(topik, i);
+      if (i.ta_id) {
+        /* item mandiri — TA langsung pada item */
+        _beriTahuKelas(null, i);
+      } else {
+        var topik = Db.cari('Topics', 'topic_id', i.topic_id);
+        if (topik && topik.status === 'publish') {
+          _beriTahuKelas(topik, i);
+        }
       }
     }
     Util.catatLog(sesi.user_id, 'UPDATE', 'item_' + status, 'ok',
                   sesi.role, 'Items', itemId);
-    return { item_id: itemId, status: status };
+    return { item_id: itemId, status: status,
+             publish_at: ubah.publish_at || '' };
   }
 
   /**
@@ -602,10 +703,15 @@ var Mapel = (function () {
     return { dihapus: true };
   }
 
-  /** Naik/turunkan item dalam satu topik. */
+  /** Naik/turunkan item — dalam topiknya, atau kelompok mandiri
+      course bila item berdiri sendiri (tanpa topik). */
   function itemPindah(sesi, itemId, arah) {
     var i = Db.cari('Items', 'item_id', itemId);
     if (!i) throw _err('TIDAK_DITEMUKAN', 'Item tidak ditemukan.');
+    if (i.ta_id) {
+      return _pindahUrut(sesi, 'Items', 'item_id', 'ta_id',
+                         i, arah, 'item');
+    }
     return _pindahUrut(sesi, 'Items', 'item_id', 'topic_id',
                        i, arah, 'item');
   }
@@ -620,21 +726,25 @@ var Mapel = (function () {
   function topikMurid(sesi, taId) {
     var ctx = _konteksMurid(sesi, taId);
 
-    /* item publish per topik — daftar isi ala v1 menampilkan item
-       langsung di bawah topiknya (satu pemindaian, tanpa N+1). */
-    var itemPer = {};
-    Db.saring('Items', { status: 'publish' })
-      .forEach(function (i) {
-        (itemPer[i.topic_id] = itemPer[i.topic_id] || []).push({
-          item_id: i.item_id,
-          type: i.type,
-          title: i.title,
-          description: i.description || ''
-        });
-      });
+    /* item & topik yang TERLIHAT saat ini (publish / terjadwal yang
+       waktunya sudah tiba) — daftar isi ala v1: item menempel
+       langsung di bawah topiknya; quiz/refleksi mandiri menyusul
+       setelah semua topik (pilihan C: nomor menyambung di klien). */
+    var itemPer = {}, mandiri = [];
+    Db.baca('Items').forEach(function (i) {
+      if (!_terlihat(i)) return;
+      var ringkas = {
+        item_id: i.item_id,
+        type: i.type,
+        title: i.title,
+        description: i.description || ''
+      };
+      if (i.ta_id === taId) { mandiri.push(ringkas); return; }
+      (itemPer[i.topic_id] = itemPer[i.topic_id] || []).push(ringkas);
+    });
 
-    var topik = Db.saring('Topics',
-        { teaching_assignment_id: taId, status: 'publish' })
+    var topik = Db.saring('Topics', { teaching_assignment_id: taId })
+      .filter(_terlihat)
       .map(function (t) {
         var item = itemPer[t.topic_id] || [];
         return {
@@ -655,7 +765,8 @@ var Mapel = (function () {
       mapel: { subject_id: ctx.mapel.subject_id, name: ctx.mapel.name },
       guru: ctx.guru,
       academic_year: ctx.ta.academic_year || '',
-      topik: topik
+      topik: topik,
+      mandiri: mandiri
     };
   }
 
@@ -665,9 +776,13 @@ var Mapel = (function () {
     if (!topik || topik.status !== 'publish') {
       throw _err('TIDAK_DITEMUKAN', 'Topik tidak ditemukan.');
     }
+    if (!_terlihat(topik)) {
+      throw _err('TIDAK_DITEMUKAN', 'Topik tidak ditemukan.');
+    }
     var ctx = _konteksMurid(sesi, topik.teaching_assignment_id);
 
-    var item = Db.saring('Items', { topic_id: topicId, status: 'publish' })
+    var item = Db.saring('Items', { topic_id: topicId })
+      .filter(_terlihat)
       .map(function (i) {
         return {
           item_id: i.item_id,
@@ -697,7 +812,7 @@ var Mapel = (function () {
    */
   function materiBaca(sesi, itemId) {
     var i = Db.cari('Items', 'item_id', itemId);
-    if (!i || i.status !== 'publish') {
+    if (!i || !_terlihat(i)) {
       throw _err('TIDAK_DITEMUKAN', 'Materi tidak ditemukan.');
     }
     if (i.type !== 'materi') {
@@ -728,6 +843,28 @@ var Mapel = (function () {
     var e = new Error(pesan);
     e.kode = kode;
     return e;
+  }
+
+  /**
+   * Parse jadwal terbit dari klien (datetime-local 'YYYY-MM-DDTHH:mm',
+   * 'yyyy-MM-dd HH:mm:ss', atau Date). Kosong → '' (tanpa jadwal).
+   * Tanggal tidak sah → VALIDASI_GAGAL.
+   */
+  function _waktuJadwal(teks) {
+    var t = String(teks == null ? '' : teks).trim();
+    if (!t) return '';
+    if (t.indexOf('T') === 10) t = t.replace('T', ' ');
+    var d = new Date(t);
+    if (isNaN(d.getTime())) {
+      throw _err('VALIDASI_GAGAL',
+        'Waktu terbit tidak sah. Gunakan format tanggal-jam yang benar.');
+    }
+    return d;
+  }
+
+  /** Filter baris topik/item yang boleh dilihat murid saat ini. */
+  function _terlihat(r) {
+    return Util.terlihatMurid(r.status, r.publish_at);
   }
 
   function _namaMapel(v) {
@@ -854,8 +991,9 @@ var Mapel = (function () {
 
   /** Kabari murid kelas bahwa ada konten baru yang diterbitkan. */
   function _beriTahuKelas(topik, item) {
-    var ta = Db.cari('Teaching_Assignments', 'teaching_assignment_id',
-                     topik.teaching_assignment_id);
+    var taId = topik ? topik.teaching_assignment_id : item.ta_id;
+    var ta = Db.cari('Teaching_Assignments',
+                     'teaching_assignment_id', taId);
     if (!ta) return;
     Notif.kirimKeKelas(ta.class_id, 'pertemuan_baru',
       item.title, '', 'Materi baru tersedia');

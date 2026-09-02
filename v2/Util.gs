@@ -161,6 +161,23 @@ var Util = (function () {
     return Utilities.formatDate(new Date(tgl), 'Asia/Jakarta', 'yyyy-MM-dd HH:mm:ss');
   }
 
+  /**
+   * Apakah topik/item terlihat oleh murid pada saat ini?
+   *  - publish                  → selalu terlihat
+   *  - scheduled + publish_at   → terlihat begitu waktunya tiba
+   *                               (dievaluasi saat murid membuka —
+   *                                tanpa bergantung trigger waktu)
+   *  - draft (dan scheduled yang publish_at-nya dikosongkan) → tersembunyi
+   * Dipakai lintas berkas (Kelas & Mapel) — karena itu di Util.
+   */
+  function terlihatMurid(status, publishAt) {
+    if (status === 'publish') return true;
+    if (status === 'scheduled' && publishAt) {
+      return new Date(publishAt).getTime() <= Date.now();
+    }
+    return false;
+  }
+
   /* -------------------------------------------------- sanitasi HTML */
 
   var TAG_IZIN = ['h2','h3','h4','p','br','hr','ul','ol','li','b','i','u',
@@ -278,7 +295,7 @@ var Util = (function () {
     normalisasiWa: normalisasiWa, emailSah: emailSah,
     nisnSah: nisnSah, biodataLengkap: biodataLengkap,
     sekarang: sekarang, tambahJam: tambahJam, lewat: lewat,
-    formatTanggal: formatTanggal,
+    formatTanggal: formatTanggal, terlihatMurid: terlihatMurid,
     sanitasi: sanitasi, escapeHtml: escapeHtml,
     urlSah: urlSah, kosong: kosong,
     isiBilaAda: isiBilaAda, teks: teks, angka: angka, boolean: boolean,

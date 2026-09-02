@@ -420,6 +420,77 @@ cek('item tak ada → TIDAK_DITEMUKAN',
   r.ok === false && r.error === 'TIDAK_DITEMUKAN');
 
 /* ============================================================
+ *  ITEM MANDIRI & JADWAL TERBIT (pola v1 yang diminta guru)
+ * ============================================================ */
+console.log('\n--- ITEM MANDIRI & JADWAL TERBIT ---');
+
+/* quiz mandiri tanpa topik — wajib ta_id */
+r = itemSimpan(TOKEN_G, { ta_id: TA, type: 'quiz', title: 'UTS Jaringan' });
+cek('quiz mandiri tanpa topik dibuat', r.ok === true && r.data.baru === true,
+  JSON.stringify(r));
+const ITM_M = r.data.item_id;
+
+r = itemSimpan(TOKEN_G, { type: 'quiz', title: 'Tanpa induk' });
+cek('quiz tanpa topik & tanpa ta_id ditolak',
+  r.ok === false && r.error === 'TIDAK_DITEMUKAN');
+r = itemSimpan(TOKEN_G, { ta_id: TA, type: 'materi', title: 'X' });
+cek('materi wajib bertopik',
+  r.ok === false && r.error === 'VALIDASI_GAGAL');
+
+/* daftar guru membawa mandiri[] */
+r = topikDaftar(TOKEN_G, TA);
+cek('topikDaftar membawa mandiri (1 item)',
+  r.ok === true && r.data.mandiri.length === 1 &&
+  r.data.mandiri[0].item_id === ITM_M &&
+  r.data.mandiri[0].type === 'quiz', JSON.stringify(r.data.mandiri));
+
+/* jadwal terbit: scheduled tanpa jadwal ditolak */
+r = itemUbahStatus(TOKEN_G, ITM_M, 'scheduled', '');
+cek('scheduled tanpa waktu ditolak',
+  r.ok === false && r.error === 'VALIDASI_GAGAL');
+
+/* terjadwal di masa depan → belum terlihat murid */
+r = itemUbahStatus(TOKEN_G, ITM_M, 'scheduled', '9999-12-31 23:59');
+cek('pasang jadwal masa depan', r.ok === true &&
+  r.data.publish_at === '9999-12-31 23:59:00', JSON.stringify(r));
+let dMurid = topikKelasSaya(TOKEN_B, TA);
+cek('murid TIDAK melihat mandiri sebelum waktunya',
+  dMurid.ok === true && dMurid.data.mandiri.length === 0,
+  JSON.stringify(dMurid.data.mandiri));
+
+/* waktunya tiba → otomatis terlihat (lazy, tanpa trigger) */
+itemUbahStatus(TOKEN_G, ITM_M, 'scheduled', '2000-01-01 00:00');
+dMurid = topikKelasSaya(TOKEN_B, TA);
+cek('murid MELIHAT mandiri setelah waktunya',
+  dMurid.ok === true && dMurid.data.mandiri.length === 1 &&
+  dMurid.data.mandiri[0].item_id === ITM_M,
+  JSON.stringify(dMurid.data && dMurid.data.mandiri));
+
+/* batal jadwal → draft, publish_at kosong */
+r = itemUbahStatus(TOKEN_G, ITM_M, 'draft');
+cek('batal jadwal → draft tanpa publish_at',
+  r.ok === true &&
+  Db.cari('Items', 'item_id', ITM_M).publish_at === '' &&
+  Db.cari('Items', 'item_id', ITM_M).status === 'draft');
+
+/* jadwal pada TOPIK: sembunyi sebelum waktunya, muncul tepat */
+r = topikUbahStatus(TOKEN_G, TPC2, 'scheduled', '9999-12-31 23:59');
+cek('topik dijadwalkan', r.ok === true && r.data.status === 'scheduled');
+dMurid = topikKelasSaya(TOKEN_B, TA);
+cek('murid tidak melihat topik terjadwal sebelum waktunya',
+  dMurid.ok === true &&
+  dMurid.data.topik.every(function (t) { return t.topic_id !== TPC2; }));
+topikUbahStatus(TOKEN_G, TPC2, 'scheduled', '2000-01-01 00:00');
+dMurid = topikKelasSaya(TOKEN_B, TA);
+cek('topik terjadwal muncul saat waktunya',
+  dMurid.ok === true &&
+  dMurid.data.topik.some(function (t) { return t.topic_id === TPC2; }));
+r = topikUbahStatus(TOKEN_G, TPC2, 'draft');
+cek('batal jadwal topik → draf',
+  Db.cari('Topics', 'topic_id', TPC2).status === 'draft' &&
+  Db.cari('Topics', 'topic_id', TPC2).publish_at === '');
+
+/* ============================================================
  *  AUDIT & RAPIH
  * ============================================================ */
 console.log('\n--- AUDIT ---');

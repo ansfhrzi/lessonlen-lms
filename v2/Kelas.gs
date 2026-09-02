@@ -587,12 +587,13 @@ var Kelas = (function () {
         });
     }
 
-    /* topik publish per penugasan — kartu course murid ala v1
-       menampilkan jumlah topik yang terlihat oleh murid. */
+    /* topik yang terlihat murid per penugasan — kartu course murid
+       ala v1. Terlihat = publish ATAU terjadwal yang waktunya tiba. */
     var publishPerTa = {};
-    Db.bacaKolom('Topics', ['teaching_assignment_id', 'status'])
+    Db.bacaKolom('Topics',
+        ['teaching_assignment_id', 'status', 'publish_at'])
       .forEach(function (t) {
-        if (t.status === 'publish') {
+        if (Util.terlihatMurid(t.status, t.publish_at)) {
           publishPerTa[t.teaching_assignment_id] =
             (publishPerTa[t.teaching_assignment_id] || 0) + 1;
         }

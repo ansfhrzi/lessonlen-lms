@@ -25,7 +25,7 @@ yang ada di akar repositori.
 | `Auth.gs` | Login, sesi, ganti/lupa/reset kata sandi (port v1) |
 | `Notif.gs` | Notifikasi in-app: `kirim`, `kirimKeKelas`, `daftar`, `tandaiDibaca` |
 | `Kelas.gs` | CRUD kelas, murid + impor massal, enrollment (enroll/reaktivasi/keluarkan), kelas saya, biodata murid |
-| `Mapel.gs` | CRUD mapel, penugasan mengajar (unik per kelas+guru+mapel, reaktivasi), topik (urut, draft/publish, hapus kosong saja), item (jenis materi/quiz/tugas/refleksi, konten disanitasi), bacaan murid (publish + terdaftar) |
+| `Mapel.gs` | CRUD mapel, penugasan mengajar (unik per kelas+guru+mapel, reaktivasi), topik (urut, view/hide, jadwal terbit, hapus kosong saja), item (materi/quiz/tugas/refleksi; quiz & refleksi bisa mandiri tanpa topik; konten disanitasi), bacaan murid (terlihat = publish atau terjadwal yang waktunya tiba) |
 | `Uji.gs` | **Uji tahapan dari EDITOR Apps Script**: `ujiGate0()`, `ujiTahap3()`, `ujiTahap4()`, `ujiSemua()` — data uji dibuat & dihapus otomatis |
 | `index.html` + `css.html` | Cangkang UI + sistem gaya **port dari v1** (Plus Jakarta Sans, palet hijau, topbar + lonceng, toast, tirai muat, dialog global, sidebar menu dengan laci HP, editor konten, baris pertemuan) |
 | `v_login.html`, `v_dashboard.html`, `v_editor.html` | Layar masuk (gradient + kartu), cangkang dasbor `topbar-slot + isi-halaman`, dan cangkang editor item (toolbar + mode HTML + pratinjau) |
@@ -62,6 +62,17 @@ yang ada di akar repositori.
 `Quiz_Submissions`, `Assignments`, `Groups`, `Group_Members`, `Submissions`,
 `Grades`, `Reflections`, `Notifications`, `Materi_AI`, `Permintaan_Reset`,
 `Session`, `Counters`, `Audit_Logs` — definisi kolom ada di `Setup.gs` (SKEMA).
+
+### Kolom & status tambahan (tahap 4.6)
+
+- `Topics.publish_at`, `Items.publish_at` — jadwal terbit (boleh kosong).
+- `Items.ta_id` — penghubung item **mandiri** (quiz/refleksi tanpa topik)
+  ke course; kosong untuk item bertopik.
+- `status` Topics & Items kini `draft | publish | scheduled`.
+  Terlihat murid = `publish`, atau `scheduled` dengan `publish_at <= now`
+  (dievaluasi saat murid membuka — tanpa trigger waktu).
+- **Migrasi DB lama:** jalankan `migrasiStruktur()` sekali dari editor —
+  kolom baru disisipkan otomatis, data lama utuh.
 
 ## Gate 0 — PoC Login & Sesi (ceklist)
 
@@ -167,16 +178,16 @@ mencetak `OK <nama>` / `GAGAL <nama> → <info>`, diakhiri ringkasan
 | `penugasanUbahStatus(token, id, status)` | guru | aktif/nonaktif |
 | `topikDaftar(token, taId)` | guru | topik satu penugasan + jumlah item |
 | `topikSimpan(token, p)` | guru | buat/edit topik; `sort_order` otomatis |
-| `topikUbahStatus(token, id, status)` | guru | draft/publish |
+| `topikUbahStatus(token, id, status, publishAt?)` | guru | view/hide: `publish` / `draft` (membatalkan jadwal) / `scheduled` (wajib `publishAt` — otomatis terlihat saat waktunya, tanpa notif) |
 | `topikHapus(token, id)` | guru | hapus HANYA bila tanpa item |
 | `topikPindah(token, id, arah)` | guru | naik/turun (tukar `sort_order`) |
 | `itemDaftar(token, topicId)` | guru | item satu topik (tanpa konten) |
 | `getItemGuru(token, itemId)` | guru | detail penuh 1 item **termasuk konten** — untuk editor (baca-saja) |
 | `itemSimpan(token, p)` | guru | buat/edit item; jenis divalidasi; konten disanitasi; `related_id`/penanda AI tidak diterima dari klien |
-| `itemUbahStatus(token, id, status)` | guru | draft/publish; publish → notif `pertemuan_baru` ke kelas |
+| `itemUbahStatus(token, id, status, publishAt?)` | guru | publish / draft / scheduled; publish → notif `pertemuan_baru` ke kelas; scheduled tanpa notif |
 | `itemHapus(token, id)` | guru | ditolak bila item sudah tertaut |
 | `itemPindah(token, id, arah)` | guru | naik/turun dalam topik |
-| `topikKelasSaya(token, taId)` | murid | topik publish **+ `item[]` publish per topik** (tanpa konten) untuk daftar isi ala v1; wajib terdaftar aktif + TA & kelas aktif |
+| `topikKelasSaya(token, taId)` | murid | topik terlihat **+ `item[]` per topik + `mandiri[]`** (quiz/refleksi tanpa topik; semua tanpa konten) — daftar isi ala v1, nomor menyambung di klien; wajib terdaftar aktif + TA & kelas aktif |
 | `bukaTopik(token, topicId)` | murid | isi satu topik — item publish tanpa konten |
 | `bacaMateri(token, itemId)` | murid | konten materi publish; jenis lain → `FITUR_BELUM_ADA` |
 

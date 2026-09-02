@@ -306,9 +306,9 @@ function topikSimpan(token, p) {
   });
 }
 
-function topikUbahStatus(token, topicId, status) {
+function topikUbahStatus(token, topicId, status, publishAt) {
   return _bungkus(token, 'guru', function (sesi) {
-    return Mapel.topikUbahStatus(sesi, topicId, status);
+    return Mapel.topikUbahStatus(sesi, topicId, status, publishAt);
   });
 }
 
@@ -343,9 +343,9 @@ function itemSimpan(token, p) {
   });
 }
 
-function itemUbahStatus(token, itemId, status) {
+function itemUbahStatus(token, itemId, status, publishAt) {
   return _bungkus(token, 'guru', function (sesi) {
-    return Mapel.itemUbahStatus(sesi, itemId, status);
+    return Mapel.itemUbahStatus(sesi, itemId, status, publishAt);
   });
 }
 
