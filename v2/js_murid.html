@@ -1,0 +1,443 @@
+<script>
+/* ============================================================
+ *  LMS v2 — js_murid.html
+ *  Layar Kelola Murid: daftar+cari/filter, tambah (sandi
+ *  sementara + kirim WA), detail (+pwd_awal, reset sandi),
+ *  edit, nonaktifkan/aktifkan, impor massal + pratinjau.
+ * ============================================================ */
+
+var MuridLayar = (function () {
+
+  var FILTER = { cari: '', status: '' };
+  var DAFTAR = [];
+
+  function render() {
+    FILTER = { cari: '', status: '' };
+    Core.$('layar').innerHTML =
+      '<div class="kepala"><div><h1>Kelola Murid</h1>' +
+        '<p>Semua murid terdaftar di sistem — termasuk yang belum masuk kelas.</p></div>' +
+        '<div class="kepala-aksi">' +
+          '<button class="btn btn-sekunder" id="btn-impor">📥 Impor massal</button>' +
+          '<button class="btn" id="btn-tambah">＋ Tambah murid</button>' +
+        '</div></div>' +
+      '<div class="kartu">' +
+        '<div class="tabel-alat">' +
+          '<div class="cari"><input id="in-cari" placeholder="Cari nama / username / NISN…"></div>' +
+          '<select class="isian" id="sel-status" style="width:auto">' +
+            '<option value="">Semua status</option>' +
+            '<option value="aktif">Aktif</option>' +
+            '<option value="nonaktif">Nonaktif</option>' +
+          '</select>' +
+        '</div>' +
+        '<div class="tabel-gulir" id="wadah-tabel">' +
+          '<div class="pemuat"><span class="ikon">⏳</span>Memuat…</div>' +
+        '</div>' +
+      '</div>' +
+      '<p class="bantuan mt-8">💡 Sandi sementara murid terlihat di dialog detail sampai ' +
+      'murid menggantinya sendiri — perilaku sama seperti sebelumnya.</p>';
+
+    Core.$('btn-tambah').addEventListener('click', dialogTambah);
+    Core.$('btn-impor').addEventListener('click', dialogImpor);
+    Core.$('in-cari').addEventListener('input', function () {
+      FILTER.cari = this.value; muatTabel();
+    });
+    Core.$('sel-status').addEventListener('change', function () {
+      FILTER.status = this.value; muatTabel();
+    });
+
+    muatTabel();
+  }
+
+  /* ---------- daftar ---------- */
+
+  function muatTabel() {
+    var wadah = Core.$('wadah-tabel');
+    Core.api('muridDaftar', Core.ambilToken(), FILTER).then(function (daftar) {
+      DAFTAR = daftar || [];
+      if (!DAFTAR.length) {
+        wadah.innerHTML = '<div class="kosong"><b>Belum ada murid</b>' +
+          'Mulai dengan tombol “Tambah murid” atau “Impor massal”.</div>';
+        return;
+      }
+      var html = '<table><thead><tr><th>Murid</th><th>NISN</th><th>No WA</th>' +
+        '<th>Status</th><th>Login terakhir</th><th></th></tr></thead><tbody>';
+      DAFTAR.forEach(function (m) {
+        html += '<tr>' +
+          '<td><div class="sel-orang"><div class="avatar">' +
+            Core.esc(Core.inisial(m.nama)) + '</div><div><b>' +
+            Core.esc(m.nama) + '</b><small>' + Core.esc(m.username) + '</small></div></div></td>' +
+          '<td>' + Core.esc(m.nisn || '—') + '</td>' +
+          '<td>' + Core.esc(m.no_wa || '—') + '</td>' +
+          '<td>' + (m.status === 'aktif'
+            ? '<span class="badge badge-aktif">● Aktif</span>'
+            : '<span class="badge badge-nonaktif">● Nonaktif</span>') + '</td>' +
+          '<td class="kecil">' + Core.esc(m.last_login || 'belum pernah') + '</td>' +
+          '<td class="td-aksi">' +
+            '<button class="btn-teks" data-detail="' + Core.esc(m.user_id) + '" title="Detail">👁</button>' +
+            '<button class="btn-teks" data-edit="' + Core.esc(m.user_id) + '" title="Edit">✏️</button>' +
+            statusTombol(m) +
+          '</td></tr>';
+      });
+      html += '</tbody></table>';
+      wadah.innerHTML = html;
+
+      wadah.querySelectorAll('[data-detail]').forEach(function (b) {
+        b.addEventListener('click', function () {
+          dialogDetail(b.dataset.detail);
+        });
+      });
+      wadah.querySelectorAll('[data-edit]').forEach(function (b) {
+        b.addEventListener('click', function () {
+          dialogForm(b.dataset.edit);
+        });
+      });
+      wadah.querySelectorAll('[data-status]').forEach(function (b) {
+        b.addEventListener('click', function () {
+          toggleStatus(b.dataset.status);
+        });
+      });
+    }).catch(function (err) {
+      wadah.innerHTML = '<div class="kosong"><b>Gagal memuat</b>' +
+        Core.esc(err.message) + '</div>';
+    });
+  }
+
+  function statusTombol(m) {
+    if (m.status === 'aktif') {
+      return '<button class="btn-teks merah" data-status="' + Core.esc(m.user_id) +
+             '" title="Nonaktifkan">⏸</button>';
+    }
+    return '<button class="btn-teks" data-status="' + Core.esc(m.user_id) +
+           '" title="Aktifkan kembali">▶</button>';
+  }
+
+  function toggleStatus(userId) {
+    var m = DAFTAR.filter(function (x) { return x.user_id === userId; })[0];
+    if (!m) return;
+    var jadiNonaktif = m.status === 'aktif';
+
+    Core.konfirmasi(
+      jadiNonaktif ? 'Nonaktifkan murid?' : 'Aktifkan murid?',
+      jadiNonaktif
+        ? m.nama + ' tidak bisa login, tapi datanya & riwayatnya tetap ada. ' +
+          'Bisa diaktifkan kembali kapan saja.'
+        : m.nama + ' akan bisa login kembali.',
+      { labelYa: jadiNonaktif ? 'Ya, nonaktifkan' : 'Ya, aktifkan',
+        bahaya: jadiNonaktif })
+      .then(function (ya) {
+        if (!ya) return;
+        Core.api('muridSimpan', Core.ambilToken(),
+                 { user_id: userId, status: jadiNonaktif ? 'nonaktif' : 'aktif' })
+          .then(function () {
+            Core.toast(jadiNonaktif ? 'Murid dinonaktifkan.' : 'Murid diaktifkan.', 'sukses');
+            muatTabel();
+          })
+          .catch(function (err) { Core.toast(err.message, 'bahaya'); });
+      });
+  }
+
+  /* ---------- cari baris daftar ---------- */
+
+  function cari(userId) {
+    return DAFTAR.filter(function (x) { return x.user_id === userId; })[0] || {};
+  }
+
+  /* ---------- tambah / edit ---------- */
+
+  function dialogForm(userId) {
+    var m = userId ? cari(userId) : null;
+    var html =
+      '<div class="baris-form">' +
+        '<div class="grup"><label>Nama lengkap <span class="wajib">*</span></label>' +
+        '<input class="isian" id="in-m-nama" value="' + Core.esc(m ? m.nama : '') + '"></div>' +
+        '<div class="grup"><label>Username <span class="wajib">*</span></label>' +
+        '<input class="isian" id="in-m-user" value="' + Core.esc(m ? m.username : '') +
+        '" ' + (m ? 'disabled' : 'autocapitalize="off" spellcheck="false"') + '></div>' +
+      '</div>' +
+      '<div class="baris-form">' +
+        '<div class="grup"><label>NISN <span class="kecil">(opsional)</span></label>' +
+        '<input class="isian" id="in-m-nisn" inputmode="numeric" value="' +
+        Core.esc(m ? m.nisn : '') + '"></div>' +
+        '<div class="grup"><label>No. WhatsApp</label>' +
+        '<input class="isian" id="in-m-wa" inputmode="numeric" value="' +
+        Core.esc(m ? m.no_wa : '') + '" placeholder="08xxxxxxxxxx"></div>' +
+      '</div>' +
+      '<div class="grup"><label>Rombel <span class="kecil">(label bebas)</span></label>' +
+      '<input class="isian" id="in-m-rombel" value="' + Core.esc(m ? m.rombel : '') +
+      '" placeholder="mis. XI TKJ 1"></div>' +
+      '<div class="pesan-salah" id="salah-murid"></div>';
+
+    Core.dialog({
+      judul: m ? '✏️ Edit Murid' : '＋ Tambah Murid',
+      pesan: m ? '' : 'Sandi sementara dibuat otomatis — tampil SEKALI setelah disimpan.',
+      html: html,
+      labelYa: m ? 'Simpan' : 'Buat',
+      saatBuka: function (tirai) {
+        var el = tirai.querySelector(m ? '#in-m-nama' : '#in-m-nama');
+        if (el) el.focus();
+      }
+    }).then(function (ya) {
+      if (!ya) return;
+      var salah = Core.$('salah-murid');
+      var p = {
+        nama: Core.$('in-m-nama').value,
+        nisn: Core.$('in-m-nisn').value,
+        no_wa: Core.$('in-m-wa').value,
+        rombel: Core.$('in-m-rombel').value
+      };
+      if (m) p.user_id = userId;
+      else p.username = Core.$('in-m-user').value;
+
+      Core.api('muridSimpan', Core.ambilToken(), p)
+        .then(function (hasil) {
+          if (hasil.baru) dialogSandiBaru(hasil);
+          else Core.toast('Perubahan tersimpan.', 'sukses');
+          muatTabel();
+        })
+        .catch(function (err) {
+          Core.tampilkanPesanError(salah, err.message);
+          dialogForm(userId);
+        });
+    });
+  }
+
+  function dialogTambah() { dialogForm(null); }
+
+  /** Dialog sandi sementara baru — tampil sekali + salin + kirim WA. */
+  function dialogSandiBaru(hasil) {
+    var tautanWa = hasil.no_wa
+      ? 'https://wa.me/' + hasil.no_wa.replace(/[^0-9]/g, '') +
+        '?text=' + encodeURIComponent(
+          'Assalamualaikum ' + (hasil.nama || '') +
+          '. Akun LMS Anda: username "' + hasil.username +
+          '", kata sandi sementara: ' + hasil.password_sementara +
+          '. Segera ganti setelah masuk.')
+      : '';
+    Core.dialog({
+      judul: '✅ Murid dibuat',
+      pesan: 'Berikan sandi sementara ini ke murid. Setelah murid mengganti ' +
+             'sandinya, sandi tidak terbaca lagi (reset bila perlu).',
+      html:
+        '<div class="sukses-sandi"><code>' + Core.esc(hasil.password_sementara) + '</code>' +
+        '<small>' + Core.esc(hasil.username) + ' · sandi sementara</small></div>' +
+        '<div class="baris-salin">' +
+          '<button class="btn btn-sekunder btn-kecil" data-aksi-tambahan="salin">📋 Salin sandi</button>' +
+          (tautanWa ? '<a class="btn btn-sekunder btn-kecil" href="' +
+            Core.esc(tautanWa) + '" target="_blank">💬 Kirim via WhatsApp</a>' : '') +
+        '</div>',
+      labelYa: 'Selesai',
+      saatBuka: function (tirai) {
+        tirai.querySelector('[data-aksi-tambahan="salin"]')
+          .addEventListener('click', function () {
+            salin(hasil.password_sementara);
+          });
+      }
+    });
+  }
+
+  function salin(teks) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(teks).then(function () {
+        Core.toast('Disalin ke papan klip.', 'sukses');
+      }).catch(function () { salinCadangan(teks); });
+    } else salinCadangan(teks);
+  }
+  function salinCadangan(teks) {
+    var ta = document.createElement('textarea');
+    ta.value = teks;
+    document.body.appendChild(ta);
+    ta.select();
+    try { document.execCommand('copy'); Core.toast('Disalin.', 'sukses'); }
+    catch (e) { Core.toast('Gagal menyalin — salin manual.', 'bahaya'); }
+    ta.remove();
+  }
+
+  /* ---------- detail ---------- */
+
+  function dialogDetail(userId) {  /* diekspor: dipakai juga layar kelas */
+    Core.api('muridDetail', Core.ambilToken(), userId).then(function (m) {
+      var kelas = (m.kelas || []).map(function (k) { return k.name; }).join(', ');
+      Core.dialog({
+        judul: 'Detail Murid',
+        pesan: m.username + ' · ' + m.nama,
+        html:
+          '<table style="font-size:.86rem"><tbody>' +
+          barisDetail('NISN', m.nisn || '—') +
+          barisDetail('No WA', m.no_wa || '—') +
+          barisDetail('Rombel', m.rombel || '—') +
+          barisDetail('Kelas', kelas || 'belum terdaftar') +
+          barisDetail('Email', m.email || 'belum diisi') +
+          barisDetail('Login terakhir', m.last_login || 'belum pernah') +
+          barisDetail('Sandi sementara', m.pwd_awal
+            ? '<code>' + Core.esc(m.pwd_awal) + '</code> — terlihat sampai murid mengganti'
+            : '✓ sudah diganti murid') +
+          '</tbody></table>' +
+          '<div class="pesan-salah" id="salah-reset" style="margin-top:10px"></div>',
+        labelYa: 'Tutup',
+        tanpaBatal: true,
+        tombol: [
+          { aksi: 'edit', label: '✏️ Edit' },
+          { aksi: 'reset', label: '🔐 Reset sandi' }
+        ]
+      }).then(function (hasil) {
+        if (hasil === 'edit') dialogForm(userId);
+        if (hasil === 'reset') dialogResetSandi(m);
+      });
+    }).catch(function (err) {
+      Core.toast(err.message, 'bahaya');
+    });
+  }
+
+  function barisDetail(label, nilai) {
+    return '<tr><td style="color:var(--teks-lembut);padding:6px 12px 6px 0">' +
+           Core.esc(label) + '</td><td style="padding:6px 0">' + nilai + '</td></tr>';
+  }
+
+  /** Reset sandi murid (alur v1) → sandi sementara baru. */
+  function dialogResetSandi(m) {
+    Core.konfirmasi('Reset kata sandi?',
+      'Sandi baru dibuat otomatis untuk ' + m.nama +
+      '; murid diminta menggantinya saat login berikutnya.',
+      { labelYa: 'Ya, reset' })
+      .then(function (ya) {
+        if (!ya) return;
+        Core.api('resetPasswordMurid', Core.ambilToken(), m.user_id, '')
+          .then(function (hasil) {
+            var tautanWa = hasil.no_wa
+              ? 'https://wa.me/' + String(hasil.no_wa).replace(/[^0-9]/g, '') +
+                '?text=' + encodeURIComponent(
+                  'Assalamualaikum ' + (hasil.nama || '') +
+                  '. Kata sandi LMS Anda direset. Username "' + hasil.username +
+                  '", sandi sementara: ' + hasil.password_sementara +
+                  '. Segera ganti setelah masuk.')
+              : '';
+            Core.dialog({
+              judul: '🔐 Sandi direset',
+              html:
+                '<div class="sukses-sandi"><code>' +
+                Core.esc(hasil.password_sementara) + '</code>' +
+                '<small>' + Core.esc(hasil.username) + ' · sandi sementara baru</small></div>' +
+                '<div class="baris-salin">' +
+                  '<button class="btn btn-sekunder btn-kecil" data-aksi-tambahan="salin">📋 Salin</button>' +
+                  (tautanWa ? '<a class="btn btn-sekunder btn-kecil" href="' +
+                    Core.esc(tautanWa) + '" target="_blank">💬 Kirim via WhatsApp</a>' : '') +
+                '</div>',
+              labelYa: 'Selesai',
+              saatBuka: function (tirai) {
+                tirai.querySelector('[data-aksi-tambahan="salin"]')
+                  .addEventListener('click', function () {
+                    salin(hasil.password_sementara);
+                  });
+              }
+            });
+            muatTabel();
+          })
+          .catch(function (err) { Core.toast(err.message, 'bahaya'); });
+      });
+  }
+
+  /* ---------- impor massal ---------- */
+
+  function dialogImpor() {
+    Core.dialog({
+      judul: '📥 Impor Murid Massal',
+      pesan: 'Tempel data dari Excel/WhatsApp: nama, rombel, username, password ' +
+             '(pemisah koma / titik koma / tab). Sandi boleh dikosongkan.',
+      html:
+        '<div class="grup"><textarea class="isian" id="in-impor" rows="7" ' +
+        'placeholder="Rara Aisyah, XI TKJ 1, rara.aisyah, rara123&#10;' +
+        'Bayu Setiawan, XI TKJ 1, bayu.setiawan"></textarea>' +
+        '<span class="bantuan">Maksimal 100 murid sekali impor. Pratinjau tampil ' +
+        'sebelum disimpan — duplikat username otomatis diberi akhiran angka.</span></div>',
+      labelYa: 'Lihat pratinjau'
+    }).then(function (ya) {
+      if (!ya) return;
+      var teks = Core.$('in-impor').value;
+      Core.api('muridPratinjauImpor', Core.ambilToken(), teks)
+        .then(function (pratinjau) { dialogHasilPratinjau(teks, pratinjau); })
+        .catch(function (err) {
+          Core.toast(err.message, 'bahaya');
+        });
+    });
+  }
+
+  function dialogHasilPratinjau(teks, p) {
+    var html = '<p class="kecil">' + p.total + ' baris · <b>' + p.siap.length +
+      ' siap dibuat</b> · ' + p.jml_diubah + ' username disesuaikan · ' +
+      p.masalah.length + ' bermasalah</p>';
+
+    if (p.masalah.length) {
+      html += '<div class="kartu" style="margin-bottom:10px"><div class="kartu-isi">' +
+        '<b class="badge badge-nonaktif">DITOLAK</b>';
+      p.masalah.slice(0, 6).forEach(function (x) {
+        html += '<div class="kecil mt-8">Baris ' + x.baris + ': ' + Core.esc(x.alasan) + '</div>';
+      });
+      html += '</div></div>';
+    }
+
+    html += '<div class="kartu"><div class="tabel-gulir" style="max-height:220px;overflow:auto">' +
+      '<table style="font-size:.82rem"><thead><tr><th>Nama</th><th>Username</th><th>Ket.</th></tr></thead><tbody>';
+    p.siap.forEach(function (x) {
+      html += '<tr><td style="padding:7px 10px">' + Core.esc(x.nama) + '</td>' +
+        '<td style="padding:7px 10px">' + Core.esc(x.username) +
+        (x.diubah ? ' <span class="badge badge-tunggu">disesuaikan</span>' : '') + '</td>' +
+        '<td style="padding:7px 10px" class="kecil">' +
+        (x.sandi_sendiri ? 'sandi sendiri' : 'sandi otomatis') +
+        (x.catatan ? ' · ' + Core.esc(x.catatan) : '') + '</td></tr>';
+    });
+    html += '</tbody></table></div></div>';
+
+    Core.dialog({
+      judul: 'Pratinjau impor',
+      html: html,
+      labelYa: p.siap.length ? ('Simpan ' + p.siap.length + ' murid') : 'Tutup',
+      tanpaYa: !p.siap.length
+    }).then(function (ya) {
+      if (!ya || !p.siap.length) return;
+      Core.api('muridImpor', Core.ambilToken(), teks)
+        .then(function (hasil) {
+          dialogHasilImpor(hasil);
+          muatTabel();
+        })
+        .catch(function (err) { Core.toast(err.message, 'bahaya'); });
+    });
+  }
+
+  function dialogHasilImpor(hasil) {
+    var html = '<p class="kecil"><b>' + hasil.jml_baru + ' murid dibuat</b> · ' +
+      hasil.jml_gagal + ' baris gagal</p>';
+    html += '<div class="kartu"><div class="tabel-gulir" style="max-height:250px;overflow:auto">' +
+      '<table style="font-size:.82rem"><thead><tr><th>Nama</th><th>Username</th><th>Sandi</th></tr></thead><tbody>';
+    hasil.hasil.forEach(function (x) {
+      html += '<tr><td style="padding:7px 10px">' + Core.esc(x.nama) + '</td>' +
+        '<td style="padding:7px 10px">' + Core.esc(x.username) + '</td>' +
+        '<td style="padding:7px 10px"><code>' + Core.esc(x.password) + '</code></td></tr>';
+    });
+    html += '</tbody></table></div></div>';
+    if (hasil.gagal.length) {
+      html += '<div class="kecil mt-8" style="color:var(--bahaya)">' +
+        Core.esc(hasil.gagal.join(' · ')) + '</div>';
+    }
+
+    Core.dialog({
+      judul: '✅ Impor selesai',
+      html: html,
+      labelYa: 'Tutup',
+      saatBuka: function (tirai) {
+        var daftarTeks = hasil.hasil.map(function (x) {
+          return x.nama + ' | ' + x.username + ' | ' + x.password;
+        }).join('\n');
+        var wadah = tirai.querySelector('.kotak-dialog .aksi');
+        var btn = document.createElement('button');
+        btn.className = 'btn btn-sekunder btn-kecil';
+        btn.textContent = '📋 Salin daftar';
+        btn.addEventListener('click', function () { salin(daftarTeks); });
+        wadah.insertBefore(btn, wadah.firstChild);
+      }
+    });
+  }
+
+  Core.daftarRute('murid', render);
+  return { render: render, detail: dialogDetail };
+})();
+</script>

@@ -1,0 +1,119 @@
+<script>
+/* ============================================================
+ *  LMS v2 — js_beranda.html
+ *  Beranda ringkas ala §22D:
+ *  guru = 4 angka (kelas/course/murid/api key) + perlu tindakan
+ *  + pintasan menu; murid = ringkas + pengingat biodata.
+ * ============================================================ */
+
+var Beranda = (function () {
+
+  function render() {
+    var r = Core.state.ringkas;
+    var layar = Core.$('layar');
+    if (!r) { layar.innerHTML = '<div class="pemuat">…</div>'; return; }
+    if (r.role === 'guru') renderGuru(layar, r);
+    else renderMurid(layar, r);
+  }
+
+  /* ---------------- guru ---------------- */
+
+  function renderGuru(layar, r) {
+    var user = Core.state.user || {};
+    var jam = new Date().getHours();
+    var sapa = jam < 11 ? 'Selamat pagi' : (jam < 15 ? 'Selamat siang' :
+              (jam < 18 ? 'Selamat sore' : 'Selamat malam'));
+    var ak = r.api_key || {};
+    var pt = r.perlu_tindakan || { jml: 0, daftar: [] };
+
+    var html =
+      '<div class="kepala"><div>' +
+        '<h1>' + Core.esc(sapa) + ', ' + Core.esc(user.nama || 'Guru') + ' 👋</h1>' +
+        '<p>Ringkasan kelas & course Anda hari ini.</p>' +
+      '</div></div>' +
+
+      '<div class="kisi-stat">' +
+        stat('🏫', r.kelas_aktif, 'Kelas aktif') +
+        stat('📚', r.course_aktif, 'Course') +
+        stat('🧑‍🎓', r.murid_aktif, 'Murid aktif') +
+        stat('🔑', (ak.terpasang ? ak.jml + '/' + ak.maks : '—'), 'API key terpasang') +
+      '</div>';
+
+    if (pt.jml > 0) {
+      html += '<div class="judul-seksi">Perlu tindakan</div><div class="kartu"><div class="kartu-isi">' +
+        '<span class="badge badge-tunggu">' + pt.jml + ' permintaan reset</span>';
+      pt.daftar.forEach(function (x) {
+        html += '<div class="sel-orang mt-8"><div class="avatar">' +
+          Core.esc(Core.inisial(x.nama)) + '</div>' +
+          '<div style="flex:1;min-width:0"><b>' + Core.esc(x.nama) + '</b>' +
+          '<small>meminta reset kata sandi · ' + Core.esc(x.username) + '</small></div></div>';
+      });
+      html += '<div class="mt-8"><button class="btn btn-sekunder btn-kecil" id="btn-pt-murid">' +
+              'Buka Kelola Murid</button></div></div></div>';
+    }
+
+    html +=
+      '<div class="judul-seksi">Pintasan menu</div><div class="pintasan">' +
+        '<a href="#" data-ke="kelas"><span class="pintasan-ikon">🏫</span>' +
+          '<span><b>Kelola Kelas</b><small>Buat kelas & atur muridnya</small></span></a>' +
+        '<a href="#" data-ke="course"><span class="pintasan-ikon">📚</span>' +
+          '<span><b>Kelola Course</b><small>Gabungan kelas & mapel</small></span></a>' +
+        '<a href="#" data-ke="murid"><span class="pintasan-ikon">🧑‍🎓</span>' +
+          '<span><b>Kelola Murid</b><small>Tambah, impor, nonaktifkan</small></span></a>' +
+        '<a href="#" data-ke="rekap"><span class="pintasan-ikon">📊</span>' +
+          '<span><b>Rekap Nilai</b><small>Per course + export</small></span></a>' +
+        '<a href="#" data-ke="apikey"><span class="pintasan-ikon">🔑</span>' +
+          '<span><b>Status API Key</b><small>Maks. 10 key Gemini</small></span></a>' +
+      '</div>';
+
+    layar.innerHTML = html;
+
+    var btnPt = Core.$('btn-pt-murid');
+    if (btnPt) btnPt.addEventListener('click', function () { Core.pergiKe('murid'); });
+    layar.querySelectorAll('[data-ke]').forEach(function (a) {
+      a.addEventListener('click', function (e) {
+        e.preventDefault();
+        Core.pergiKe(a.dataset.ke);
+      });
+    });
+  }
+
+  function stat(ikon, angka, label) {
+    return '<div class="stat"><div class="stat-ikon">' + ikon + '</div>' +
+           '<div><b>' + Core.esc(String(angka)) + '</b><small>' +
+           Core.esc(label) + '</small></div></div>';
+  }
+
+  /* ---------------- murid ---------------- */
+
+  function renderMurid(layar, r) {
+    var user = Core.state.user || {};
+    var html =
+      '<div class="kepala"><div>' +
+        '<h1>Halo, ' + Core.esc(user.nama || 'Murid') + ' 👋</h1>' +
+        '<p>Fitur belajar murid (Kelas Saya → Materi → Quiz) menyusul ' +
+        'pada tahap berikutnya.</p>' +
+      '</div></div>' +
+      '<div class="kisi-stat">' +
+        stat('🏫', r.kelas_diikuti, 'Kelas diikuti') +
+        stat('🔔', r.notif_baru, 'Notifikasi baru') +
+      '</div>';
+
+    if (r.biodata_kurang) {
+      html += '<div class="kartu"><div class="kartu-isi">' +
+        '<b>📋 Biodata Anda belum lengkap</b>' +
+        '<p class="kecil">Lengkapi email, nomor WhatsApp, dan tanggal lahir agar Anda ' +
+        'dapat memulihkan sandi/username sendiri bila lupa.</p>' +
+        '<button class="btn btn-kecil mt-8" id="btn-isi-bio">Lengkapi sekarang</button>' +
+        '</div></div>';
+    }
+
+    layar.innerHTML = html;
+    var btn = Core.$('btn-isi-bio');
+    if (btn) btn.addEventListener('click', function () { Auth.bukaBiodata(true); });
+  }
+
+  Core.daftarRute('beranda', render);
+  return { render: render };
+})();
+</script>

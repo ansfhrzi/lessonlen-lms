@@ -25,7 +25,7 @@ yang ada di akar repositori.
 
 | Berkas | Fungsi |
 |---|---|
-| `Code.gs` | `doGet`, `include`, pembungkus API `_bungkus`, endpoint auth + dasbor |
+| `Code.gs` | `doGet`, `muatCss`/`muatJs` (gabung berkas klien), pembungkus API `_bungkus`, endpoint auth + dasbor |
 | `Setup.gs` | Skema **23 sheet**, `setupLengkap()`, seed, migrasi, `infoDatabase()` |
 | `Db.gs` | Lapisan akses Sheets: baca/tulis batch, cache, `LockService` |
 | `Util.gs` | Generator ID (sheet `Counters` + lock), hash kata sandi, sanitasi, audit log |
@@ -35,9 +35,16 @@ yang ada di akar repositori.
 | `Course.gs` | **Tahap 3.3** — Kelola Course: "Course" = Teaching_Assignments (label `KELAS - MAPEL`); buat = kelas + mapel bebas (auto-dedupe `Subjects`), duplikat ditolak, edit ganti kelas/mapel, hapus = lepas relasi; buat ulang → reaktivasi |
 | `ApiKey.gs` | **Tahap 3.4** — Status API Key: pasang ≤10 key Gemini (Script Properties `GEMINI_KEYS`, menimpa daftar lama), panel hanya melihat 4 digit terakhir, status siap/istirahat/bermasalah, reset cooldown — mekanisme & nama kunci identik v1 (siap dipakai modul AI) |
 | `Uji.gs` | **Uji dari editor Apps Script** ke DB nyata: `ujiSemua()` (atau `ujiGate0()` / `ujiMurid()`); data uji berpenanda `uXXXXXX` + pembersihan otomatis; akun seed tak diubah |
-| `index.html` + `css.html` | Cangkang UI |
-| `v_login.html`, `v_dashboard.html` | Layar masuk & dasbor guru/murid |
-| `js_core.html`, `js_auth.html` | Pembungkus `google.script.run`, token sesi, logika layar |
+| `index.html` + `css.html` | Cangkang UI; `css.html` = sistem desain (token tema `:root` hijau `#2F6B2B` — ganti tema cukup ubah variabel) |
+| `v_login.html`, `v_dashboard.html` | Layar masuk + cangkang dasbor (sidebar/topbar/lonceng/toast) |
+| `js_core.html` | Pembungkus `google.script.run`, token sesi, router `Core.pergiKe`, dialog & toast global, lonceng notifikasi |
+| `js_auth.html` | Login, lupa sandi, keluar, dialog wajib-ganti-sandi & biodata murid |
+| `js_beranda.html` | **UI Tahap 3** — beranda §22D: guru (4 angka + perlu tindakan + pintasan) & murid |
+| `js_murid.html` | **UI Tahap 3** — Kelola Murid: daftar+cari/filter, tambah (dialog sandi + kirim WA), detail (+`pwd_awal`, reset), edit, nonaktif, impor massal + pratinjau |
+| `js_kelas.html` | **UI Tahap 3** — Kelola Kelas: kisi kartu, form buat/edit, detail (murid + tambah/keluarkan), arsip |
+| `js_course.html` | **UI Tahap 3** — Kelola Course: tabel, buat/edit (kelas + mapel), hapus = nonaktif |
+| `js_rekap.html` | **UI Tahap 3** — Rekap Nilai placeholder "menyusul" |
+| `js_apikey.html` | **UI Tahap 3** — Status API Key: 10 slot + status, timpa daftar, reset cooldown |
 | `test/` | Uji node: `uji-auth-gate0.js` (18) + `uji-murid.js` (65) + `uji-lupa-akses.js` (32) + `uji-kelas.js` (48) + `uji-course.js` (41) + `uji-apikey.js` (31) + `uji-beranda.js` (18) + `uji-ui.js` (audit statis fungsi klien; daftar berkas auto) |
 
 ## Cara pasang (sekali saja)
@@ -45,7 +52,9 @@ yang ada di akar repositori.
 1. Buat **project Apps Script baru** (script.google.com → New project).
 2. Salin seluruh berkas folder ini ke project (nama file harus sama persis,
    tanpa awalan folder). Untuk berkas HTML, nama file di Apps Script adalah
-   `index`, `css`, `v_login`, `v_dashboard`, `js_core`, `js_auth`.
+   `index`, `css`, `v_login`, `v_dashboard`, `js_core`, `js_auth`,
+   `js_beranda`, `js_murid`, `js_kelas`, `js_course`, `js_rekap`,
+   `js_apikey`.
 3. Jalankan fungsi **`setupLengkap`** dari editor → izinkan akses.
    Spreadsheet `DB_LMS_V2` (23 sheet) dibuat otomatis dan `DB_ID`
    tersimpan di Script Properties.
@@ -100,9 +109,11 @@ di deployment `/exec` sungguhan:
   kelas/course/murid + api_key + perlu tindakan antrean reset; murid +
   biodata_kurang) — **backend Tahap 3 TUNTAS**
 
-- ⬜ Tahap 3.4 — backend Status API Key (Script Properties ≤10)
-- ⬜ Tahap 3.5 — backend Beranda ringkas
-- ⬜ UI Tahap 3 — menyusul setelah desain dikunci (prototipe direview)
+- ✅ UI Tahap 3 — klien lengkap sesuai prototipe `desain/tampilan-v2.html`:
+  sistem desain baru (css.html), cangkang sidebar + router, beranda §22D,
+  Kelola Murid/Kelas/Course + dialog lengkap, Status API Key, lonceng
+  notifikasi, Rekap placeholder; audit statis `uji-ui.js` + `uji-ui-extra.js`
+  (id/endpoint/kelas CSS/rute) semua lulus
 - ↩️ **Rollback 2 Sep 2026** — UI/UX & fungsi tahap 3–4 lama dihapus
   (arsip: `a63527b..c1c0157`); keputusan alur baru: §22D dokumen rancangan
 - ⬜ Tahap 3 (baru) — Dashboard 5 menu ala §22D, urutan bangun:

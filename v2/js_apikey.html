@@ -1,0 +1,158 @@
+<script>
+/* ============================================================
+ *  LMS v2 — js_apikey.html
+ *  Layar Status API Key: 10 slot Gemini + cooldown, simpan
+ *  (menimpa semua), reset cooldown. Key utuh tidak pernah
+ *  dikirim balik server — hanya 4 digit ekor.
+ * ============================================================ */
+
+var ApiKeyLayar = (function () {
+
+  function render() {
+    Core.$('layar').innerHTML =
+      '<div class="kepala"><div><h1>Status API Key</h1>' +
+        '<p>Kunci Gemini untuk fitur AI (generate soal & umpan balik). ' +
+        'Maksimal 10 key; key yang kena limit auto-istirahat lalu kembali sendiri.</p></div></div>' +
+      '<div id="wadah-isi"><div class="pemuat"><span class="ikon">⏳</span>Memuat…</div></div>';
+
+    muat();
+  }
+
+  function muat() {
+    var wadah = Core.$('wadah-isi');
+    Core.api('apiKeyStatus', Core.ambilToken()).then(function (s) {
+      var html = '';
+
+      /* ringkasan angka */
+      html += '<div class="kisi-stat">' +
+        stat('🔑', s.jml + '/' + s.maks, 'Key tersimpan') +
+        stat('✅', s.jml_siap, 'Siap dipakai') +
+        stat('⏳', s.jml - s.jml_siap, 'Istirahat / bermasalah') +
+        '</div>';
+
+      /* model aktif */
+      var model = (s.model || []);
+      var pilihan = model.map(function (m) {
+        return '<option value="' + Core.esc(m) + '"' +
+          (m === s.model_aktif ? ' selected' : '') + '>' + Core.esc(m) + '</option>';
+      }).join('');
+      html += '<div class="kartu"><div class="kartu-isi">' +
+        '<div class="baris-form">' +
+          '<div class="grup"><label>Model AI aktif</label>' +
+          '<select class="isian" id="sel-model">' + pilihan + '</select>' +
+          '<span class="bantuan">Dipakai semua fitur AI. Cursor kuota: ' +
+          Core.esc(String(s.cursor || 0)) + '</span></div>' +
+          '<div class="grup"><label>&nbsp;</label>' +
+          '<button class="btn btn-sekunder" id="btn-reset-cd">♻️ Reset cooldown semua key</button></div>' +
+        '</div></div></div>';
+
+      /* 10 slot key */
+      var key = s.key || [];
+      html += '<div class="judul-seksi">Slot API Key</div>';
+      html += '<div class="slot-grid">';
+      for (var i = 0; i < s.maks; i++) {
+        var k = key[i];
+        if (k) {
+          html += '<div class="slot"><b>Slot ' + (i + 1) + ' …' + Core.esc(k.ekor) + '</b>' +
+            badge(k.status) + '</div>';
+        } else {
+          html += '<div class="slot penuh"><b>Slot ' + (i + 1) + '</b>' +
+            '<span class="badge badge-nonaktif">kosong</span></div>';
+        }
+      }
+      html += '</div>';
+
+      html +=
+        '<div class="kartu mt-16"><div class="kartu-isi">' +
+        '<b>Ubah daftar key</b>' +
+        '<p class="kecil">Tempel satu key per baris (maks 10, tiap key ≥ 30 ' +
+        'karakter). <b>Menyimpan akan MENIMPA seluruh daftar</b> — salin ' +
+        'lengkap key yang masih ingin dipakai. Kosongkan semua = mencabut ' +
+        'semua key. Key yang sedang istirahat akan dibersihkan cooldown-nya ' +
+        'bila diisi ulang.</p>' +
+        '<div class="grup"><textarea class="isian" id="in-key" rows="6" ' +
+        'placeholder="AIza…&#10;AIza…"></textarea></div>' +
+        '<div class="pesan-salah" id="salah-key"></div>' +
+        '<div class="baris-form mt-8">' +
+          '<button class="btn" id="btn-simpan">💾 Simpan daftar key</button>' +
+        '</div>' +
+        '</div></div>';
+
+      wadah.innerHTML = html;
+
+      Core.$('btn-reset-cd').addEventListener('click', resetCooldown);
+      Core.$('btn-simpan').addEventListener('click', simpan);
+    }).catch(function (err) {
+      wadah.innerHTML = '<div class="kosong-besar"><span class="ikon">⚠️</span>' +
+        '<b>Gagal memuat</b>' + Core.esc(err.message) + '</div>';
+    });
+  }
+
+  function badge(status) {
+    if (status === 'siap') return '<span class="badge badge-aktif">● siap</span>';
+    if (status === 'istirahat') return '<span class="badge badge-tunggu">⏳ istirahat (cooldown)</span>';
+    return '<span class="badge badge-nonaktif">● bermasalah</span>';
+  }
+
+  function stat(ikon, angka, label) {
+    return '<div class="stat"><div class="stat-ikon">' + ikon + '</div>' +
+           '<div><b>' + Core.esc(String(angka)) + '</b><small>' +
+           Core.esc(label) + '</small></div></div>';
+  }
+
+  function resetCooldown() {
+    Core.konfirmasi('Reset cooldown?',
+      'Semua key yang sedang istirahat akan langsung bisa dipakai lagi.',
+      { labelYa: 'Ya, reset' })
+      .then(function (ya) {
+        if (!ya) return;
+        Core.api('apiKeyResetCooldown', Core.ambilToken())
+          .then(function () {
+            Core.toast('Cooldown semua key direset.', 'sukses');
+            muat();
+          })
+          .catch(function (err) { Core.toast(err.message, 'bahaya'); });
+      });
+  }
+
+  function simpan() {
+    var teks = Core.$('in-key').value;
+    var daftar = String(teks || '').split('\n')
+      .map(function (x) { return x.trim(); })
+      .filter(function (x) { return x.length > 0; });
+
+    var salah = Core.$('salah-key');
+    Core.sembunyikanPesanError(salah);
+
+    if (daftar.length > 10) {
+      Core.tampilkanPesanError(salah, 'Maksimal 10 key (sekarang ' + daftar.length + ').');
+      return;
+    }
+    var buruk = daftar.filter(function (x) { return x.replace(/\s/g, '').length < 30; });
+    if (buruk.length) {
+      Core.tampilkanPesanError(salah, 'Ada key kurang dari 30 karakter — periksa lagi.');
+      return;
+    }
+
+    Core.konfirmasi('Timpa seluruh daftar key?',
+      daftar.length
+        ? 'Daftar lama DIGANTI dengan ' + daftar.length + ' key yang Anda tempel sekarang.'
+        : 'Semua key akan dicabut. Fitur AI tidak bisa dipakai sampai key diisi lagi.',
+      { labelYa: 'Ya, simpan', bahaya: daftar.length === 0 })
+      .then(function (ya) {
+        if (!ya) return;
+        Core.api('apiKeySimpan', Core.ambilToken(), daftar)
+          .then(function () {
+            Core.toast('Daftar API key tersimpan.', 'sukses');
+            muat();
+          })
+          .catch(function (err) {
+            Core.tampilkanPesanError(Core.$('salah-key'), err.message);
+          });
+      });
+  }
+
+  Core.daftarRute('apikey', render);
+  return { render: render };
+})();
+</script>

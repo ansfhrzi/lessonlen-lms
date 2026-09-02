@@ -1,0 +1,259 @@
+<script>
+/* ============================================================
+ *  LMS v2 — js_kelas.html
+ *  Layar Kelola Kelas: kisi kartu (nama, tahun ajaran,
+ *  jml murid/course), form buat/edit, detail (tabel murid +
+ *  tambah murid ke kelas + keluarkan + ekspor), arsip.
+ * ============================================================ */
+
+var KelasLayar = (function () {
+
+  function render() {
+    Core.$('layar').innerHTML =
+      '<div class="kepala"><div><h1>Kelola Kelas</h1>' +
+        '<p>Rombongan belajar — murid masuk lewat kelas, course menautkan kelas ke mapel.</p></div>' +
+        '<div class="kepala-aksi">' +
+          '<button class="btn btn-sekunder" id="btn-ekspor">📄 Ekspor Excel</button>' +
+          '<button class="btn" id="btn-tambah">＋ Buat kelas</button>' +
+        '</div></div>' +
+      '<div id="wadah-kisi" class="kisi-kartu">' +
+        '<div class="pemuat"><span class="ikon">⏳</span>Memuat…</div>' +
+      '</div>';
+
+    Core.$('btn-tambah').addEventListener('click', function () { dialogForm(null); });
+    Core.$('btn-ekspor').addEventListener('click', ekspor);
+    muatKisi();
+  }
+
+  /* ---------- kisi kartu ---------- */
+
+  function muatKisi() {
+    var wadah = Core.$('wadah-kisi');
+    Core.api('kelasDaftar', Core.ambilToken()).then(function (daftar) {
+      if (!daftar || !daftar.length) {
+        wadah.innerHTML = '<div class="kosong-besar"><span class="ikon">🏫</span>' +
+          '<b>Belum ada kelas</b>Buat kelas pertama Anda, lalu masukkan murid ke dalamnya.</div>';
+        return;
+      }
+      wadah.innerHTML = daftar.map(function (k) {
+        return '<div class="kartu-barang" data-id="' + Core.esc(k.class_id) + '">' +
+          '<div class="kartu-judul"><span>' + Core.esc(k.name) + '</span>' +
+            '<span class="badge badge-info">' + Core.esc(k.academic_year || '—') + '</span></div>' +
+          '<div class="kartu-sub">🧑‍🎓 ' + k.jml_murid + ' murid · 📚 ' + k.jml_course + ' course</div>' +
+          '<div class="kaki">' +
+            '<button class="btn-teks kecil" data-buka="' + Core.esc(k.class_id) + '">Buka →</button>' +
+          '</div></div>';
+      }).join('');
+
+      wadah.querySelectorAll('[data-buka]').forEach(function (b) {
+        b.addEventListener('click', function () {
+          Core.pergiKe('kelas_detail', { id: b.dataset.buka });
+        });
+      });
+    }).catch(function (err) {
+      wadah.innerHTML = '<div class="kosong-besar"><span class="ikon">⚠️</span>' +
+        '<b>Gagal memuat</b>' + Core.esc(err.message) + '</div>';
+    });
+  }
+
+  /* ---------- buat / edit ---------- */
+
+  function dialogForm(classId) {
+    var html =
+      '<div class="grup"><label>Nama kelas <span class="wajib">*</span></label>' +
+      '<input class="isian" id="in-k-nama" placeholder="mis. XI TKJ 1"></div>' +
+      '<div class="grup"><label>Tahun ajaran</label>' +
+      '<input class="isian" id="in-k-tahun" placeholder="mis. 2026/2027">' +
+      '<span class="bantuan">Kosongkan bila tidak dipakai.</span></div>' +
+      '<div class="pesan-salah" id="salah-kelas"></div>';
+
+    Core.dialog({
+      judul: classId ? '✏️ Edit Kelas' : '＋ Buat Kelas',
+      html: html,
+      labelYa: classId ? 'Simpan' : 'Buat',
+      saatBuka: function (tirai) {
+        if (!classId) return;
+        Core.api('kelasDetail', Core.ambilToken(), classId).then(function (d) {
+          tirai.querySelector('#in-k-nama').value = d.name || '';
+          tirai.querySelector('#in-k-tahun').value = d.academic_year || '';
+        }).catch(function (err) { Core.toast(err.message, 'bahaya'); });
+      }
+    }).then(function (ya) {
+      if (!ya) return;
+      var salah = Core.$('salah-kelas');
+      var p = {
+        name: Core.$('in-k-nama').value,
+        academic_year: Core.$('in-k-tahun').value
+      };
+      if (classId) p.class_id = classId;
+
+      Core.api('kelasSimpan', Core.ambilToken(), p)
+        .then(function () {
+          Core.toast(classId ? 'Kelas diperbarui.' : 'Kelas dibuat.', 'sukses');
+          if (classId) muatKisi(); else Core.pergiKe('kelas');
+        })
+        .catch(function (err) {
+          Core.tampilkanPesanError(salah, err.message);
+          dialogForm(classId);
+        });
+    });
+  }
+
+  /* ---------- detail kelas ---------- */
+
+  function renderDetail(params) {
+    Core.$('layar').innerHTML =
+      '<div class="kepala boleh-kembali">' +
+        '<button class="btn-teks" id="btn-kembali">←</button>' +
+        '<div><h1 id="jd-nama">…</h1><p id="jd-sub"></p></div>' +
+        '<div class="kepala-aksi">' +
+          '<button class="btn btn-sekunder" id="btn-ekspor">📄 Ekspor Excel</button>' +
+          '<button class="btn" id="btn-enroll">＋ Tambah murid</button>' +
+        '</div></div>' +
+      '<div class="kartu"><div class="kartu-isi" id="wadah-detail">' +
+        '<div class="pemuat"><span class="ikon">⏳</span>Memuat…</div>' +
+      '</div></div>' +
+      '<p class="bantuan mt-8">💡 Klik 👁 pada murid untuk melihat detail, edit, ' +
+      'atau reset kata sandinya. Keluarkan hanya melepas murid dari kelas ini — ' +
+      'akunnya tetap ada.</p>';
+
+    Core.$('btn-kembali').addEventListener('click', function () { Core.pergiKe('kelas'); });
+    Core.$('btn-enroll').addEventListener('click', function () { dialogEnroll(params.id); });
+    Core.$('btn-ekspor').addEventListener('click', ekspor);
+    muatDetail(params.id);
+  }
+
+  function muatDetail(classId) {
+    var wadah = Core.$('wadah-detail');
+    Core.api('kelasDetail', Core.ambilToken(), classId).then(function (d) {
+      var jd = Core.$('jd-nama');
+      if (jd) jd.textContent = d.name || '—';
+      var sub = Core.$('jd-sub');
+      if (sub) sub.textContent =
+        (d.academic_year ? d.academic_year + ' · ' : '') +
+        (d.murid || []).length + ' murid terdaftar';
+
+      if (!d.murid || !d.murid.length) {
+        wadah.innerHTML = '<div class="kosong"><b>Belum ada murid di kelas ini</b>' +
+          'Gunakan “Tambah murid” untuk mendaftarkan murid yang sudah ada.</div>';
+        return;
+      }
+      var html = '<div class="tabel-gulir"><table><thead><tr>' +
+        '<th>Murid</th><th>Status akun</th><th>Tanggal daftar</th><th></th>' +
+        '</tr></thead><tbody>';
+      d.murid.forEach(function (m) {
+        html += '<tr>' +
+          '<td><div class="sel-orang"><div class="avatar">' +
+            Core.esc(Core.inisial(m.nama)) + '</div><div><b>' + Core.esc(m.nama) +
+            '</b><small>' + Core.esc(m.username) + '</small></div></div></td>' +
+          '<td>' + (m.sudah_ganti
+            ? '<span class="badge badge-aktif">sandi diganti</span>'
+            : '<span class="badge badge-tunggu">masih sandi sementara</span>') + '</td>' +
+          '<td class="kecil">' + Core.esc(m.tanggal_daftar || '—') + '</td>' +
+          '<td class="td-aksi">' +
+            '<button class="btn-teks" data-detail="' + Core.esc(m.user_id) + '" title="Detail">👁</button>' +
+            '<button class="btn-teks merah" data-keluar="' + Core.esc(m.enroll_id) + '" title="Keluarkan">🚪</button>' +
+          '</td></tr>';
+      });
+      html += '</tbody></table></div>';
+      wadah.innerHTML = html;
+
+      wadah.querySelectorAll('[data-detail]').forEach(function (b) {
+        b.addEventListener('click', function () {
+          MuridLayar.detail(b.dataset.detail);
+        });
+      });
+      wadah.querySelectorAll('[data-keluar]').forEach(function (b) {
+        b.addEventListener('click', function () {
+          keluarkan(b.dataset.keluar, d.murid.filter(function (x) {
+            return x.enroll_id === b.dataset.keluar;
+          })[0], classId);
+        });
+      });
+    }).catch(function (err) {
+      wadah.innerHTML = '<div class="kosong"><b>Gagal memuat</b>' +
+        Core.esc(err.message) + '</div>';
+    });
+  }
+
+  function keluarkan(enrollId, m, classId) {
+    if (!m) return;
+    Core.konfirmasi('Keluarkan murid?',
+      m.nama + ' dilepas dari kelas ini. Akunnya tetap ada dan bisa ' +
+      'didaftarkan lagi di kelas mana pun.',
+      { labelYa: 'Ya, keluarkan', bahaya: true })
+      .then(function (ya) {
+        if (!ya) return;
+        Core.api('kelasKeluarkan', Core.ambilToken(), enrollId)
+          .then(function () {
+            Core.toast('Murid dikeluarkan dari kelas.', 'sukses');
+            muatDetail(classId);
+          })
+          .catch(function (err) { Core.toast(err.message, 'bahaya'); });
+      });
+  }
+
+  /* ---------- enroll (tambah murid ke kelas) ---------- */
+
+  function dialogEnroll(classId) {
+    Core.api('kelasMuridTersedia', Core.ambilToken()).then(function (daftar) {
+      if (!daftar.length) {
+        Core.dialog({
+          judul: 'Tambah murid',
+          pesan: 'Semua murid aktif sudah ada di kelas ini. Buat murid baru ' +
+                 'lewat menu Kelola Murid.',
+          labelYa: 'Tutup',
+          tanpaBatal: true
+        });
+        return;
+      }
+      var opsi = daftar.map(function (m) {
+        var kelasnya = (m.kelas && m.kelas.length) ? ' · sudah di ' + m.kelas.join(', ') : '';
+        return '<label class="slot' + (m.kelas && m.kelas.length ? ' penuh' : '') + '">' +
+          '<input type="checkbox" value="' + Core.esc(m.user_id) + '" data-nama="' +
+          Core.esc(m.nama) + '"> <b>' + Core.esc(m.nama) + '</b>' +
+          '<small>' + Core.esc(m.username) + kelasnya + '</small></label>';
+      }).join('');
+
+      Core.dialog({
+        judul: '＋ Tambah murid ke kelas',
+        pesan: 'Centang murid yang mau didaftarkan. Murid yang sudah di kelas ' +
+               'lain bisa tetap dicentang — mereka ikut dua kelas sekaligus.',
+        html:
+          '<div class="slot-grid">' + opsi + '</div>' +
+          '<div class="pesan-salah" id="salah-enroll" style="margin-top:10px"></div>',
+        labelYa: 'Daftarkan yang dicentang'
+      }).then(function (ya) {
+        if (!ya) return;
+        var terpilih = [];
+        document.querySelectorAll('.slot-grid input:checked').forEach(function (cb) {
+          terpilih.push({ user_id: cb.value, nama: cb.dataset.nama });
+        });
+        if (!terpilih.length) return;
+
+        Core.api('kelasEnroll', Core.ambilToken(), classId, terpilih)
+          .then(function (hasil) {
+            Core.toast('Ditambahkan ' + (hasil.ditambah || 0) +
+              ' murid · diaktifkan ' + (hasil.diaktifkan || 0) + '.', 'sukses');
+            muatDetail(classId);
+          })
+          .catch(function (err) {
+            Core.tampilkanPesanError(Core.$('salah-enroll'), err.message);
+          });
+      });
+    }).catch(function (err) { Core.toast(err.message, 'bahaya'); });
+  }
+
+  /* ---------- ekspor ----------
+   * Endpoint ekspor Excel baru hadir bersama konten course
+   * (tahap berikutnya); tombol tetap tampil sebagai penanda. */
+
+  function ekspor() {
+    Core.toast('Ekspor Excel tersedia setelah tahap konten course.');
+  }
+
+  Core.daftarRute('kelas', render);
+  Core.daftarRute('kelas_detail', renderDetail);
+  return { render: render, renderDetail: renderDetail };
+})();
+</script>

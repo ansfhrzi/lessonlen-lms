@@ -1,0 +1,157 @@
+<script>
+/* ============================================================
+ *  LMS v2 — js_course.html
+ *  Layar Kelola Course: tabel (course = kelas × mapel),
+ *  buat/edit (pilih kelas + ketik mapel; auto-dedupe mapel),
+ *  hapus (nonaktifkan).
+ * ============================================================ */
+
+var CourseLayar = (function () {
+
+  var KELAS = [];
+
+  function render() {
+    Core.$('layar').innerHTML =
+      '<div class="kepala"><div><h1>Kelola Course</h1>' +
+        '<p>Course = gabungan satu kelas dan satu mata pelajaran yang Anda ampu.</p></div>' +
+        '<div class="kepala-aksi">' +
+          '<button class="btn" id="btn-tambah">＋ Buat course</button>' +
+        '</div></div>' +
+      '<div class="kartu">' +
+        '<div class="tabel-gulir" id="wadah-tabel">' +
+          '<div class="pemuat"><span class="ikon">⏳</span>Memuat…</div>' +
+        '</div>' +
+      '</div>' +
+      '<p class="bantuan">💡 Mapel yang diketik sama akan dipakai bersama (tidak ' +
+      'dibuat ulang). Menghapus course = menonaktifkan; data nilainya tidak hilang.</p>';
+
+    Core.$('btn-tambah').addEventListener('click', function () { dialogForm(null); });
+    muatTabel();
+  }
+
+  function muatTabel() {
+    var wadah = Core.$('wadah-tabel');
+    Core.api('courseDaftar', Core.ambilToken()).then(function (daftar) {
+      if (!daftar || !daftar.length) {
+        wadah.innerHTML = '<div class="kosong"><b>Belum ada course</b>' +
+          'Buat course pertama: pilih kelas, lalu ketik mata pelajarannya.</div>';
+        return;
+      }
+      var html = '<table><thead><tr><th>Course</th><th>Kelas</th><th>TA</th>' +
+        '<th>Status</th><th>Murid</th><th></th></tr></thead><tbody>';
+      daftar.forEach(function (c) {
+        html += '<tr>' +
+          '<td><div class="sel-orang"><div class="avatar">📚</div><div><b>' +
+          Core.esc(c.subject_name) + '</b><small>course</small></div></div></td>' +
+          '<td>' + Core.esc(c.class_name) + '</td>' +
+          '<td class="kecil">' + Core.esc(c.academic_year || '—') + '</td>' +
+          '<td>' + (c.status === 'aktif'
+            ? '<span class="badge badge-aktif">● Aktif</span>'
+            : '<span class="badge badge-nonaktif">● Nonaktif</span>') + '</td>' +
+          '<td>' + c.jml_murid + '</td>' +
+          '<td class="td-aksi">' +
+            '<button class="btn-teks" data-edit="' + Core.esc(c.teaching_assignment_id) + '" title="Edit">✏️</button>' +
+            '<button class="btn-teks merah" data-hapus="' + Core.esc(c.teaching_assignment_id) +
+            '" data-nama="' + Core.esc(c.subject_name) + '" title="Hapus">🗑</button>' +
+          '</td></tr>';
+      });
+      html += '</tbody></table>';
+      wadah.innerHTML = html;
+
+      wadah.querySelectorAll('[data-edit]').forEach(function (b) {
+        b.addEventListener('click', function () {
+          dialogForm(b.dataset.edit);
+        });
+      });
+      wadah.querySelectorAll('[data-hapus]').forEach(function (b) {
+        b.addEventListener('click', function () {
+          hapus(b.dataset.hapus, b.dataset.nama);
+        });
+      });
+    }).catch(function (err) {
+      wadah.innerHTML = '<div class="kosong"><b>Gagal memuat</b>' +
+        Core.esc(err.message) + '</div>';
+    });
+  }
+
+  function dialogForm(taId) {
+    Core.api('kelasDaftar', Core.ambilToken()).then(function (kelas) {
+      KELAS = kelas || [];
+      var html =
+        '<div class="grup"><label>Kelas <span class="wajib">*</span></label>' +
+        '<select class="isian" id="in-c-kelas">' +
+        '<option value="">— pilih kelas —</option>' +
+        KELAS.map(function (k) {
+          return '<option value="' + Core.esc(k.class_id) + '">' +
+            Core.esc(k.name) + '</option>';
+        }).join('') +
+        '</select></div>' +
+        '<div class="grup"><label>Mata pelajaran <span class="wajib">*</span></label>' +
+        '<input class="isian" id="in-c-mapel" placeholder="mis. Matematika" ' +
+        'list="daftar-mapel">' +
+        '<datalist id="daftar-mapel"></datalist>' +
+        '<span class="bantuan">Ketik bebas — mapel yang sudah pernah dipakai ' +
+        'muncul sebagai saran dan dipakai bersama.</span></div>' +
+        '<div class="pesan-salah" id="salah-course"></div>';
+
+      Core.dialog({
+        judul: taId ? '✏️ Edit Course' : '＋ Buat Course',
+        html: html,
+        labelYa: taId ? 'Simpan' : 'Buat',
+        saatBuka: function (tirai) {
+          var mapel = new Set();
+          Core.api('courseDaftar', Core.ambilToken()).then(function (daftar) {
+            (daftar || []).forEach(function (c) { mapel.add(c.subject_name); });
+            var dl = tirai.querySelector('#daftar-mapel');
+            if (dl) dl.innerHTML = Array.from(mapel).map(function (m) {
+              return '<option value="' + Core.esc(m) + '">';
+            }).join('');
+          }).catch(function () {});
+          if (!taId) return;
+          Core.api('courseDetail', Core.ambilToken(), taId).then(function (d) {
+            tirai.querySelector('#in-c-kelas').value = d.class_id || '';
+            tirai.querySelector('#in-c-mapel').value = d.subject_name || '';
+          }).catch(function (err) { Core.toast(err.message, 'bahaya'); });
+        }
+      }).then(function (ya) {
+        if (!ya) return;
+        var salah = Core.$('salah-course');
+        var p = {
+          class_id: Core.$('in-c-kelas').value,
+          subject_name: Core.$('in-c-mapel').value
+        };
+        if (taId) p.teaching_assignment_id = taId;
+
+        Core.api('courseSimpan', Core.ambilToken(), p)
+          .then(function () {
+            Core.toast(taId ? 'Course diperbarui.' : 'Course dibuat.', 'sukses');
+            muatTabel();
+          })
+          .catch(function (err) {
+            Core.tampilkanPesanError(salah, err.message);
+            dialogForm(taId);
+          });
+      });
+    }).catch(function (err) { Core.toast(err.message, 'bahaya'); });
+  }
+
+  function hapus(taId, nama) {
+    Core.konfirmasi('Hapus course?',
+      'Course ' + nama + ' dinonaktifkan dan hilang dari daftar. Data nilai ' +
+      'yang sudah ada tidak dihapus.',
+      { labelYa: 'Ya, hapus', bahaya: true })
+      .then(function (ya) {
+        if (!ya) return;
+        Core.api('courseHapus', Core.ambilToken(), taId)
+          .then(function () {
+            Core.toast('Course dihapus (dinonaktifkan).', 'sukses');
+            muatTabel();
+          })
+          .catch(function (err) { Core.toast(err.message, 'bahaya'); });
+      });
+  }
+
+  Core.daftarRute('course', render);
+  return { render: render };
+})();
+</script>

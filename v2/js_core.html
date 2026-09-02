@@ -2,7 +2,8 @@
 /* ============================================================
  *  LMS v2 — js_core.html
  *  Inti klien: token sesi, pembungkus google.script.run,
- *  escape HTML, router layar sederhana
+ *  escape HTML, router layar, dialog & toast global,
+ *  cangkang dashboard (sidebar/topbar/lonceng)
  * ============================================================ */
 
 var Core = (function () {
@@ -70,6 +71,13 @@ var Core = (function () {
 
   function $(id) { return document.getElementById(id); }
 
+  function inisial(nama) {
+    var bagian = String(nama || '').trim().split(/\s+/);
+    var huruf = (bagian[0] || '?').charAt(0) +
+                (bagian.length > 1 ? bagian[bagian.length - 1].charAt(0) : '');
+    return huruf.toUpperCase();
+  }
+
   /** Instansiasi <template> ke #app. */
   function pasangTemplate(idTpl) {
     var tpl = $(idTpl);
@@ -101,6 +109,88 @@ var Core = (function () {
     el.classList.remove('tampil');
   }
 
+  /* ---------- toast ---------- */
+
+  function toast(pesan, jenis) {
+    var wadah = $('toast-wadah');
+    if (!wadah) {
+      wadah = document.createElement('div');
+      wadah.id = 'toast-wadah';
+      document.body.appendChild(wadah);
+    }
+    var t = document.createElement('div');
+    t.className = 'toast' + (jenis ? ' ' + jenis : '');
+    t.textContent = pesan;
+    wadah.appendChild(t);
+    setTimeout(function () { t.remove(); }, 3200);
+  }
+
+  /* ---------- dialog ---------- */
+
+  /**
+   * Dialog seragam. opsi = { judul, pesan, html, labelYa, labelBatal,
+   * bahaya, tanpaBatal, tanpaYa, tombol: [{aksi,label,kelas}],
+   * saatBuka(tirai), saatYa(tirai) }
+   * Promise → resolve(true) utk tombol Ya, false utk batal/tirai,
+   * atau string aksi utk tombol khusus (opsi.tombol).
+   */
+  function dialog(opsi) {
+    opsi = opsi || {};
+    return new Promise(function (resolve) {
+      var tirai = document.createElement('div');
+      tirai.className = 'tirai';
+
+      var tombolKhusus = (opsi.tombol || []).map(function (t) {
+        return '<button class="btn ' + (t.kelas || 'btn-sekunder') +
+               '" data-aksi="' + esc(t.aksi) + '">' + esc(t.label) + '</button>';
+      }).join('');
+
+      var kotak = document.createElement('div');
+      kotak.className = 'kotak-dialog';
+      kotak.innerHTML = '<h3>' + esc(opsi.judul || '') + '</h3>' +
+        (opsi.pesan ? '<p>' + esc(opsi.pesan) + '</p>' : '') +
+        (opsi.html || '') +
+        '<div class="aksi">' +
+          tombolKhusus +
+          (opsi.tanpaBatal ? '' :
+            '<button class="btn btn-sekunder" data-aksi="batal">' +
+            esc(opsi.labelBatal || 'Batal') + '</button>') +
+          (opsi.tanpaYa ? '' :
+            '<button class="btn' + (opsi.bahaya ? ' btn-bahaya' : '') +
+            '" data-aksi="ya">' + esc(opsi.labelYa || 'OK') + '</button>') +
+        '</div>';
+
+      function tutup(hasil) {
+        tirai.remove();
+        resolve(hasil);
+      }
+
+      tirai.appendChild(kotak);
+      document.body.appendChild(tirai);
+      if (opsi.saatBuka) opsi.saatBuka(tirai);
+
+      kotak.addEventListener('click', function (e) {
+        var b = e.target.closest('[data-aksi]');
+        if (!b) return;
+        var aksi = b.dataset.aksi;
+        if (aksi === 'ya' && opsi.saatYa) opsi.saatYa(tirai);
+        tutup(aksi === 'ya' ? true : (aksi === 'batal' ? false : aksi));
+      });
+      tirai.addEventListener('click', function (e) {
+        if (e.target === tirai) tutup(false);
+      });
+    });
+  }
+
+  /** Dialog konfirmasi ya/tidak. */
+  function konfirmasi(judul, pesan, opsi) {
+    opsi = opsi || {};
+    opsi.judul = judul;
+    opsi.pesan = pesan;
+    opsi.labelYa = opsi.labelYa || 'Ya, lanjut';
+    return dialog(opsi);
+  }
+
   /* ---------- merek ---------- */
 
   function pasangMerek() {
@@ -117,6 +207,116 @@ var Core = (function () {
     if (v) v.textContent = 'v' + TYDATA.versi;
   }
 
+  /* ---------- router layar ---------- */
+
+  var RUTE = {};          /* nama → fungsi render(params) */
+  var RUTE_AKTIF = '';
+  var JUDUL_RUTE = {
+    beranda: 'Beranda', murid: 'Kelola Murid', kelas: 'Kelola Kelas',
+    kelas_detail: 'Detail Kelas', course: 'Kelola Course',
+    rekap: 'Rekap Nilai', apikey: 'Status API Key'
+  };
+
+  function daftarRute(nama, render) { RUTE[nama] = render; }
+
+  function pergiKe(nama, params) {
+    if (!RUTE[nama]) return;
+    RUTE_AKTIF = nama;
+    var layar = $('layar');
+    if (!layar) return;
+    layar.innerHTML = '<div class="pemuat"><span class="ikon">⏳</span>Memuat…</div>';
+    document.querySelectorAll('#menu-utama a').forEach(function (a) {
+      var milik = a.dataset.rute === nama ||
+        (nama === 'kelas_detail' && a.dataset.rute === 'kelas');
+      a.classList.toggle('aktif', milik);
+    });
+    var judul = $('topbar-judul');
+    if (judul) judul.textContent = JUDUL_RUTE[nama] || 'LessonLen';
+    tutupSidebar();
+    window.scrollTo(0, 0);
+    RUTE[nama](params || {});
+  }
+
+  /* ---------- sidebar & lonceng ---------- */
+
+  function bukaSidebar() {
+    var s = $('sidebar'), o = $('overlay-samping');
+    if (s) s.classList.add('tampil');
+    if (o) o.classList.add('tampil');
+  }
+  function tutupSidebar() {
+    var s = $('sidebar'), o = $('overlay-samping');
+    if (s) s.classList.remove('tampil');
+    if (o) o.classList.remove('tampil');
+  }
+
+  function muatLonceng() {
+    var isi = $('lonceng-isi');
+    if (!isi) return;
+    api('daftarNotifikasi', ambilToken()).then(function (daftar) {
+      isi.innerHTML = '';
+      if (!daftar || !daftar.length) {
+        isi.innerHTML = '<div class="pemuat">Belum ada notifikasi.</div>';
+        return;
+      }
+      daftar.slice(0, 10).forEach(function (n) {
+        var div = document.createElement('div');
+        div.className = 'notif-item' + (n.dibaca ? '' : ' belum');
+        div.innerHTML = '<span class="titik"></span>' +
+          '<div><b>' + esc(n.judul) + '</b>' +
+          '<div class="kecil">' + esc(n.created_at) + '</div></div>';
+        isi.appendChild(div);
+      });
+    }).catch(function () {
+      isi.innerHTML = '<div class="pemuat">Notifikasi gagal dimuat.</div>';
+    });
+  }
+
+  function pasangCangkang() {
+    pasangTemplate('tpl-dashboard');
+    pasangMerek();
+
+    var user = state.user || {};
+    var nama = user.nama || user.username || 'Pengguna';
+    var ini = $('profil-nama');
+    if (ini) ini.textContent = nama;
+    var peran = $('profil-peran');
+    if (peran) peran.textContent = user.role === 'guru' ? 'guru' : 'murid';
+    var av = $('profil-inisial');
+    if (av) av.textContent = inisial(nama);
+
+    document.querySelectorAll('#menu-utama a').forEach(function (a) {
+      a.addEventListener('click', function (e) {
+        e.preventDefault();
+        pergiKe(a.dataset.rute);
+      });
+    });
+
+    var bm = $('btn-menu');
+    if (bm) bm.addEventListener('click', bukaSidebar);
+    var ov = $('overlay-samping');
+    if (ov) ov.addEventListener('click', tutupSidebar);
+    var bk = $('btn-keluar');
+    if (bk) bk.addEventListener('click', Auth.keluar);
+
+    var bl = $('btn-lonceng');
+    if (bl) {
+      bl.addEventListener('click', function (e) {
+        e.stopPropagation();
+        var panel = $('lonceng-panel');
+        if (!panel) return;
+        var tampil = !panel.classList.contains('tampil');
+        panel.classList.toggle('tampil', tampil);
+        if (tampil) muatLonceng();
+      });
+    }
+    document.addEventListener('click', function (e) {
+      var panel = $('lonceng-panel');
+      if (panel && !e.target.closest('.lonceng-wadah'))
+        panel.classList.remove('tampil');
+    });
+  }
+
   /* ---------- boot ---------- */
 
   function muat() {
@@ -125,16 +325,19 @@ var Core = (function () {
     if (!t) { Auth.tampilkanLogin(); return; }
     state.token = t;
 
-    pasangTemplate('tpl-dashboard');
-    $('app').querySelector('.konten').style.visibility = 'hidden';
-
     api('cekSesi', t).then(function (user) {
       state.user = user;
       if (!user) return;
       return api('ringkasDashboard', t).then(function (r) {
         state.ringkas = r;
-        Dashboard.tampilkan(user, r);
-        $('app').querySelector('.konten').style.visibility = 'visible';
+        pasangCangkang();
+        pergiKe('beranda');
+        if (user.harus_ganti_password === true ||
+            user.harus_ganti_password === 'TRUE') {
+          Auth.bukaGantiSandi();
+        } else if (user.role === 'murid' && r && r.biodata_kurang === true) {
+          Auth.bukaBiodata();
+        }
       });
     }).catch(function () {
       /* api() sudah mengarahkan ke login bila SESI_INVALID */
@@ -144,11 +347,15 @@ var Core = (function () {
   return {
     state: state,
     ambilToken: ambilToken, simpanToken: simpanToken, buangToken: buangToken,
-    api: api, esc: esc, $: $,
+    api: api, esc: esc, $: $, inisial: inisial,
     pasangTemplate: pasangTemplate, pasangMerek: pasangMerek,
     kirimForm: kirimForm,
     tampilkanPesanError: tampilkanPesanError,
     sembunyikanPesanError: sembunyikanPesanError,
+    toast: toast, dialog: dialog, konfirmasi: konfirmasi,
+    daftarRute: daftarRute, pergiKe: pergiKe,
+    pasangCangkang: pasangCangkang,
+    muatLonceng: muatLonceng,
     muat: muat
   };
 })();

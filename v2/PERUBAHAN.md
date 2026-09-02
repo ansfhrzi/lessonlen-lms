@@ -5,12 +5,12 @@ berubah dan prioritas penyalinan ulang ke project Apps Script.
 
 ---
 
-## STATUS SAAT INI: ROLLBACK KE TAHAP 2 (fondasi) — 2 Sep 2026
+## STATUS SAAT INI: BACKEND + UI TAHAP 3 SELESAI — 2 Sep 2026
 
-Seluruh implementasi **tahap 3** (kelas/murid/enrollment + UI kelola) dan
-**tahap 4** (mapel/penugasan/topik/course/editor + port UI/UX gaya v1)
-**DIHAPUS** — UI/UX dinilai masih acak dan akan dibangun ulang dengan
-rancangan tampilan yang lebih matang.
+Catatan riwayat di bawah: seluruh implementasi **tahap 3–4 lama**
+dihapus karena UI/UX dinilai masih acak, lalu dibangun ulang bertahap
+mengikuti kesepakatan §22D. Kini **backend Tahap 3 (3.1–3.5) dan UI
+Tahap 3 tuntas**; lanjut ke rancangan Tahap 4 (konten course).
 
 - Kondisi yang dipulihkan = pohon commit **`7cc93e9`** (tahap 2: skema
   23 sheet, `Auth.gs` lengkap, UI login + cangkang dasbor).
@@ -193,6 +193,7 @@ tidak ada — akan membuat error), `js_beranda.html`, `js_kelola.html`,
 |---|---|
 | `test/uji-auth-gate0.js` | 18 uji fondasi auth — **lulus** |
 | `test/uji-ui.js` | **BARU** — audit statis fungsi klien *dipanggil-tapi-tak-terdefinisi* (kelas bug `dialogTopik is not defined` yang dulu lolos); daftar berkas dideteksi otomatis dari isi `v2/`, jadi tetap sah saat tahap baru ditambahkan |
+| `test/uji-ui-extra.js` | **BARU (UI Tahap 3)** — audit statis lanjutan: kecocokan `id=` vs `getElementById/$(…)`, `Core.api('fn')` vs fungsi global `.gs`, kelas CSS dipakai vs didefinisikan `css.html`, rute `data-rute`/`pergiKe` vs `daftarRute` |
 
 ---
 
@@ -214,3 +215,4 @@ tidak ada — akan membuat error), `js_beranda.html`, `js_kelola.html`,
 | tahap 3.3 | (commit ini) | backend Kelola Course: `Course.gs` + 4 endpoint + 41 uji node + `ujiCourse()` | +41 node, +13 editor |
 | tahap 3.4 | (commit ini) | backend Status API Key: `ApiKey.gs` + 3 endpoint + 31 uji node + `ujiApiKey()` | +31 node, +12 editor |
 | tahap 3.5 | (commit ini) | backend Beranda ringkas (§22D) + 18 uji node + `ujiBeranda()` — **backend Tahap 3 selesai** | +18 node, +8 editor |
+| **UI Tahap 3** | (commit ini) | klien lengkap ala prototipe: `css.html` sistem desain baru (tema hijau `#2F6B2B`, token `:root`), `v_login` restyle, `v_dashboard` cangkang sidebar+topbar+lonceng, `js_core` +router/dialog/toast, `js_auth` +ganti sandi & biodata, **5 modul layar baru** (`js_beranda`/`js_murid`/`js_kelas`/`js_course`/`js_rekap`/`js_apikey`), `Code.gs` +`muatCss`/`muatJs`; + `test/uji-ui-extra.js` (audit id/endpoint/CSS/rute) | uji node 103/103 ✔, uji-ui ✔, uji-ui-extra ✔ |

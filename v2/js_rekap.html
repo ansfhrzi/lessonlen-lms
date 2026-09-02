@@ -1,0 +1,26 @@
+<script>
+/* ============================================================
+ *  LMS v2 — js_rekap.html
+ *  Layar Rekap Nilai — PLACEHOLDER Tahap 3.
+ *  Rincian rekap per course menyusul bersama konten course
+ *  (topik/materi/quiz/tugas) di tahap berikutnya.
+ * ============================================================ */
+
+var RekapLayar = (function () {
+
+  function render() {
+    Core.$('layar').innerHTML =
+      '<div class="kepala"><div><h1>Rekap Nilai</h1>' +
+        '<p>Rekap per course + export Excel.</p></div></div>' +
+      '<div class="kosong-besar">' +
+        '<span class="ikon">📊</span>' +
+        '<b>Belum tersedia</b>' +
+        'Rekap nilai terbuka setelah konten course (quiz &amp; tugas) aktif ' +
+        'pada tahap berikutnya.' +
+      '</div>';
+  }
+
+  Core.daftarRute('rekap', render);
+  return { render: render };
+})();
+</script>
