@@ -43,13 +43,14 @@ h1{font-size:1.35rem;font-weight:800;letter-spacing:-.02em}
 .btn.teks{background:none;border:none;color:var(--teks-lembut);min-height:32px;
           padding:5px 8px;font-weight:700;border-radius:7px;font-size:.82rem}
 .btn.teks:hover{background:var(--hijau-muda);color:var(--teks)}
-.btn.teks.merah:hover{background:#FBE3E2;color:var(--bahaya)}
+.btn-kecil{min-height:32px;padding:5px 11px;font-size:.82rem}
 /* daftar susunan */
 .baris-susunan{display:flex;align-items:center;gap:12px;width:100%;
-  padding:12px 14px;border:0;border-bottom:1px solid var(--garis);
-  background:none;font-family:var(--font);color:var(--teks);text-align:left;
-  cursor:pointer;transition:background .12s}
-.baris-susunan:hover{background:var(--permukaan)}
+  padding:12px 14px;border-bottom:1px solid var(--garis);
+  font-family:var(--font);color:var(--teks);text-align:left;
+  transition:background .12s}
+.baris-susunan.buka-toggle{cursor:pointer}
+.baris-susunan.buka-toggle:hover{background:var(--permukaan)}
 .baris-susunan:last-child{border-bottom:none}
 .baris-susunan.draf .judul,.baris-susunan.draf .meta{color:var(--terkunci)}
 .baris-susunan.draf{background:#FCFDFB}
@@ -62,15 +63,13 @@ h1{font-size:1.35rem;font-weight:800;letter-spacing:-.02em}
 .judul{font-weight:700;font-size:.95rem;white-space:nowrap;overflow:hidden;
        text-overflow:ellipsis}
 .meta{font-size:.76rem;color:var(--teks-lembut)}
- kontrol
 .kontrol{display:flex;gap:2px;flex:none}
 /* item di dalam topik: menjorok + garis putus (pola .item-ptm v1) */
 .isi-topik{list-style:none;margin:0;padding:0 0 6px 52px;
            border-bottom:1px solid var(--garis);background:#FBFDF9}
 .isi-topik .baris-item{display:flex;align-items:center;gap:9px;width:100%;
   padding:8px 10px;border:0;background:none;font-family:var(--font);
-  color:var(--teks);text-align:left;cursor:pointer;border-radius:7px}
-.isi-topik .baris-item:hover{background:var(--hijau-muda)}
+  color:var(--teks);text-align:left;border-radius:7px}
 .isi-topik .baris-item.draf{color:var(--terkunci)}
 .isi-topik .baris-item.draf .judul{color:var(--terkunci)}
 /* dialog */
@@ -82,9 +81,11 @@ h1{font-size:1.35rem;font-weight:800;letter-spacing:-.02em}
 .kotak h3{margin-bottom:6px}
 .kotak .grup{margin:12px 0}
 .kotak label{display:block;font-size:.86rem;font-weight:600;margin-bottom:5px}
-.kotak input{width:100%;min-height:42px;padding:9px 12px;
+.kotak input,.kotak select,.kotak textarea{width:100%;min-height:42px;padding:9px 12px;
              border:1px solid var(--garis);border-radius:var(--radius-sm);
              font-family:var(--font);font-size:.95rem}
+.kotak textarea{min-height:0;resize:vertical}
+.kotak .bantuan{display:block;font-size:.76rem;color:var(--teks-lembut);margin-top:4px}
 .kotak .aksi{display:flex;gap:8px;justify-content:flex-end;margin-top:16px}
 /* toast */
 #toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);
@@ -116,11 +117,13 @@ h1{font-size:1.35rem;font-weight:800;letter-spacing:-.02em}
   </div>
 
   <p class="petunjuk">
-    Aturan (§7.8b): baris baru SELALU masuk paling dasar · ▲▼ menukar posisi
-    tetangga lalu dinomori ulang 1..N (item di dalam topik pakai urutan
-    dalemnya sendiri) · 👁 terlihat / 🙈 draf · menyembunyikan item terjadwal
-    MEMBATALKAN jadwalnya · 🕐 terjadwal = terlihat murid tepat pada waktunya
-    (tanpa notifikasi) · notifikasi <i>pertemuan_baru</i> hanya saat 👁 publish
+    ＋ Topik / ＋ Quiz mandiri / ＋ Refleksi mandiri = <b>BUAT</b> — membuka form
+    (judul, deskripsi, status), seperti "+ Pertemuan" di v1 · ＋ Item di dalam topik
+    membuka form dengan pilihan jenis (5 jenis §7.8) · aturan §7.8b: baris baru SELALU
+    masuk paling dasar · ▲▼ menukar posisi tetangga lalu dinomori ulang 1..N (item di
+    dalam topik pakai urutan dalemnya sendiri) · 👁 terlihat / 🙈 draf · menyembunyikan
+    item terjadwal MEMBATALKAN jadwalnya · 🕐 terjadwal = terlihat murid tepat pada
+    waktunya (tanpa notifikasi) · notifikasi <i>pertemuan_baru</i> hanya saat 👁 publish
     eksplisit.
   </p>
 </div>
@@ -142,21 +145,22 @@ h1{font-size:1.35rem;font-weight:800;letter-spacing:-.02em}
 'use strict';
 /* ===== data contoh ===== */
 var susunan = [
-  { jenis:'topik', judul:'Pecahan & pecahan desimal', terlihat:true, jadwal:null, buka:true,
+  { jenis:'topik', judul:'Pecahan & pecahan desimal', desk:'Bangun bilangan pecahan',
+    terlihat:true, jadwal:null, buka:true,
     item:[
-      { jenis:'materi',          judul:'Menyederhanakan pecahan', terlihat:true,  jadwal:null },
-      { jenis:'tugas_individu',  judul:'Latihan 12 soal',         terlihat:false, jadwal:null },
-      { jenis:'quiz',            judul:'Quiz pecahan',            terlihat:true,  jadwal:null }
+      { jenis:'materi',          judul:'Menyederhanakan pecahan', desk:'', terlihat:true,  jadwal:null },
+      { jenis:'tugas_individu',  judul:'Latihan 12 soal',         desk:'', terlihat:false, jadwal:null },
+      { jenis:'quiz',            judul:'Quiz pecahan',            desk:'', terlihat:true,  jadwal:null }
     ]},
-  { jenis:'quiz_mandiri',     judul:'Tryout operasi hitung',    terlihat:true,  jadwal:'2026-09-12T07:00', item:null },
-  { jenis:'topik',            judul:'Perbandingan',             terlihat:false, jadwal:null, buka:false, item:[] },
-  { jenis:'refleksi_mandiri', judul:'Refleksi mingguan #1',     terlihat:true,  jadwal:null, item:null }
+  { jenis:'quiz_mandiri',     judul:'Tryout operasi hitung', desk:'', terlihat:true,  jadwal:'2026-09-12T07:00', item:null },
+  { jenis:'topik',            judul:'Perbandingan',          desk:'', terlihat:false, jadwal:null, buka:false, item:[] },
+  { jenis:'refleksi_mandiri', judul:'Refleksi mingguan #1',  desk:'', terlihat:true,  jadwal:null, item:null }
 ];
 
 var IKON = { topik:'🗂', quiz_mandiri:'🧮', refleksi_mandiri:'🪞',
              materi:'📖', tugas_individu:'👤', tugas_kelompok:'👥',
              quiz:'❓', refleksi:'🪞' };
-var NAMA = { quiz_mandiri:'Quiz mandiri', refleksi_mandiri:'Refleksi mandiri',
+var NAMA = { topik:'Topik', quiz_mandiri:'Quiz mandiri', refleksi_mandiri:'Refleksi mandiri',
              materi:'Materi', tugas_individu:'Tugas Individu',
              tugas_kelompok:'Tugas Kelompok', quiz:'Quiz', refleksi:'Refleksi' };
 
@@ -171,14 +175,14 @@ function badgeBaris(b){
   if (!b.terlihat) return '<span class="badge draf">🙈 draf</span>';
   return '<span class="badge">👁 terlihat</span>';
 }
-function kontrolTingkat(b, di){
+function kontrolBaris(b, di){
   return '<span class="kontrol">' +
     '<button class="btn teks" data-aksi="atas" data-di="' + di + '" title="Naik">▲</button>' +
     '<button class="btn teks" data-aksi="bawah" data-di="' + di + '" title="Turun">▼</button>' +
     '<button class="btn teks" data-aksi="lihat" data-di="' + di + '" title="Terlihat/draf">' +
       (b.terlihat ? '👁' : '🙈') + '</button>' +
     '<button class="btn teks" data-aksi="jadwal" data-di="' + di + '" title="Jadwal terbit">🕐</button>' +
-    '<button class="btn teks" data-aksi="edit" data-di="' + di + '" title="Edit judul">✏️</button>' +
+    '<button class="btn teks" data-aksi="edit" data-di="' + di + '" title="Ubah">✏️</button>' +
     '</span>';
 }
 
@@ -189,30 +193,23 @@ function render(){
     var di = String(i);
     if (b.jenis === 'topik') {
       html +=
-        '<button class="baris-susunan' + (b.terlihat ? '' : ' draf') + '" data-buka="' + i + '">' +
+        '<div class="baris-susunan buka-toggle' + (b.terlihat ? '' : ' draf') + '" data-buka="' + i + '">' +
           '<span class="nomor">' + (i + 1) + '</span>' +
           '<span class="ikon">' + (b.buka ? '📂' : '🗂') + '</span>' +
           '<span class="tengah"><span class="judul">' + esc(b.judul) + '</span>' +
             '<span class="meta">' + b.item.length + ' item · ' +
             ringkasItem(b.item) + '</span></span>' +
           badgeBaris(b) +
-          '<span class="kontrol">' +
-            '<button class="btn teks" data-aksi="atas" data-di="' + di + '" title="Naik">▲</button>' +
-            '<button class="btn teks" data-aksi="bawah" data-di="' + di + '" title="Turun">▼</button>' +
-            '<button class="btn teks" data-aksi="lihat" data-di="' + di + '" title="Terlihat/draf">' +
-              (b.terlihat ? '👁' : '🙈') + '</button>' +
-            '<button class="btn teks" data-aksi="jadwal" data-di="' + di + '" title="Jadwal terbit">🕐</button>' +
-            '<button class="btn teks" data-aksi="edit" data-di="' + di + '" title="Edit judul">✏️</button>' +
-          '</span>' +
-        '</button>';
+          kontrolBaris(b, di) +
+        '</div>';
       if (b.buka) {
         html += '<div class="isi-topik">';
         if (!b.item.length) {
-          html += '<div class="baris-item lembut kecil" style="cursor:default">Belum ada item — konten diisi pada implementasi (Tahap 4).</div>';
+          html += '<div class="baris-item lembut kecil">Belum ada item — buat lewat ＋ Item.</div>';
         }
         b.item.forEach(function (it, j) {
           html +=
-            '<button class="baris-item' + (it.terlihat ? '' : ' draf') + '" data-ikan="' + i + '" data-j="' + j + '">' +
+            '<div class="baris-item' + (it.terlihat ? '' : ' draf') + '">' +
               '<span class="ikon" style="font-size:1rem">' + IKON[it.jenis] + '</span>' +
               '<span class="tengah"><span class="judul" style="font-size:.88rem">' +
                 esc(it.judul) + '</span>' +
@@ -227,20 +224,23 @@ function render(){
                 '<button class="btn teks" data-aksi="i-jadwal" data-ikan="' + i + '" data-j="' + j + '">🕐</button>' +
                 '<button class="btn teks" data-aksi="i-edit" data-ikan="' + i + '" data-j="' + j + '">✏️</button>' +
               '</span>' +
-            '</button>';
+            '</div>';
         });
+        html +=
+          '<button class="btn hantu btn-kecil" style="margin:6px 0 0 10px" ' +
+            'data-aksi="tambah-item" data-ikan="' + i + '">＋ Item</button>';
         html += '</div>';
       }
     } else {
       html +=
-        '<button class="baris-susunan' + (b.terlihat ? '' : ' draf') + '" style="cursor:default">' +
+        '<div class="baris-susunan' + (b.terlihat ? '' : ' draf') + '">' +
           '<span class="nomor">' + (i + 1) + '</span>' +
           '<span class="ikon">' + IKON[b.jenis] + '</span>' +
           '<span class="tengah"><span class="judul">' + esc(b.judul) + '</span>' +
             '<span class="meta">' + NAMA[b.jenis] + '</span></span>' +
           badgeBaris(b) +
-          kontrolTingkat(b, di) +
-        '</button>';
+          kontrolBaris(b, di) +
+        '</div>';
     }
   });
   wadah.innerHTML = html;
@@ -269,16 +269,17 @@ function tukar(i, j){
 }
 document.getElementById('daftar').addEventListener('click', function (e) {
   var b = e.target.closest('[data-aksi]');
-  if (!b) return;
-  e.stopPropagation();
-  var aksi = b.dataset.aksi;
-
-  /* buka/tutup topik (klik baris tanpa aksi) */
-  if (b.dataset.buka !== undefined && !aksi) {
-    susunan[Number(b.dataset.buka)].buka =
-      !susunan[Number(b.dataset.buka)].buka;
-    render(); return;
+  if (!b) {
+    /* klik area baris (bukan tombol kontrol) = buka/tutup topik */
+    var baris = e.target.closest('[data-buka]');
+    if (baris) {
+      susunan[Number(baris.dataset.buka)].buka =
+        !susunan[Number(baris.dataset.buka)].buka;
+      render();
+    }
+    return;
   }
+  var aksi = b.dataset.aksi;
 
   if (aksi === 'atas' || aksi === 'bawah') {
     var i = Number(b.dataset.di), lawan = aksi === 'atas' ? i - 1 : i + 1;
@@ -301,7 +302,9 @@ document.getElementById('daftar').addEventListener('click', function (e) {
     render(); return;
   }
   if (aksi === 'jadwal') { dialogJadwal(susunan[Number(b.dataset.di)]); return; }
-  if (aksi === 'edit')   { dialogEdit(susunan[Number(b.dataset.di)]); return; }
+  if (aksi === 'edit')   { dialogForm(susunan[Number(b.dataset.di)]); return; }
+
+  if (aksi === 'tambah-item') { dialogForm(null, susunan[Number(b.dataset.ikan)]); return; }
 
   /* item dalam topik */
   if (aksi.indexOf('i-') === 0) {
@@ -325,16 +328,17 @@ document.getElementById('daftar').addEventListener('click', function (e) {
       render(); return;
     }
     if (aksi === 'i-jadwal') { dialogJadwal(t.item[j]); return; }
-    if (aksi === 'i-edit')   { dialogEdit(t.item[j]); return; }
+    if (aksi === 'i-edit')   { dialogForm(t.item[j]); return; }
   }
 });
 
 /* dialog serbaguna */
-function bukaDialog(judul, isiHtml, saatYa){
+function bukaDialog(judul, isiHtml, saatYa, teksYa){
   document.getElementById('dlg-judul').textContent = judul;
   document.getElementById('dlg-isi').innerHTML = isiHtml;
   document.getElementById('tirai').classList.add('tampil');
   var ya = document.getElementById('dlg-ya');
+  ya.textContent = teksYa || 'Simpan';
   var baru = ya.cloneNode(true);
   ya.parentNode.replaceChild(baru, ya);
   baru.addEventListener('click', function () {
@@ -344,6 +348,127 @@ function bukaDialog(judul, isiHtml, saatYa){
 document.getElementById('dlg-batal').addEventListener('click', function () {
   document.getElementById('tirai').classList.remove('tampil');
 });
+
+/* ===== form buat/ubah — pola formPertemuan v1 =====
+   bentuk: dialogForm(target?)            → ubah baris tingkat course
+           dialogForm(item)               → ubah item dalam topik
+           dialogForm(null, topikInduk)   → buat item baru dalam topik  */
+function dialogForm(target, topikInduk){
+  var buat = !target;
+  var jenisTerkunci = buat
+    ? (topikInduk ? '' : '')           /* item baru: jenis dipilih di form */
+    : target.jenis;                     /* ubah: jenis terkunci */
+  var pilihanJenis = buat && topikInduk
+    ? ['materi','tugas_individu','tugas_kelompok','quiz','refleksi']
+    : [];
+  var opsiJenis = '';
+  if (jenisTerkunci) {
+    opsiJenis = '<div class="grup"><label>Jenis</label>' +
+      '<input value="' + esc(NAMA[jenisTerkunci] || 'Topik') + '" disabled>' +
+      '<span class="bantuan">Jenis tidak dapat diubah setelah dibuat.</span></div>';
+  } else if (buat && !topikInduk) {
+    /* tidak terpakai: tombol ＋ di kepala sudah menentukan jenis */
+  } else {
+    opsiJenis = '<div class="grup"><label>Jenis *</label>' +
+      '<select id="f-jenis">' + pilihanJenis.map(function (jp) {
+        return '<option value="' + jp + '">' + IKON[jp] + ' ' + NAMA[jp] + '</option>';
+      }).join('') + '</select>' +
+      '<span class="bantuan">Materi & tugas wajib bertopik; quiz & refleksi ' +
+      'bisa mandiri (dibuat dari kepala layar).</span></div>';
+  }
+
+  var judulDlg = buat
+    ? (topikInduk ? 'Buat Item' : '')
+    : 'Ubah — ' + NAMA[target.jenis];
+  var isiHtml = opsiJenis +
+    '<div class="grup"><label>Judul *</label>' +
+    '<input id="f-judul" value="' + esc(buat ? '' : target.judul) +
+    '" placeholder="mis. Konsep Dasar Pecahan"></div>' +
+    '<div class="grup"><label>Deskripsi</label>' +
+    '<textarea id="f-desk" rows="2">' + esc(buat ? '' : (target.desk || '')) +
+    '</textarea></div>' +
+    '<div class="grup"><label>Status</label>' +
+    '<select id="f-status">' +
+      '<option value="draf"' + (!buat && !target.terlihat ? ' selected' : '') +
+      '>🙈 Draf — belum terlihat murid</option>' +
+      '<option value="terlihat"' + (!buat && target.terlihat ? ' selected' : '') +
+      '>👁 Terlihat — dapat diakses murid</option>' +
+    '</select>' +
+    '<span class="bantuan">Jadwal terbit bisa diatur lewat 🕐 setelah dibuat.</span></div>';
+
+  var saatYa = function () {
+    var judul = document.getElementById('f-judul').value.trim();
+    if (!judul) { toast('Judul wajib diisi.', 'peringatan'); return false; }
+    var desk   = document.getElementById('f-desk').value.trim();
+    var terlihat = document.getElementById('f-status').value === 'terlihat';
+    var jTerpilih = document.getElementById('f-jenis')
+      ? document.getElementById('f-jenis').value : null;
+
+    if (buat) {
+      var baru;
+      if (topikInduk) {
+        baru = { jenis:jTerpilih, judul:judul, desk:desk, terlihat:terlihat, jadwal:null };
+        topikInduk.item.push(baru);
+        toast(NAMA[jTerpilih] + ' dibuat dalam topik (masuk dasar topik)');
+      } else {
+        return true; /* tidak terjadi: tombol ＋ kepala memanggil dialogBuat */
+      }
+    } else {
+      target.judul = judul; target.desk = desk; target.terlihat = terlihat;
+      if (terlihat) target.jadwal = target.jadwal; /* jadwal dipertahankan */
+      toast('Perubahan disimpan (prototipe)');
+    }
+    render();
+  };
+
+  if (buat && !topikInduk) return; /* pengaman */
+  bukaDialog(judulDlg, isiHtml, saatYa);
+}
+
+/* BUAT tingkat course — klik 3 tombol ＋ = form "Buat …" (seperti v1) */
+function dialogBuat(jenis){
+  var judulDlg = 'Buat ' + NAMA[jenis];
+  var isiHtml =
+    '<div class="grup"><label>Jenis</label>' +
+    '<input value="' + IKON[jenis] + ' ' + NAMA[jenis] + '" disabled></div>' +
+    '<div class="grup"><label>Judul *</label>' +
+    '<input id="f-judul" placeholder="' +
+      (jenis === 'topik' ? 'mis. Pecahan & pecahan desimal'
+                         : 'mis. Tryout operasi hitung') + '"></div>' +
+    '<div class="grup"><label>Deskripsi</label>' +
+    '<textarea id="f-desk" rows="2"></textarea></div>' +
+    '<div class="grup"><label>Status</label>' +
+    '<select id="f-status">' +
+      '<option value="draf" selected>🙈 Draf — belum terlihat murid</option>' +
+      '<option value="terlihat">👁 Terlihat — dapat diakses murid</option>' +
+    '</select>' +
+    '<span class="bantuan">Baris baru SELALU masuk PALING DASAR (§7.8b) · ' +
+    'jadwal terbit bisa diatur lewat 🕐 setelah dibuat.</span></div>';
+
+  bukaDialog(judulDlg, isiHtml, function () {
+    var judul = document.getElementById('f-judul').value.trim();
+    if (!judul) { toast('Judul wajib diisi.', 'peringatan'); return false; }
+    var desk = document.getElementById('f-desk').value.trim();
+    var terlihat = document.getElementById('f-status').value === 'terlihat';
+    var baru;
+    if (jenis === 'topik') {
+      baru = { jenis:'topik', judul:judul, desk:desk, terlihat:terlihat,
+               jadwal:null, buka:true, item:[] };
+    } else {
+      baru = { jenis:jenis, judul:judul, desk:desk, terlihat:terlihat,
+               jadwal:null, item:null };
+    }
+    susunan.push(baru);
+    render();
+    toast(NAMA[jenis] + ' "' + judul + '" dibuat di paling dasar' +
+      (terlihat ? ' — notifikasi pertemuan_baru terkirim (publish eksplisit)'
+                : ' (draf)'));
+  }, 'Buat');
+}
+
+document.getElementById('tmb-topik').addEventListener('click', function () { dialogBuat('topik'); });
+document.getElementById('tmb-quiz').addEventListener('click',  function () { dialogBuat('quiz_mandiri'); });
+document.getElementById('tmb-ref').addEventListener('click',   function () { dialogBuat('refleksi_mandiri'); });
 
 function dialogJadwal(b){
   bukaDialog('🕐 Jadwal terbit',
@@ -359,30 +484,6 @@ function dialogJadwal(b){
       render();
     });
 }
-function dialogEdit(b){
-  bukaDialog('✏️ Edit judul',
-    '<div class="grup"><label>Judul</label>' +
-    '<input id="in-judul" value="' + esc(b.judul) + '"></div>',
-    function () {
-      var v = document.getElementById('in-judul').value.trim();
-      if (!v) return false;
-      b.judul = v; render(); toast('Judul disimpan (prototipe)');
-    });
-}
-
-/* tambah baris — SELALU paling dasar (§7.8b) */
-document.getElementById('tmb-topik').addEventListener('click', function () {
-  susunan.push({ jenis:'topik', judul:'Topik baru', terlihat:false, jadwal:null, buka:true, item:[] });
-  render(); toast('Topik draf ditambahkan di PALING DASAR (§7.8b)');
-});
-document.getElementById('tmb-quiz').addEventListener('click', function () {
-  susunan.push({ jenis:'quiz_mandiri', judul:'Quiz mandiri baru', terlihat:false, jadwal:null, item:null });
-  render(); toast('Quiz mandiri (draf) masuk paling dasar');
-});
-document.getElementById('tmb-ref').addEventListener('click', function () {
-  susunan.push({ jenis:'refleksi_mandiri', judul:'Refleksi mandiri baru', terlihat:false, jadwal:null, item:null });
-  render(); toast('Refleksi mandiri (draf) masuk paling dasar');
-});
 document.getElementById('kembali').addEventListener('click', function () {
   toast('← kembali ke detail course (di app)');
 });
