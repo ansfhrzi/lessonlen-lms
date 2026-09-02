@@ -31,7 +31,7 @@ yang ada di akar repositori.
 | `Util.gs` | Generator ID (sheet `Counters` + lock), hash kata sandi, sanitasi, audit log |
 | `Auth.gs` | Login, sesi, ganti/lupa/reset kata sandi (port v1) + biodata murid (email, no WA, **tanggal lahir**; NISN opsional) + **lupa sandi/username mandiri** (verifikasi 3 data → reset otomatis; gagal → hubungi guru) |
 | `Murid.gs` | **Tahap 3.1** — Kelola Murid: daftar/cari/filter, tambah/edit (sandi sementara), detail (+`pwd_awal`), impor massal + pratinjau (dedupe username) |
-| `Kelas.gs` | **Tahap 3.2** — Kelola Kelas: CRUD + arsip (ditolak bila dipakai course aktif), detail + murid ter-enroll, murid tersedia utk enroll, enroll (dedupe + reaktivasi + notif `enroll_kelas`), keluarkan |
+| `Kelas.gs` | **Tahap 3.2** — Kelola Kelas: CRUD + arsip (ditolak bila dipakai course aktif), detail + murid ter-enroll, murid tersedia utk enroll, enroll (dedupe + reaktivasi + notif `enroll_kelas`), keluarkan, **`kelasSaya`** (endpoint murid: kelas yang diikuti + mapel aktif — kartu Kelas Saya) |
 | `Course.gs` | **Tahap 3.3** — Kelola Course: "Course" = Teaching_Assignments (label `KELAS - MAPEL`); buat = kelas + mapel bebas (auto-dedupe `Subjects`), duplikat ditolak, edit ganti kelas/mapel, hapus = lepas relasi; buat ulang → reaktivasi |
 | `ApiKey.gs` | **Tahap 3.4** — Status API Key: pasang ≤10 key Gemini (Script Properties `GEMINI_KEYS`, menimpa daftar lama), panel hanya melihat 4 digit terakhir, status siap/istirahat/bermasalah, reset cooldown — mekanisme & nama kunci identik v1 (siap dipakai modul AI) |
 | `Uji.gs` | **Uji dari editor Apps Script** ke DB nyata: `ujiSemua()` (atau `ujiGate0()` / `ujiMurid()`); data uji berpenanda `uXXXXXX` + pembersihan otomatis; akun seed tak diubah |
@@ -39,13 +39,13 @@ yang ada di akar repositori.
 | `v_login.html`, `v_dashboard.html` | Layar masuk + cangkang dasbor (sidebar/topbar/lonceng/toast) |
 | `js_core.html` | Pembungkus `google.script.run`, token sesi, router `Core.pergiKe`, dialog & toast global, lonceng notifikasi |
 | `js_auth.html` | Login, keluar, wajib ganti sandi, **lupa akses §5.5** (2 jalur mandiri + jalur guru; sandi sementara tampil sekali; gagal → pesan netral) + layar **Biodata Saya** (murid: lihat/edit) |
-| `js_beranda.html` | **UI Tahap 3** — beranda §22D: guru (4 angka + perlu tindakan + **Course saya**: daftar course nyata milik guru) & murid |
+| `js_beranda.html` | **UI Tahap 3** — beranda §22D: guru (4 angka + perlu tindakan + **Course saya**) & murid (stat + **kartu Kelas Saya** dgn daftar mapel + pengingat biodata) |
 | `js_murid.html` | **UI Tahap 3** — Kelola Murid: daftar+cari/filter, tambah (dialog sandi + kirim WA), detail (+`pwd_awal`, reset), edit, nonaktif, impor massal + pratinjau |
 | `js_kelas.html` | **UI Tahap 3** — Kelola Kelas: kisi kartu, form buat/edit, detail (murid + tambah/keluarkan), arsip |
 | `js_course.html` | **UI Tahap 3** — Kelola Course: tabel, buat/edit (kelas + mapel), hapus = nonaktif |
 | `js_rekap.html` | **UI Tahap 3** — Rekap Nilai placeholder "menyusul" |
 | `js_apikey.html` | **UI Tahap 3** — Status API Key: 10 slot + status, timpa daftar, reset cooldown |
-| `test/` | Uji node: `uji-auth-gate0.js` (18) + `uji-murid.js` (65) + `uji-lupa-akses.js` (35) + `uji-kelas.js` (48) + `uji-course.js` (41) + `uji-apikey.js` (31) + `uji-beranda.js` (18) + `uji-ui.js` (audit statis fungsi klien; daftar berkas auto) + `uji-ui-extra.js` (audit id/endpoint/CSS/rute) + `uji-alur-ui.js` (opsional: alur klik di jsdom, dilewati bila jsdom/pratinjau tak ada) |
+| `test/` | Uji node: `uji-auth-gate0.js` (18) + `uji-murid.js` (65) + `uji-lupa-akses.js` (35) + `uji-kelas.js` (55) + `uji-course.js` (41) + `uji-apikey.js` (31) + `uji-beranda.js` (18) + `uji-ui.js` (audit statis fungsi klien; daftar berkas auto) + `uji-ui-extra.js` (audit id/endpoint/CSS/rute) + `uji-alur-ui.js` (opsional: alur klik di jsdom, dilewati bila jsdom/pratinjau tak ada) |
 
 ## Cara pasang (sekali saja)
 

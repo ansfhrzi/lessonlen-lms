@@ -526,6 +526,31 @@ function ujiKelas() {
   _ujiCek('endpoint kelasDaftar ditolak utk murid',
           re2.ok === false && re2.error === 'AKSES_DITOLAK');
 
+  /* --- kelasSaya: kartu "Kelas Saya" dashboard murid (laporan) --- */
+  _ujiCek('BERKAS: endpoint kelasSaya ada — bila GAGAL: salin ulang Code.gs',
+          typeof kelasSaya === 'function');
+  var rks0 = kelasSaya(tokMurid.ok ? tokMurid.data.token : '');
+  _ujiCek('kelasSaya dijawab utk murid (riwayat arsip → kosong)',
+          rks0.ok === true && Array.isArray(rks0.data), JSON.stringify(rks0));
+  var rkK = Kelas.simpan(sesiG, { name: 'Kelas Saya ' + __UJI.stamp });
+  _ujiLacakKelas(rkK.class_id);
+  var rksE = kelasEnroll(tokenG, rkK.class_id, [m1.user_id]);
+  _ujiCek('prasyarat: m1 ter-enroll kelas baru',
+          rksE.ok === true && rksE.data.ditambah === 1, JSON.stringify(rksE));
+  var rksC = courseSimpan(tokenG, { class_id: rkK.class_id,
+    name: 'Uji Mapel ' + __UJI.stamp });
+  _ujiCek('prasyarat: course aktif dibuat di kelas baru',
+          rksC.ok === true, JSON.stringify(rksC));
+  var rks1 = kelasSaya(tokMurid.data.token);
+  _ujiCek('kelasSaya → kelas dgn mapel terlihat',
+          rks1.ok === true && rks1.data.some(function (x) {
+            return x.class_id === rkK.class_id && x.jml_course === 1 &&
+                   x.course[0] === 'Uji Mapel ' + __UJI.stamp;
+          }), JSON.stringify(rks1));
+  var rks2 = kelasSaya(tokenG);
+  _ujiCek('kelasSaya ditolak utk guru (AKSES_DITOLAK)',
+          rks2.ok === false && rks2.error === 'AKSES_DITOLAK', JSON.stringify(rks2));
+
   return _ujiSelesai('TAHAP 3.2');
 }
 

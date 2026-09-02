@@ -22,7 +22,7 @@ try {
 }
 const fs = require('fs');
 
-const berkasHtml = process.env.PRATINJAU_HTML || '/home/user/pratinjau/index.html';
+const berkasHtml = process.env.PRATINJAU_HTML || '/home/user/lessonlen-lms/pratinjau/index.html';
 if (!fs.existsSync(berkasHtml)) {
   console.log('DILEWATI — pratinjau belum dibangun (bangun.py).');
   process.exit(0);
@@ -239,6 +239,16 @@ const tunggu = (ms) => new Promise(r => setTimeout(r, ms));
   cek('murid: biodata terbaca balik (email terisi)',
       d.getElementById('in-bio-email').value === 'rara@contoh.id' &&
       d.getElementById('in-bio-tgl').value === '2009-04-17');
+  // kartu "Kelas saya" pada beranda murid
+  d.querySelector('#menu-utama a[data-rute="beranda"]').click();
+  await tunggu(600);
+  cek('murid: seksi "Kelas saya" tampil',
+      d.getElementById('layar').textContent.includes('Kelas saya'));
+  cek('murid: kartu Kelas Saya = 1 kelas (XI TKJ 1)',
+      d.querySelectorAll('#wadah-kelas-saya .kartu-barang').length === 1 &&
+      d.getElementById('wadah-kelas-saya').textContent.includes('XI TKJ 1'));
+  cek('murid: kartu memuat daftar mapel (Matematika)',
+      d.getElementById('wadah-kelas-saya').textContent.includes('Matematika'));
 
   console.log('');
   console.log(gagal ? `ALUR UI GAGAL ✘ — ${gagal} cek` : 'SEMUA CEK ALUR UI LULUS ✔');

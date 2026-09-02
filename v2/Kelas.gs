@@ -345,6 +345,42 @@ var Kelas = (function () {
     }));
   }
 
+  /* ------------------------------------------------ kelas saya (murid) */
+
+  /**
+   * KELAS SAYA (murid) — kelas yang diikuti aktif, plus daftar mapel
+   * (course aktif) di kelas itu. Untuk kartu "Kelas Saya" pada
+   * dashboard murid. Kelas terarsip tidak ditampilkan.
+   */
+  function kelasSaya(sesi) {
+    var diikuti = {};
+    Db.saring('Enrollment', { user_id: sesi.user_id, status: 'aktif' })
+      .forEach(function (e) { diikuti[e.class_id] = true; });
+
+    var mapel = {};   /* class_id → [nama mapel aktif] */
+    Db.saring('Teaching_Assignments', { status: 'aktif' })
+      .forEach(function (t) {
+        var s = Db.cari('Subjects', 'subject_id', t.subject_id) || {};
+        if (s.name) {
+          (mapel[t.class_id] = mapel[t.class_id] || []).push(s.name);
+        }
+      });
+
+    return Db.saring('Classes', { status: 'aktif' })
+      .filter(function (k) { return diikuti[k.class_id]; })
+      .map(function (k) {
+        var mp = (mapel[k.class_id] || []).sort(_bandingAlami);
+        return {
+          class_id: k.class_id,
+          name: k.name,
+          academic_year: k.academic_year || '',
+          jml_course: mp.length,
+          course: mp
+        };
+      })
+      .sort(function (a, b) { return _bandingAlami(a.name, b.name); });
+  }
+
   return {
     daftar: daftar,
     simpan: simpan,
@@ -352,6 +388,7 @@ var Kelas = (function () {
     detail: detail,
     muridTersedia: muridTersedia,
     enroll: enroll,
-    keluarkan: keluarkan
+    keluarkan: keluarkan,
+    kelasSaya: kelasSaya
   };
 })();

@@ -116,6 +116,13 @@ function kelasMuridTersedia(token, classId) {
 }
 
 /** Enroll murid (dedupe + reaktivasi otomatis, proses v1). */
+/** KELAS SAYA (murid) — kartu "Kelas Saya" pada dashboard murid. */
+function kelasSaya(token) {
+  return _bungkus(token, 'murid', function (sesi) {
+    return Kelas.kelasSaya(sesi);
+  });
+}
+
 function kelasEnroll(token, classId, userIds) {
   return _bungkus(token, 'guru', function (sesi) {
     return Kelas.enroll(sesi, classId, userIds);

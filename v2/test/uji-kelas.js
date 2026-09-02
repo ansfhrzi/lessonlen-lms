@@ -8,7 +8,7 @@
 require('./mock.js');
 const fs = require('fs');
 const path = require('path');
-['Util', 'Auth', 'Murid', 'Kelas', 'Code'].forEach(function (n) {
+['Util', 'Auth', 'Murid', 'Kelas', 'Course', 'Code'].forEach(function (n) {
   (0, eval)(fs.readFileSync(path.join(__dirname, '..', n + '.gs'), 'utf8'));
 });
 
@@ -205,6 +205,42 @@ const TOKEN_M = Auth.login('rina.andini', 'Rina12345').data.token;
   cek('endpoint ' + fn + ' ditolak utk murid',
       hasil.ok === false && hasil.error === 'AKSES_DITOLAK');
 });
+
+console.log('\n== KELAS SAYA (murid — kartu dashboard) ==');
+
+/* endpoint baru: khusus murid */
+r = kelasSaya(TOKEN_M);
+cek('endpoint kelasSaya OK utk murid',
+    r.ok === true && Array.isArray(r.data), JSON.stringify(r));
+
+/* rina (USR-M1) enroll ke K2 + course aktif → terlihat dgn mapel */
+r = kelasEnroll(TOKEN_G, K2, ['USR-M1']);
+cek('prasyarat: rina ter-enroll ke K2',
+    r.ok === true && r.data.ditambah === 1, JSON.stringify(r));
+r = courseSimpan(TOKEN_G, { class_id: K2, name: 'Matematika' });
+cek('prasyarat: course Matematika aktif di K2', r.ok === true, JSON.stringify(r));
+r = kelasSaya(TOKEN_M);
+const KS = r.data[0] || {};
+cek('kelas terlihat dgn nama + TA + mapel terurut',
+    r.ok === true && r.data.length === 1 &&
+    KS.name === 'XI TKJ 2 B' && KS.jml_course === 1 &&
+    KS.course[0] === 'Matematika', JSON.stringify(r));
+
+/* kelas terarsip (enrollment lama masih ada) tidak muncul:
+   rina punya riwayat enroll di K1 yang terarsip — hanya K2 yang tampil */
+cek('kelas terarsip tidak muncul di kelasSaya', r.data.length === 1);
+
+/* siti di-keluarkan dari K2 (dia enroll pada uji tersedia) → kosong */
+Kelas.keluarkan(SESI_GURU, K2, 'USR-M3');
+const TOKEN_S = Auth.login('siti.lestari', 'Siti12345').data.token;
+r = kelasSaya(TOKEN_S);
+cek('murid tanpa enrollment aktif → daftar kosong',
+    r.ok === true && r.data.length === 0, JSON.stringify(r));
+
+/* guru ditolak */
+r = kelasSaya(TOKEN_G);
+cek('kelasSaya ditolak utk guru (AKSES_DITOLAK)',
+    r.ok === false && r.error === 'AKSES_DITOLAK', JSON.stringify(r));
 
 /* ============ hasil ============ */
 console.log('\n----------------------------------------------------');

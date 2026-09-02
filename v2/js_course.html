@@ -116,9 +116,11 @@ var CourseLayar = (function () {
       }).then(function (ya) {
         if (!ya) return;
         var salah = Core.$('salah-course');
+        /* Catatan: backend Course.simpan menerima { class_id, name };
+           `subject_name` hanya bentuk baca (daftar/detail). */
         var p = {
           class_id: Core.$('in-c-kelas').value,
-          subject_name: Core.$('in-c-mapel').value
+          name: Core.$('in-c-mapel').value
         };
         if (taId) p.teaching_assignment_id = taId;
 

@@ -136,10 +136,15 @@ var Beranda = (function () {
       '<div class="kisi-stat">' +
         stat('🏫', r.kelas_diikuti, 'Kelas diikuti') +
         stat('🔔', r.notif_baru, 'Notifikasi baru') +
-      '</div>';
+      '</div>' +
+
+      /* kartu "Kelas Saya" (laporan pemilik produk) */
+      '<div class="judul-seksi">Kelas saya</div>' +
+      '<div class="kisi-kartu" id="wadah-kelas-saya">' +
+        '<div class="pemuat"><span class="ikon">⏳</span>Memuat…</div></div>';
 
     if (r.biodata_kurang) {
-      html += '<div class="kartu"><div class="kartu-isi">' +
+      html += '<div class="kartu mt-16"><div class="kartu-isi">' +
         '<b>📋 Biodata Anda belum lengkap</b>' +
         '<p class="kecil">Lengkapi email, nomor WhatsApp, dan tanggal lahir agar Anda ' +
         'dapat memulihkan sandi/username sendiri bila lupa.</p>' +
@@ -150,6 +155,35 @@ var Beranda = (function () {
     layar.innerHTML = html;
     var btn = Core.$('btn-isi-bio');
     if (btn) btn.addEventListener('click', function () { Core.pergiKe('biodata'); });
+    muatKelasSaya();
+  }
+
+  /* Kartu kelas yang diikuti murid (endpoint kelasSaya).
+     Klik kartu → rincian kelas menyusul pada Tahap 4. */
+  function muatKelasSaya() {
+    var wadah = Core.$('wadah-kelas-saya');
+    Core.api('kelasSaya', Core.ambilToken()).then(function (daftar) {
+      if (!wadah) return;
+      if (!daftar || !daftar.length) {
+        wadah.innerHTML = '<div class="kartu-barang">' +
+          '<div class="kartu-judul">Belum terdaftar</div>' +
+          '<div class="kartu-sub">Anda belum terdaftar di kelas mana pun — ' +
+          'hubungi guru Anda untuk didaftarkan.</div></div>';
+        return;
+      }
+      wadah.innerHTML = daftar.map(function (k) {
+        return '<div class="kartu-barang">' +
+          '<div class="kartu-judul"><span>🏫 ' + Core.esc(k.name) + '</span>' +
+          '<span class="badge badge-info">' + Core.esc(k.academic_year || '—') + '</span></div>' +
+          '<div class="kartu-sub">' + (k.jml_course
+            ? '📚 ' + k.jml_course + ' course: ' + Core.esc((k.course || []).join(', '))
+            : 'Belum ada course di kelas ini') + '</div>' +
+          '</div>';
+      }).join('');
+    }).catch(function (err) {
+      if (wadah) wadah.innerHTML = '<div class="kartu-barang">' +
+        '<div class="kartu-sub">' + Core.esc(err.message) + '</div></div>';
+    });
   }
 
   Core.daftarRute('beranda', render);
