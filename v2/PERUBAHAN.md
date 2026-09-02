@@ -128,6 +128,20 @@ berkas.
 - Uji: node `test/uji-kelas.js` **48 kasus**; editor `ujiKelas()` 15 cek
   → `ujiSemua()` kini **70 cek**. `test/mock.js` +`perbaruiBanyak`.
 
+### Tahap 3.3 — backend Kelola Course (2 Sep 2026)
+
+- **BARU `Course.gs`** 🔴 wajib salin: `daftar` (label `KELAS - MAPEL` +
+  jml murid), `detail`, `simpan` (buat = pilih kelas + tulis nama mapel
+  bebas → **auto-dedupe ke `Subjects`** milik guru; duplikat pasangan
+  kelas+mapel ditolak `DUPLIKAT`; edit ganti kelas dan/atau mapel;
+  buat ulang course yang pernah dihapus → **reaktivasi**, bukan baris
+  baru; kelas terarsip ditolak), `hapus` (= lepas relasi, status
+  nonaktif — kelas & mapel tidak terhapus).
+- `Code.gs` 🔴 wajib salin: +4 endpoint `courseDaftar / courseDetail /
+  courseSimpan / courseHapus` (role `guru`).
+- Uji: node `test/uji-course.js` **41 kasus**; editor `ujiCourse()` 13 cek
+  → `ujiSemua()` kini **83 cek**.
+
 ### Berkas yang harus ada di editor Apps Script (kondisi tahap 2)
 
 | Berkas | Isi | Status |
@@ -171,3 +185,4 @@ tidak ada — akan membuat error), `js_beranda.html`, `js_kelola.html`,
 | tahap 3.1b | (commit ini) | `Uji.gs` — uji editor (`ujiGate0` + `ujiMurid`) | +41 |
 | tahap 3.1c | (commit ini) | lupa akses mandiri: kolom `tanggal_lahir` + 3 endpoint + 32 uji node + `ujiLupaAkses()` | +32 node, +14 editor |
 | tahap 3.2 | (commit ini) | backend Kelola Kelas: `Kelas.gs` + 7 endpoint + 48 uji node + `ujiKelas()` | +48 node, +15 editor |
+| tahap 3.3 | (commit ini) | backend Kelola Course: `Course.gs` + 4 endpoint + 41 uji node + `ujiCourse()` | +41 node, +13 editor |

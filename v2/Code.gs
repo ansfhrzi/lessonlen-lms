@@ -130,6 +130,39 @@ function kelasKeluarkan(token, classId, userId) {
 }
 
 /* ============================================================
+ *  API — KELOLA COURSE (menu dashboard guru — §22D)
+ *  "Course" = istilah UI untuk Teaching_Assignments.
+ * ============================================================ */
+
+/** Daftar course guru ("KELAS - MAPEL") + hitungan murid. */
+function courseDaftar(token) {
+  return _bungkus(token, 'guru', function (sesi) {
+    return Course.daftar(sesi);
+  });
+}
+
+/** Detail satu course. */
+function courseDetail(token, taId) {
+  return _bungkus(token, 'guru', function (sesi) {
+    return Course.detail(sesi, taId);
+  });
+}
+
+/** Buat course = kelas + nama mapel bebas (auto-dedupe ke Subjects). */
+function courseSimpan(token, p) {
+  return _bungkus(token, 'guru', function (sesi) {
+    return Course.simpan(sesi, p);
+  });
+}
+
+/** Hapus course (lepas relasi; kelas & mapel tetap). */
+function courseHapus(token, taId) {
+  return _bungkus(token, 'guru', function (sesi) {
+    return Course.hapus(sesi, taId);
+  });
+}
+
+/* ============================================================
  *  API — BIODATA & LUPA AKSES MANDIRI (keputusan 2026-09-02)
  * ============================================================ */
 
