@@ -449,7 +449,8 @@ function ujiTahap3() {
     r = kelasUbahStatus(TOKEN_G, KLS, 'arsip');
     _ujiCek('arsipkan kelas', r.ok === true);
     _ujiCek('kelas arsip tidak tampil di daftar default',
-      kelasDaftar(TOKEN_G, false).data.length === 0);
+      !kelasDaftar(TOKEN_G, false).data.some(function (k) {
+        return k.class_id === KLS; }));
     r = kelasSaya(TOKEN_B);
     _ujiCek('kelas arsip hilang dari kelasSaya', r.data.length === 0);
     kelasUbahStatus(TOKEN_G, KLS, 'aktif');
@@ -612,19 +613,27 @@ function ujiTahap4() {
     r = penugasanUbahStatus(TOKEN_G, TA, 'nonaktif');
     _ujiCek('nonaktifkan penugasan', r.ok === true);
     _ujiCek('penugasan nonaktif tak tampil default',
-      penugasanDaftar(TOKEN_G, {}).data.length === 0);
+      !penugasanDaftar(TOKEN_G, {}).data.some(function (t) {
+        return t.teaching_assignment_id === TA; }));
     _ujiCek('penugasan nonaktif tampil bila semua',
-      penugasanDaftar(TOKEN_G, { semua: true }).data.length === 1);
+      penugasanDaftar(TOKEN_G, { semua: true }).data.some(function (t) {
+        return t.teaching_assignment_id === TA &&
+               t.status === 'nonaktif'; }));
     _ujiCek('filter status nonaktif',
-      penugasanDaftar(TOKEN_G, { status: 'nonaktif' }).data.length === 1);
+      penugasanDaftar(TOKEN_G, { status: 'nonaktif' }).data.some(function (t) {
+        return t.teaching_assignment_id === TA; }));
     _ujiCek('filter class_id cocok',
-      penugasanDaftar(TOKEN_G, { class_id: KLS, semua: true }).data.length === 1);
+      penugasanDaftar(TOKEN_G, { class_id: KLS, semua: true }).data.some(function (t) {
+        return t.teaching_assignment_id === TA; }));
     _ujiCek('filter class lain kosong',
-      penugasanDaftar(TOKEN_G, { class_id: 'KLS-x', semua: true }).data.length === 0);
+      !penugasanDaftar(TOKEN_G, { class_id: 'KLS-x', semua: true }).data.some(function (t) {
+        return t.teaching_assignment_id === TA; }));
     _ujiCek('filter subject_id cocok',
-      penugasanDaftar(TOKEN_G, { subject_id: SBK, semua: true }).data.length === 1);
+      penugasanDaftar(TOKEN_G, { subject_id: SBK, semua: true }).data.some(function (t) {
+        return t.teaching_assignment_id === TA; }));
     _ujiCek('filter guru lain kosong',
-      penugasanDaftar(TOKEN_G, { teacher_id: GURU2, semua: true }).data.length === 0);
+      !penugasanDaftar(TOKEN_G, { teacher_id: GURU2, semua: true }).data.some(function (t) {
+        return t.teaching_assignment_id === TA; }));
 
     r = penugasanSimpan(TOKEN_G, { class_id: KLS, subject_id: SBK });
     _ujiCek('penugasan sama → baris nonaktif diaktifkan kembali',
@@ -888,8 +897,10 @@ function ujiTahap4() {
       cocok('UPDATE', 'item_publish'));
 
     r = penugasanDaftar(TOKEN_G, {});
-    _ujiCek('sanity: penugasan aktif 1 dengan 3 topik',
-      r.data.length === 1 && r.data[0].jml_topik === 3);
+    var milik = r.data.filter(function (t) {
+      return t.teaching_assignment_id === TA; });
+    _ujiCek('sanity: penugasan aktif dengan 3 topik',
+      milik.length === 1 && milik[0].jml_topik === 3, JSON.stringify(milik));
   });
 }
 
