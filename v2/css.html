@@ -688,4 +688,173 @@ textarea.isian, textarea.input {
   .grid-2 { grid-template-columns: 1fr; }
   .panel-gesir { max-width: 100%; }
 }
+
+/* ============================================================
+   Port tahap 4.2 — baris pertemuan, editor konten, pembaca
+   (disalin setia dari css v1; disesuaikan nama variabel lokal)
+   ============================================================ */
+
+/* ---------------------------------------------- baris pertemuan/topik */
+.baris-pertemuan {
+  display: flex; align-items: center; gap: 14px;
+  width: 100%; text-align: left;
+  padding: 14px 16px; border: 1px solid var(--garis);
+  border-radius: var(--radius); background: var(--putih);
+  font-family: var(--font); color: var(--teks);
+  cursor: pointer; transition: border-color .15s, box-shadow .15s;
+}
+.baris-pertemuan:hover:not(.terkunci) {
+  border-color: var(--hijau); box-shadow: var(--bayang);
+}
+.baris-pertemuan.terkunci {
+  background: #FAFBFA; color: var(--terkunci); cursor: not-allowed;
+}
+.baris-pertemuan.selesai { border-left: 3px solid var(--sukses); }
+
+.nomor-pertemuan {
+  flex: 0 0 38px; height: 38px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 800; font-size: .95rem;
+  background: var(--hijau-muda); color: var(--hijau-tua);
+}
+.baris-pertemuan.terkunci .nomor-pertemuan {
+  background: #E8ECE7; color: var(--terkunci);
+}
+
+/* ---------------------------------------------- editor konten */
+.editor-bar {
+  display: flex; flex-wrap: wrap; gap: 4px; padding: 8px;
+  border: 1px solid var(--garis); border-bottom: none;
+  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+  background: var(--permukaan);
+}
+.editor-bar .pisah {
+  width: 1px; background: var(--garis); margin: 2px 4px;
+}
+.btn-alat {
+  min-width: 34px; height: 34px; padding: 0 8px;
+  border: 1px solid transparent; border-radius: 6px;
+  background: none; cursor: pointer;
+  font-family: var(--font); font-size: .88rem; color: var(--teks);
+  display: inline-flex; align-items: center; justify-content: center; gap: 5px;
+}
+.btn-alat:hover { background: var(--hijau-muda); }
+.btn-alat.utama { color: var(--hijau-tua); font-weight: 700; }
+.btn-alat.aktif {
+  background: var(--hijau-tua); color: #fff; border-color: var(--hijau-tua);
+}
+.btn-alat:disabled { opacity: .45; cursor: not-allowed; }
+
+.editor-isi {
+  min-height: 320px; max-height: 60vh; overflow-y: auto;
+  padding: 16px; border: 1px solid var(--garis);
+  border-radius: 0 0 var(--radius-sm) var(--radius-sm);
+  background: var(--putih); line-height: 1.7;
+  font-size: .96rem; outline: none;
+}
+.editor-isi:focus { border-color: var(--hijau); }
+.editor-isi:empty::before {
+  content: attr(data-placeholder); color: #9AAB9B;
+}
+.editor-isi h3 { margin: 18px 0 8px; color: var(--hijau-tua); }
+.editor-isi h4 { margin: 14px 0 6px; }
+.editor-isi p  { margin-bottom: 10px; }
+.editor-isi ul, .editor-isi ol { margin: 0 0 10px 22px; }
+.editor-isi img { max-width: 100%; border-radius: var(--radius-sm); }
+.editor-isi pre {
+  background: #F2F6F1; padding: 12px; border-radius: 6px;
+  overflow-x: auto; font-size: .87rem;
+}
+.editor-isi blockquote {
+  border-left: 3px solid var(--hijau);
+  padding-left: 14px; margin: 12px 0; color: var(--teks-lembut);
+}
+.editor-isi a { color: var(--hijau-tua); }
+
+/* Mode HTML — menggantikan .editor-isi di tempat yang sama.
+   Ukuran disamakan supaya tinggi layar tidak melompat saat
+   berpindah mode. */
+.editor-html {
+  width: 100%;
+  min-height: 320px;
+  padding: 14px;
+  border: 1px solid var(--garis); border-top: none;
+  border-radius: 0 0 var(--radius-sm) var(--radius-sm);
+  resize: vertical;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: .84rem;
+  line-height: 1.6;
+  color: var(--teks);
+  background: var(--permukaan);
+  tab-size: 2;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.editor-html:focus { outline: none; }
+
+.editor-isi table { width: 100%; border-collapse: collapse; margin: 12px 0; }
+.editor-isi th, .editor-isi td {
+  border: 1px solid var(--garis); padding: 8px 10px;
+  min-width: 44px;
+}
+.editor-isi th { background: var(--hijau-muda); font-weight: 700; }
+.editor-isi td:focus, .editor-isi th:focus,
+.editor-isi table *:focus { outline: 2px solid var(--hijau-tua); }
+
+.alat-tabel {
+  display: inline-flex; gap: 2px;
+  padding: 0 4px; margin: 0 2px;
+  border-left: 1px solid var(--garis);
+  border-right: 1px solid var(--garis);
+}
+.alat-tabel .btn-alat { font-size: .8rem; padding: 4px 6px; }
+
+/* bilah aksi menempel di bawah layar (pola v1) */
+.bar-aksi {
+  position: sticky; bottom: 0; z-index: 20;
+  background: linear-gradient(transparent, var(--permukaan) 22%);
+  padding: 18px 0 12px; display: flex; gap: 10px; justify-content: flex-end;
+}
+
+@media (max-width: 640px) {
+  .editor-isi { min-height: 240px; }
+}
+
+/* ---------------------------------------------- video & pratinjau */
+.bingkai-video {
+  margin: 16px 0;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  background: #000;
+}
+.bingkai-video iframe {
+  display: block;
+  width: 100%; aspect-ratio: 16/9; border: 0;
+}
+
+.pv-gulir {
+  max-height: 70vh;
+  overflow-y: auto;
+  text-align: left;
+  -webkit-overflow-scrolling: touch;
+  padding: 4px 2px;
+}
+.pv-gulir table { display: block; overflow-x: auto; max-width: 100%; }
+
+/* ---------------------------------------------- kode salin & rayakan */
+code.salin {
+  cursor: pointer;
+  border-bottom: 1px dashed var(--terkunci);
+  transition: background .12s;
+}
+code.salin:hover { background: var(--hijau-muda); border-bottom-color: var(--hijau); }
+code.salin:active { transform: translateY(1px); }
+
+.rayakan {
+  text-align: center; padding: 30px 20px;
+  background: linear-gradient(160deg, var(--hijau-muda), var(--permukaan));
+  border-radius: var(--radius); border: 1px solid var(--hijau);
+}
+.rayakan .ikon { font-size: 3rem; }
+.rayakan h2 { color: var(--hijau-tua); margin: 8px 0 4px; }
 </style>

@@ -155,6 +155,26 @@ function toast(pesan, jenis, detik) {
   }, (detik || 3) * 1000);
 }
 
+/* -------------------------------------------------- salin ke papan klip */
+
+/** Salin teks (kata sandi sementara, kode, dsb.) — pola v1. */
+function salinTeks(t) {
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(t).then(function () {
+      toast('Disalin: ' + t, 'sukses', 2);
+    }).catch(function () { toast('Gagal menyalin.', 'peringatan'); });
+  } else {
+    toast(t, 'sukses', 4);
+  }
+}
+
+/* Delegasi global: elemen apa pun dengan data-salin="…" dapat diklik
+   untuk menyalin — termasuk di dalam dialog. */
+document.addEventListener('click', function (e) {
+  var s = e.target.closest ? e.target.closest('[data-salin]') : null;
+  if (s) salinTeks(s.dataset.salin || s.textContent.trim());
+});
+
 /* -------------------------------------------------- dialog */
 
 /**

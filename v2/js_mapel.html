@@ -392,31 +392,30 @@ function gambarTopik(wadah, taId) {
         html += kosongkan('🧩', 'Belum ada topik',
           'Topik = bab / unit pembelajaran.');
       } else {
-        html += '<div class="kolom sela-kecil">' + hasil.topik.map(function (t) {
-          return '<div class="kartu kartu-rapat">' +
-            '<div class="baris-antara mb-8">' +
-              '<div style="min-width:0">' +
-                '<b>' + esc(t.title) + '</b> ' + lencanaPublikasi(t.status) +
-                '<div class="kecil lembut">' +
-                  esc(t.description || 'Tanpa deskripsi') +
-                  ' · ' + t.jml_item + ' item</div>' +
-              '</div>' +
-              '<div class="baris sela-kecil" style="flex-wrap:nowrap">' +
-                '<button class="btn btn-hantu btn-kecil" data-buka="' +
-                  esc(t.topic_id) + '">Isi item</button>' +
-                '<button class="btn btn-teks btn-mini" data-atas="' +
-                  esc(t.topic_id) + '" title="Naikkan">↑</button>' +
-                '<button class="btn btn-teks btn-mini" data-bawah="' +
-                  esc(t.topic_id) + '" title="Turunkan">↓</button>' +
-                '<button class="btn btn-teks btn-mini" data-edit="' +
-                  esc(t.topic_id) + '" title="Edit">✏️</button>' +
-                '<button class="btn btn-teks btn-mini" data-status="' +
-                  esc(t.topic_id) + '" title="' +
-                  (t.status === 'publish' ? 'Jadikan draf' : 'Terbitkan') + '">' +
-                  (t.status === 'publish' ? '🙈' : '📢') + '</button>' +
-                '<button class="btn btn-teks btn-mini btn-bahaya-hantu" ' +
-                  'data-hapus="' + esc(t.topic_id) + '" title="Hapus">🗑</button>' +
-              '</div>' +
+        html += '<div class="kolom sela-kecil">' + hasil.topik.map(function (t, idx) {
+          return '<div class="baris-pertemuan" style="cursor:default">' +
+            '<span class="nomor-pertemuan">' + (idx + 1) + '</span>' +
+            '<div class="tumbuh" style="min-width:0">' +
+              '<div><b>' + esc(t.title) + '</b> ' + lencanaPublikasi(t.status) + '</div>' +
+              '<div class="kecil lembut">' +
+                esc(t.description || 'Tanpa deskripsi') +
+                ' · ' + t.jml_item + ' item</div>' +
+            '</div>' +
+            '<div class="baris sela-kecil" style="flex-wrap:nowrap">' +
+              '<button class="btn btn-hantu btn-kecil" data-buka="' +
+                esc(t.topic_id) + '">Isi item</button>' +
+              '<button class="btn btn-teks btn-mini" data-atas="' +
+                esc(t.topic_id) + '" title="Naikkan">↑</button>' +
+              '<button class="btn btn-teks btn-mini" data-bawah="' +
+                esc(t.topic_id) + '" title="Turunkan">↓</button>' +
+              '<button class="btn btn-teks btn-mini" data-edit="' +
+                esc(t.topic_id) + '" title="Edit">✏️</button>' +
+              '<button class="btn btn-teks btn-mini" data-status="' +
+                esc(t.topic_id) + '" title="' +
+                (t.status === 'publish' ? 'Jadikan draf' : 'Terbitkan') + '">' +
+                (t.status === 'publish' ? '🙈' : '📢') + '</button>' +
+              '<button class="btn btn-teks btn-mini btn-bahaya-hantu" ' +
+                'data-hapus="' + esc(t.topic_id) + '" title="Hapus">🗑</button>' +
             '</div>' +
             '<div id="item-' + esc(t.topic_id) + '" class="sembunyi"></div>' +
           '</div>';
@@ -434,7 +433,7 @@ function gambarTopik(wadah, taId) {
           var w = document.getElementById('item-' + b.dataset.buka);
           if (w.classList.contains('sembunyi')) {
             w.classList.remove('sembunyi');
-            gambarItem(w, b.dataset.buka);
+            gambarItem(w, b.dataset.buka, taId);
           } else {
             w.classList.add('sembunyi');
           }
@@ -530,7 +529,7 @@ function dialogTopik(t, sesudah) {
 }
 
 /* ---------------- item dalam topik (guru) ---------------- */
-function gambarItem(wadah, topicId) {
+function gambarItem(wadah, topicId, taId) {
   wadah.innerHTML = rangkaMuat(48, 2);
 
   callApi('itemDaftar', [State.token, topicId], { diam: true })
@@ -563,7 +562,7 @@ function gambarItem(wadah, topicId) {
               '<button class="btn btn-teks btn-mini" data-bawah="' + esc(i.item_id) +
                 '" title="Turunkan">↓</button>' +
               '<button class="btn btn-teks btn-mini" data-edit="' + esc(i.item_id) +
-                '" title="Edit">✏️</button>' +
+                '" title="Buka editor">✏️</button>' +
               '<button class="btn btn-teks btn-mini" data-status="' + esc(i.item_id) +
                 '" title="' + (i.status === 'publish' ? 'Jadikan draf' : 'Terbitkan') +
                 '">' + (i.status === 'publish' ? '🙈' : '📢') + '</button>' +
@@ -577,7 +576,7 @@ function gambarItem(wadah, topicId) {
       wadah.innerHTML = html;
 
       $('#btn-item-baru', wadah).onclick = function () {
-        dialogItem({ topic_id: topicId }, function () { gambarItem(wadah, topicId); });
+        pergiKe('#/editor/' + taId + '/' + topicId);
       };
       $$('[data-atas],[data-bawah]', wadah).forEach(function (b) {
         b.onclick = function () {
@@ -590,9 +589,7 @@ function gambarItem(wadah, topicId) {
       });
       $$('[data-edit]', wadah).forEach(function (b) {
         b.onclick = function () {
-          var i = daftar.filter(function (x) {
-            return x.item_id === b.dataset.edit; })[0];
-          dialogItem(i, function () { gambarItem(wadah, topicId); });
+          pergiKe('#/editor/' + taId + '/' + topicId + '/' + b.dataset.edit);
         };
       });
       $$('[data-status]', wadah).forEach(function (b) {
@@ -605,7 +602,7 @@ function gambarItem(wadah, topicId) {
               toast(ke === 'publish'
                 ? 'Item diterbitkan — murid kelas diberi tahu.'
                 : 'Item dijadikan draf.', 'sukses');
-              gambarItem(wadah, topicId);
+              gambarItem(wadah, topicId, taId);
             })
             .catch(function () {});
         };
@@ -619,7 +616,7 @@ function gambarItem(wadah, topicId) {
               callApi('itemHapus', [State.token, b.dataset.hapus])
                 .then(function () {
                   toast('Item dihapus.', 'sukses');
-                  gambarItem(wadah, topicId);
+                  gambarItem(wadah, topicId, taId);
                 })
                 .catch(function () {});
             });
@@ -631,68 +628,453 @@ function gambarItem(wadah, topicId) {
     });
 }
 
-function dialogItem(i, sesudah) {
-  var pilihanTipe = Object.keys(TIPE_ITEM).map(function (k) {
-    return '<option value="' + k + '"' +
-      (i.type === k ? ' selected' : '') + '>' +
-      TIPE_ITEM[k].ikon + ' ' + TIPE_ITEM[k].label + '</option>';
-  }).join('');
+/* ============================================================
+   EDITOR ITEM (guru) — port layar editor v1 (tpl-editor + alat)
+   Rute: #/editor/<taId>/<topicId>            → item baru
+         #/editor/<taId>/<topicId>/<itemId>   → ubah item
+   ============================================================ */
+daftarRute('editor', function (bagian) {
+  if (!bagian[0] || !bagian[1]) { pergiKe('#/topik'); return; }
+  bukaEditorItem(bagian[0], bagian[1], bagian[2] || '');
+});
 
-  dialog({
-    judul: i.item_id ? '✏️ Edit Item' : '🗂 Item Baru',
-    html:
-      (i.item_id && i.related_id
-        ? '<div class="grup"><label>Jenis</label>' +
-          '<input class="isian" value="' +
-          esc((TIPE_ITEM[i.type] || {}).label || i.type) +
-          '" disabled><span class="bantuan">Item sudah tertaut — jenisnya ' +
-          'tidak bisa diubah.</span></div>'
-        : '<div class="grup"><label for="d-it-tipe">Jenis item</label>' +
-          '<select class="isian" id="d-it-tipe">' + pilihanTipe + '</select></div>') +
-      '<div class="grup"><label for="d-it-judul">Judul <span class="wajib">*</span></label>' +
-        '<input class="isian" id="d-it-judul" value="' + esc(i.title || '') +
-        '" placeholder="mis. Pengenalan LAN"></div>' +
-      '<div class="grup"><label for="d-it-desk">Deskripsi</label>' +
-        '<textarea class="isian" id="d-it-desk" rows="2" ' +
-        'placeholder="Instruksi / ringkasan (opsional)">' +
-        esc(i.description || '') + '</textarea></div>' +
-      '<div class="grup"><label for="d-it-konten">Konten materi</label>' +
-        '<textarea class="isian" id="d-it-konten" rows="9" ' +
-        'placeholder="<p>Konten (HTML)…</p>\n' +
-        '<iframe src=\\"https://www.youtube.com/embed/…\\"></iframe>">' +
-        esc(i.content || '') + '</textarea>' +
-        '<span class="bantuan">Untuk jenis 📄 Materi. HTML sederhana + video ' +
-        'YouTube/Drive. Quiz/tugas diisi di tahap berikutnya.</span></div>',
-    lebar: 'sedang',
-    labelYa: i.item_id ? 'Simpan' : 'Buat'
-  }).then(function (ya) {
-    if (!ya) return;
-    var el = function (id) { return document.getElementById(id); };
-    var p = {
-      title: el('d-it-judul').value,
-      description: el('d-it-desk').value,
-      content: el('d-it-konten').value
+function bukaEditorItem(taId, topicId, itemId) {
+  var muat = itemId
+    ? callApi('getItemGuru', [State.token, itemId], { diam: true })
+    : Promise.resolve(null);
+
+  muat.then(function (it) {
+    var baru = !it;
+    var app = render('tpl-editor');
+    pasangTopbar(app);
+
+    $('#ed-judul-layar', app).textContent = baru ? '🗂 Item Baru' : '✏️ Ubah Item';
+    $('#ed-balik', app).onclick = function () { pergiKe('#/topik/' + taId); };
+
+    /* jenis item */
+    var selTipe = $('#ed-tipe', app);
+    selTipe.innerHTML = Object.keys(TIPE_ITEM).map(function (k) {
+      return '<option value="' + k + '">' + TIPE_ITEM[k].ikon + ' ' +
+             TIPE_ITEM[k].label + '</option>';
+    }).join('');
+    if (baru) { selTipe.value = 'materi'; }
+    else {
+      selTipe.value = it.type;
+      if (it.related_id) selTipe.disabled = true;   /* sudah tertaut */
+    }
+    function bantuTipe() {
+      var b = {
+        quiz: 'Soal quiz dikelola setelah item tersimpan — tahap berikutnya.',
+        refleksi: 'Pertanyaan refleksi menyusul di tahap berikutnya.',
+        tugas_individu: 'Petunjuk pengerjaan ditulis di Konten. Pengumpulan tugas menyusul.',
+        tugas_kelompok: 'Petunjuk pengerjaan ditulis di Konten. Pengumpulan tugas menyusul.',
+        materi: ''
+      };
+      $('#ed-tipe-bantu', app).textContent = b[selTipe.value] || '';
+    }
+    selTipe.onchange = bantuTipe;
+    bantuTipe();
+
+    $('#ed-judul', app).value = it ? (it.title || '') : '';
+    $('#ed-desk', app).value = it ? (it.description || '') : '';
+
+    var ed = $('#ed-isi', app);
+    ed.innerHTML = it ? (it.content || '') : '';
+
+    pasangAlatEditor(app, ed);
+    pasangModeHtml(app, ed);
+
+    $('#ed-pratinjau', app).onclick = function () {
+      samakanDariHtml(app, ed);
+      pratinjauKontenEditor(ed, $('#ed-judul', app).value || 'Tanpa Judul',
+                            selTipe.value);
     };
-    if (i.item_id) {
-      p.item_id = i.item_id;
-      if (el('d-it-tipe')) p.type = el('d-it-tipe').value;
+
+    function simpan(status, tombol) {
+      /* WAJIB sebelum membaca konten: bila guru masih di mode HTML,
+         suntingannya ada di textarea, belum di editor visual. */
+      if (modeHtmlAktif(app)) samakanDariHtml(app, ed);
+      var judul = $('#ed-judul', app).value.trim();
+      if (!judul) { toast('Judul wajib diisi.', 'peringatan'); return; }
+
+      var p = {
+        title: judul,
+        description: $('#ed-desk', app).value,
+        content: ed.innerHTML
+      };
+      if (baru) {
+        p.topic_id = topicId;
+        p.type = selTipe.value;
+        p.status = status;             /* server memberi tahu murid */
+      } else {
+        p.item_id = it.item_id;
+        if (!it.related_id && selTipe.value !== it.type) p.type = selTipe.value;
+      }
+
+      tombol.disabled = true;
+      tampilkanMuat(true, 'Menyimpan item…');
+      callApi('itemSimpan', [State.token, p], { diam: true })
+        .then(function () {
+          /* itemSimpan EDIT tidak menerima status — beri tahu server
+             lewat itemUbahStatus (draf→terbit menotify murid). */
+          if (!baru && (it.status || 'draft') !== status) {
+            return callApi('itemUbahStatus', [State.token, it.item_id, status]);
+          }
+        })
+        .then(function () {
+          tampilkanMuat(false);
+          toast(status === 'publish'
+            ? 'Item diterbitkan — murid kelas diberi tahu.'
+            : 'Item tersimpan sebagai draf.', 'sukses');
+          pergiKe('#/topik/' + taId);
+        })
+        .catch(function (res) {
+          tampilkanMuat(false);
+          tombol.disabled = false;
+          toast((res && res.pesan) || 'Gagal menyimpan.', 'bahaya');
+        });
+    }
+    $('#ed-simpan-draf', app).onclick = function () { simpan('draft', this); };
+    $('#ed-simpan-terbit', app).onclick = function () { simpan('publish', this); };
+  }).catch(function (res) {
+    toast((res && res.pesan) || 'Gagal memuat item.', 'bahaya');
+    pergiKe('#/topik/' + taId);
+  });
+}
+
+function pratinjauKontenEditor(ed, judul, tipe) {
+  var t = TIPE_ITEM[tipe] || { ikon: '👁' };
+  dialog({
+    judul: t.ikon + ' ' + judul,
+    pesan: 'Pratinjau — isi ditampilkan apa adanya.',
+    lebar: 'penuh',
+    html: '<div class="pv-gulir"><div class="isi-materi">' +
+          (ed.innerHTML || '<p class="kecil lembut">Konten masih kosong.</p>') +
+          '</div></div>',
+    tanpaBatal: true, labelYa: 'Tutup'
+  });
+}
+
+/* -------------------------------------------------- alat editor (v1) */
+function pasangAlatEditor(app, ed) {
+  var bar = $('#ed-alat', app);
+
+  function perintah(cmd, nilai) {
+    ed.focus();
+    document.execCommand(cmd, false, nilai || null);
+  }
+
+  bar.onclick = function (e) {
+    var b = e.target.closest('[data-cmd]');
+    if (!b) return;
+    e.preventDefault();
+    var c = b.dataset.cmd;
+
+    if (c === 'link') {
+      var u = prompt('Alamat tautan:', 'https://');
+      if (u) perintah('createLink', u);
+    } else if (c === 'gambar') {
+      var g = prompt('URL gambar:', 'https://');
+      if (g) perintah('insertHTML',
+        '<img src="' + esc(g) + '" style="max-width:100%">');
+    } else if (c === 'video') {
+      var v = prompt('Tempel tautan YouTube:', 'https://');
+      if (v) {
+        var id = idYouTube(v);
+        if (!id) {
+          toast('Tautan YouTube tidak dikenali. Salin dari bilah ' +
+                'alamat atau tombol Bagikan.', 'peringatan', 5);
+        } else {
+          /* penanda waktu ikut dibawa: guru sering menunjuk menit
+             tertentu, bukan awal video */
+          perintah('insertHTML', embedYouTube(id, mulaiYouTube(v)));
+        }
+      }
+    } else if (c === 'kode') {
+      perintah('formatBlock', 'pre');
+    } else if (c === 'h3' || c === 'h4') {
+      perintah('formatBlock', c);
+    } else if (c === 'tabel') {
+      /* Simpan posisi kursor SEBELUM dialog terbuka — membuka dialog
+         memindahkan fokus, dan execCommand menyisipkan di posisi
+         kursor. Tanpa jangkar, tabel mendarat di awal dokumen (v1). */
+      var jangkar = simpanKursor(ed);
+      dialogTabel(function (baris, kolom, pakaiKepala) {
+        pulihkanKursor(jangkar);
+        perintah('insertHTML', htmlTabel(baris, kolom, pakaiKepala));
+      });
+    } else if (c === 'baris-tambah')  { ubahTabel(ed, 'baris', 1); }
+      else if (c === 'baris-hapus')   { ubahTabel(ed, 'baris', -1); }
+      else if (c === 'kolom-tambah')  { ubahTabel(ed, 'kolom', 1); }
+      else if (c === 'kolom-hapus')   { ubahTabel(ed, 'kolom', -1); }
+    else {
+      perintah(c);
+    }
+  };
+}
+
+/* -------------------------------------------------- mode HTML (v1) */
+function modeHtmlAktif(app) {
+  var ta = $('#ed-html', app);
+  return !!ta && !ta.classList.contains('sembunyi');
+}
+
+/**
+ * Salin isi textarea HTML kembali ke editor visual.
+ * WAJIB dipanggil sebelum Simpan & Pratinjau — tanpa ini guru yang
+ * menyimpan saat masih di mode HTML kehilangan seluruh suntingannya.
+ * Aman dipanggil kapan saja: bila tidak di mode HTML, tidak melakukan apa-apa.
+ */
+function samakanDariHtml(app, ed) {
+  if (!modeHtmlAktif(app)) return false;
+  var ta = $('#ed-html', app);
+  ed.innerHTML = ta.value;
+  return true;
+}
+
+function pasangModeHtml(app, ed) {
+  var tombol = $('#ed-mode-html', app);
+  var ta = $('#ed-html', app);
+  if (!tombol || !ta) return;
+
+  tombol.onclick = function (e) {
+    e.preventDefault();
+    var keHtml = !modeHtmlAktif(app);
+
+    if (keHtml) {
+      /* visual → HTML: tampilkan kode yang SUNGGUH akan disimpan */
+      ta.value = ed.innerHTML;
+      ed.classList.add('sembunyi');
+      ta.classList.remove('sembunyi');
+      tombol.classList.add('aktif');
+      tombol.innerHTML = '👁 Visual';
+      tombol.title = 'Kembali ke tampilan visual';
+      ta.focus();
     } else {
-      p.topic_id = i.topic_id;
-      p.type = el('d-it-tipe').value;
+      /* HTML → visual */
+      samakanDariHtml(app, ed);
+      ta.classList.add('sembunyi');
+      ed.classList.remove('sembunyi');
+      tombol.classList.remove('aktif');
+      tombol.innerHTML = '&lt;/&gt; HTML';
+      tombol.title = 'Sunting kode HTML';
+      ed.focus();
     }
 
-    tampilkanMuat(true, 'Menyimpan item…');
-    callApi('itemSimpan', [State.token, p])
-      .then(function () {
-        tampilkanMuat(false);
-        toast('Item tersimpan.', 'sukses');
-        if (sesudah) sesudah();
-      })
-      .catch(function (res) {
-        tampilkanMuat(false);
-        toast((res && res.pesan) || 'Gagal menyimpan.', 'bahaya');
-      });
+    /* Tombol format tidak berlaku pada teks mentah — dikelabukan
+       supaya guru tidak mengira editornya rusak (v1). */
+    $$('#ed-alat [data-cmd]', app).forEach(function (b) {
+      b.disabled = keHtml;
+    });
+  };
+}
+
+/* -------------------------------------------------- tabel (v1) */
+var TABEL_MAKS = 12;   /* di atas ini tabel tidak terbaca di ponsel */
+
+/** Ingat posisi kursor di dalam editor — dialog memindahkan fokus. */
+function simpanKursor(ed) {
+  var sel = window.getSelection();
+  if (!sel || !sel.rangeCount) return null;
+  var r = sel.getRangeAt(0);
+  return ed && ed.contains(r.commonAncestorContainer) ? r.cloneRange() : null;
+}
+
+function pulihkanKursor(r) {
+  if (!r) return;
+  var sel = window.getSelection();
+  sel.removeAllRanges();
+  sel.addRange(r);
+}
+
+/** Dialog kecil: berapa baris, berapa kolom, pakai baris kepala? */
+function dialogTabel(sesudah) {
+  dialog({
+    judul: '▦ Sisipkan Tabel',
+    html:
+      '<div class="grid-2">' +
+        '<div class="grup"><label for="tbl-baris">Jumlah baris ' +
+          '<span class="lembut">(isi, tanpa kepala)</span></label>' +
+          '<input class="isian" id="tbl-baris" type="number" ' +
+            'min="1" max="' + TABEL_MAKS + '" value="3"></div>' +
+        '<div class="grup"><label for="tbl-kolom">Jumlah kolom</label>' +
+          '<input class="isian" id="tbl-kolom" type="number" ' +
+            'min="1" max="' + TABEL_MAKS + '" value="3"></div>' +
+      '</div>' +
+      '<label class="baris sela-kecil mt-8" style="cursor:pointer">' +
+        '<input type="checkbox" id="tbl-kepala" checked> ' +
+        'Pakai baris kepala (judul kolom)</label>' +
+      '<p class="bantuan mt-8">Maksimal ' + TABEL_MAKS + '×' + TABEL_MAKS +
+      '. Baris & kolom masih bisa ditambah setelah tabel dibuat.</p>',
+    labelYa: 'Sisipkan'
+  }).then(function (ya) {
+    if (!ya) return;
+    var b = jepitAngka($('#tbl-baris'), 3);
+    var k = jepitAngka($('#tbl-kolom'), 3);
+    var kepala = !!($('#tbl-kepala') && $('#tbl-kepala').checked);
+    sesudah(b, k, kepala);
   });
+}
+
+/**
+ * Baca angka dari isian, jepit ke rentang yang masuk akal.
+ * Angka di luar rentang DIJEPIT, bukan diganti bawaan — guru yang
+ * mengetik 0 bermaksud "sekecil mungkin", bukan "3" (v1).
+ */
+function jepitAngka(el, bawaan) {
+  var teks = String((el && el.value) || '').trim();
+  if (teks === '') return bawaan;
+  var n = Number(teks);
+  if (!isFinite(n)) return bawaan;
+  return Math.max(1, Math.min(TABEL_MAKS, Math.round(n)));
+}
+
+/** HTML tabel untuk disisipkan ke editor lewat insertHTML. */
+function htmlTabel(baris, kolom, pakaiKepala) {
+  var h = '<table>';
+  if (pakaiKepala) {
+    h += '<thead><tr>';
+    for (var k = 0; k < kolom; k++) h += '<th>Kolom ' + (k + 1) + '</th>';
+    h += '</tr></thead>';
+  }
+  h += '<tbody>';
+  for (var b = 0; b < baris; b++) {
+    h += '<tr>';
+    for (var j = 0; j < kolom; j++) h += '<td>&nbsp;</td>';
+    h += '</tr>';
+  }
+  return h + '</tbody></table><p><br></p>';
+}
+
+/** Tambah/hapus baris atau kolom pada tabel tempat kursor berada. */
+function ubahTabel(ed, jenis, arah) {
+  var sel = window.getSelection();
+  if (!sel || !sel.rangeCount) { toast('Klik dulu di dalam tabel.', 'peringatan'); return; }
+
+  var node = sel.getRangeAt(0).startContainer;
+  var sel1 = node.nodeType === 1 ? node : node.parentNode;
+  var td = sel1 && sel1.closest ? sel1.closest('td,th') : null;
+  var tabel = sel1 && sel1.closest ? sel1.closest('table') : null;
+
+  if (!tabel || !ed.contains(tabel)) {
+    toast('Klik dulu di dalam tabel yang ingin diubah.', 'peringatan');
+    return;
+  }
+
+  var semuaBaris = tabel.rows;
+  var idxKolom = td ? td.cellIndex : 0;
+  var idxBaris = td && td.parentNode ? td.parentNode.rowIndex : 0;
+
+  if (jenis === 'baris') {
+    var body = tabel.tBodies[0] || tabel;
+    if (arah > 0) {
+      if (semuaBaris.length >= TABEL_MAKS + 1) {
+        toast('Maksimal ' + TABEL_MAKS + ' baris.', 'peringatan'); return;
+      }
+      var jml = semuaBaris[0] ? semuaBaris[0].cells.length : 1;
+      var tr = document.createElement('tr');
+      for (var i = 0; i < jml; i++) {
+        var sel2 = document.createElement('td');
+        sel2.innerHTML = '&nbsp;';
+        tr.appendChild(sel2);
+      }
+      /* sisipkan TEPAT di bawah baris tempat kursor berada */
+      var acuan = semuaBaris[idxBaris];
+      if (acuan && acuan.parentNode === body) {
+        body.insertBefore(tr, acuan.nextSibling);
+      } else {
+        body.appendChild(tr);
+      }
+    } else {
+      /* Baris kepala tidak boleh terhapus lewat tombol ini. */
+      var trHapus = semuaBaris[idxBaris];
+      if (!trHapus || trHapus.parentNode.tagName === 'THEAD') {
+        toast('Baris kepala tidak dapat dihapus di sini.', 'peringatan');
+        return;
+      }
+      if ((tabel.tBodies[0] || tabel).rows.length <= 1) {
+        toast('Tabel harus punya minimal satu baris isi.', 'peringatan');
+        return;
+      }
+      trHapus.parentNode.removeChild(trHapus);
+    }
+  } else {
+    var jmlKolom = semuaBaris[0] ? semuaBaris[0].cells.length : 0;
+    if (arah > 0 && jmlKolom >= TABEL_MAKS) {
+      toast('Maksimal ' + TABEL_MAKS + ' kolom.', 'peringatan'); return;
+    }
+    if (arah < 0 && jmlKolom <= 1) {
+      toast('Tabel harus punya minimal satu kolom.', 'peringatan');
+      return;
+    }
+    for (var r = 0; r < semuaBaris.length; r++) {
+      var baris2 = semuaBaris[r];
+      if (arah > 0) {
+        var kepala = baris2.parentNode.tagName === 'THEAD';
+        var selBaru = document.createElement(kepala ? 'th' : 'td');
+        selBaru.innerHTML = kepala
+          ? 'Kolom ' + (jmlKolom + 1) : '&nbsp;';
+        var setelah = baris2.cells[idxKolom];
+        if (setelah) baris2.insertBefore(selBaru, setelah.nextSibling);
+        else baris2.appendChild(selBaru);
+      } else {
+        if (baris2.cells[idxKolom]) baris2.deleteCell(idxKolom);
+      }
+    }
+  }
+
+  ed.dispatchEvent(new Event('input', { bubbles: true }));
+}
+
+/* -------------------------------------------------- YouTube (v1) */
+
+/**
+ * Ambil ID video dari bentuk tautan YouTube apa pun:
+ * watch?v=, youtu.be/, /shorts/, /embed/, /live/, m.youtube.com,
+ * dengan penanda waktu, atau ID 11 karakter saja.
+ * Mengembalikan '' bila bukan tautan YouTube.
+ */
+function idYouTube(url) {
+  var u = String(url || '').trim();
+  if (!u) return '';
+
+  /* ID YouTube selalu 11 karakter: huruf, angka, - dan _ */
+  var pola = [
+    /[?&]v=([A-Za-z0-9_-]{11})/,          /* watch?v= */
+    /youtu\.be\/([A-Za-z0-9_-]{11})/,      /* youtu.be/ */
+    /\/shorts\/([A-Za-z0-9_-]{11})/,       /* /shorts/ */
+    /\/embed\/([A-Za-z0-9_-]{11})/,        /* /embed/ */
+    /\/live\/([A-Za-z0-9_-]{11})/          /* /live/ */
+  ];
+  for (var i = 0; i < pola.length; i++) {
+    var m = pola[i].exec(u);
+    if (m) return m[1];
+  }
+
+  if (/^[A-Za-z0-9_-]{11}$/.test(u)) return u;
+  return '';
+}
+
+/** Detik mulai dari penanda waktu, mis. `&t=90s` atau `?t=1m30s`. */
+function mulaiYouTube(url) {
+  var m = /[?&]t=(?:(\d+)h)?(?:(\d+)m)?(\d+)s?/.exec(String(url || ''));
+  if (!m) return 0;
+  return (Number(m[1]) || 0) * 3600 + (Number(m[2]) || 0) * 60 +
+         (Number(m[3]) || 0);
+}
+
+/**
+ * iframe yang lolos sanitasi server & aman dipakai murid:
+ * youtube-nocookie.com + rel=0 (tanpa saran video lain).
+ */
+function embedYouTube(id, mulai) {
+  var src = 'https://www.youtube-nocookie.com/embed/' + id + '?rel=0';
+  if (mulai) src += '&start=' + mulai;
+  return '<div class="bingkai-video">' +
+    '<iframe src="' + src + '" title="Video pembelajaran" ' +
+    'loading="lazy" allowfullscreen ' +
+    'allow="accelerometer; encrypted-media; gyroscope; picture-in-picture">' +
+    '</iframe></div><p><br></p>';
 }
 
 /* ============================================================
@@ -787,18 +1169,16 @@ daftarRute('materi', function (bagian) {
         html += kosongkan('🧩', 'Belum ada topik yang diterbitkan',
           'Materi akan muncul di sini setelah gurunya menerbitkannya.');
       } else {
-        html += '<div class="kolom">' + data.topik.map(function (t) {
-          return '<button class="kartu-kelas" data-topik="' + esc(t.topic_id) + '">' +
-            '<div class="baris-antara mb-8">' +
-              '<div style="min-width:0"><div class="judul">' + esc(t.title) + '</div>' +
-              '<div class="mapel">' + esc(t.description || '') + '</div></div>' +
-            '</div>' +
-            '<div class="baris kecil lembut" style="gap:14px">' +
-              '<span>🗂 ' + t.jml_item + ' item</span>' +
-              '<span class="lencana">Buka →</span>' +
-            '</div>' +
-          '</button>';
-        }).join('') + '</div>';
+      html += '<div class="kolom sela-kecil">' + data.topik.map(function (t, idx) {
+        return '<button class="baris-pertemuan" data-topik="' + esc(t.topic_id) + '">' +
+          '<span class="nomor-pertemuan">' + (idx + 1) + '</span>' +
+          '<div class="tumbuh" style="min-width:0">' +
+            '<div><b>' + esc(t.title) + '</b></div>' +
+            '<div class="kecil lembut">' + esc(t.description || '') + '</div>' +
+          '</div>' +
+          '<span class="lencana">🗂 ' + t.jml_item + ' · Buka →</span>' +
+        '</button>';
+      }).join('') + '</div>';
       }
 
       isi.innerHTML = html;

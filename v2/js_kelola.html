@@ -202,7 +202,8 @@ function halamanDetailKelas(classId) {
             '<td><b>' + esc(m.nama) + '</b></td>' +
             '<td>@' + esc(m.username) + '</td>' +
             '<td>' + (m.pwd_awal
-              ? '<code>' + esc(m.pwd_awal) + '</code>'
+              ? '<code class="salin" data-salin="' + esc(m.pwd_awal) +
+                '" title="Ketuk untuk menyalin">' + esc(m.pwd_awal) + '</code>'
               : '<span class="lencana lencana-sukses">sudah diganti</span>') + '</td>' +
             '<td>' + lencanaStatus(m.status_akun) + '</td>' +
             '<td class="kecil lembut">' + esc(m.tanggal_daftar || '') + '</td>' +

@@ -351,10 +351,11 @@ function dialogHasilSandi(d) {
     judul: 'Kata Sandi Sementara',
     pesan: 'Berikan kepada <b>' + esc(d.nama) + '</b> (@' +
            esc(d.username) + '). Kode ini hanya tampil sekali.',
-    html: '<div class="kotak-kode mt-8">' + esc(d.password_sementara) +
+    html: '<div class="kotak-kode mt-8" data-salin="' + esc(d.password_sementara) +
+          '" title="Ketuk untuk menyalin">' + esc(d.password_sementara) +
           '</div>' + tombolWa +
-          '<p class="bantuan mt-8">Murid wajib menggantinya saat masuk ' +
-          'berikutnya.</p>',
+          '<p class="bantuan mt-8">Ketuk kode untuk menyalin. Murid wajib ' +
+          'menggantinya saat masuk berikutnya.</p>',
     tanpaBatal: true, labelYa: 'Sudah Dicatat'
   });
 }
