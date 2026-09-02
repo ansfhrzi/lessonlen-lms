@@ -43,6 +43,7 @@ h1{font-size:1.35rem;font-weight:800;letter-spacing:-.02em}
 .btn.teks{background:none;border:none;color:var(--teks-lembut);min-height:32px;
           padding:5px 8px;font-weight:700;border-radius:7px;font-size:.82rem}
 .btn.teks:hover{background:var(--hijau-muda);color:var(--teks)}
+.btn.teks.merah:hover{background:#FBE3E2;color:var(--bahaya)}
 .btn-kecil{min-height:32px;padding:5px 11px;font-size:.82rem}
 /* daftar susunan */
 .baris-susunan{display:flex;align-items:center;gap:12px;width:100%;
@@ -124,7 +125,8 @@ h1{font-size:1.35rem;font-weight:800;letter-spacing:-.02em}
     dalam topik pakai urutan dalemnya sendiri) · 👁 terlihat / 🙈 draf · menyembunyikan
     item terjadwal MEMBATALKAN jadwalnya · 🕐 terjadwal = terlihat murid tepat pada
     waktunya (tanpa notifikasi) · notifikasi <i>pertemuan_baru</i> hanya saat 👁 publish
-    eksplisit.
+    eksplisit · 🗑 hapus selalu dgn konfirmasi (FR-022/FR-026) — topik
+    ikut menghapus seluruh item & progres di dalamnya.
   </p>
 </div>
 
@@ -183,6 +185,7 @@ function kontrolBaris(b, di){
       (b.terlihat ? '👁' : '🙈') + '</button>' +
     '<button class="btn teks" data-aksi="jadwal" data-di="' + di + '" title="Jadwal terbit">🕐</button>' +
     '<button class="btn teks" data-aksi="edit" data-di="' + di + '" title="Ubah">✏️</button>' +
+    '<button class="btn teks merah" data-aksi="hapus" data-di="' + di + '" title="Hapus">🗑</button>' +
     '</span>';
 }
 
@@ -223,6 +226,7 @@ function render(){
                   (it.terlihat ? '👁' : '🙈') + '</button>' +
                 '<button class="btn teks" data-aksi="i-jadwal" data-ikan="' + i + '" data-j="' + j + '">🕐</button>' +
                 '<button class="btn teks" data-aksi="i-edit" data-ikan="' + i + '" data-j="' + j + '">✏️</button>' +
+                '<button class="btn teks merah" data-aksi="i-hapus" data-ikan="' + i + '" data-j="' + j + '" title="Hapus">🗑</button>' +
               '</span>' +
             '</div>';
         });
@@ -303,6 +307,20 @@ document.getElementById('daftar').addEventListener('click', function (e) {
   }
   if (aksi === 'jadwal') { dialogJadwal(susunan[Number(b.dataset.di)]); return; }
   if (aksi === 'edit')   { dialogForm(susunan[Number(b.dataset.di)]); return; }
+  if (aksi === 'hapus') {
+    var hb = susunan[Number(b.dataset.di)];
+    var isiPesan = hb.jenis === 'topik'
+      ? '<b>' + esc(hb.judul) + '</b>' + (hb.item.length
+          ? ' beserta <b>' + hb.item.length + ' item</b> di dalamnya, soal, dan progres murid '
+          : ' (masih kosong) ') + 'akan dihapus dan tidak dapat dibuka kembali.'
+      : '<b>' + esc(hb.judul) + '</b> beserta konten dan progres murid akan ' +
+        'dihapus dan tidak dapat dibuka kembali.';
+    bukaDialog('🗑 Hapus ' + NAMA[hb.jenis], isiPesan, function () {
+      susunan.splice(Number(b.dataset.di), 1);
+      render(); toast(NAMA[hb.jenis] + ' dihapus (prototipe)');
+    }, 'Hapus');
+    return;
+  }
 
   if (aksi === 'tambah-item') { dialogForm(null, susunan[Number(b.dataset.ikan)]); return; }
 
@@ -329,6 +347,17 @@ document.getElementById('daftar').addEventListener('click', function (e) {
     }
     if (aksi === 'i-jadwal') { dialogJadwal(t.item[j]); return; }
     if (aksi === 'i-edit')   { dialogForm(t.item[j]); return; }
+    if (aksi === 'i-hapus') {
+      var hi = t.item[j];
+      bukaDialog('🗑 Hapus ' + NAMA[hi.jenis],
+        '<b>' + esc(hi.judul) + '</b> beserta konten dan progres murid akan ' +
+        'dihapus dan tidak dapat dibuka kembali.',
+        function () {
+          t.item.splice(j, 1);
+          render(); toast(NAMA[hi.jenis] + ' dihapus (prototipe)');
+        }, 'Hapus');
+      return;
+    }
   }
 });
 
