@@ -388,6 +388,17 @@ function login(username, password) {
   }
 }
 
+/** §5.8: masuk murid pakai No. WA + tanggal lahir (publik, tanpa sesi). */
+function loginWa(noWa, tglLahir) {
+  try {
+    return Auth.loginWa(noWa, tglLahir);
+  } catch (err) {
+    Util.catatLog(null, 'ERROR_LOGIN_WA', String(err && err.message), 'gagal');
+    return { ok: false, error: 'KESALAHAN_SERVER',
+             pesan: 'Terjadi kesalahan saat masuk.' };
+  }
+}
+
 /** Cek sesi + status biodata segar dari sheet (bukan dari cache sesi). */
 function cekSesi(token) {
   return _bungkus(token, 'apa_saja', function (sesi) {

@@ -59,6 +59,40 @@ const tunggu = (ms) => new Promise(r => setTimeout(r, ms));
   cek('boot menampilkan form login', !!d.getElementById('form-login'));
   cek('merek = LessonLen', d.getElementById('merek-nama-login').textContent === 'LessonLen');
 
+  // --- §5.8: masuk pakai Nomor WA (murid) ---
+  d.getElementById('btn-mode-wa').click();
+  await tunggu(200);
+  cek('WA: mode ganti — form WA tampil, form username hilang',
+      d.getElementById('form-login-wa').style.display !== 'none' &&
+      d.getElementById('form-login').style.display === 'none' &&
+      d.getElementById('btn-mode-wa').textContent.includes('nama pengguna'));
+  d.getElementById('in-wa').value = '081234567003';
+  d.getElementById('in-wa-tgl').value = '1999-01-01';
+  d.getElementById('btn-masuk-wa').click();
+  await tunggu(500);
+  cek('WA: salah tgl lahir → pesan netral, tetap di login',
+      d.getElementById('salah-wa').textContent.includes('tidak cocok') &&
+      !!d.getElementById('form-login-wa'));
+  d.getElementById('in-wa-tgl').value = '2009-05-10';
+  d.getElementById('btn-masuk-wa').click();
+  await tunggu(700);
+  cek('WA: benar → langsung masuk sbg murid (tanpa ganti sandi/biodata)',
+      !d.getElementById('form-login-wa') &&
+      d.getElementById('layar').textContent.includes('Citra Maharani') &&
+      !d.getElementById('layar').textContent.includes('Ganti Kata Sandi'));
+  cek('WA: sidebar murid (5 menu guru tersembunyi)', (() => {
+    const rute = ['kelas', 'course', 'murid', 'rekap', 'apikey'];
+    return rute.every(r => {
+      const a = d.querySelector('#menu-utama a[data-rute="' + r + '"]');
+      return a && a.style.display === 'none';
+    });
+  })());
+
+  // kembali ke login utk alur guru berikutnya
+  dom.window.close();
+  dom = buatDom(); w = dom.window; d = w.document;
+  await tunggu(400);
+
   // --- alur LUPA AKSES §5.5 ---
   d.getElementById('btn-lupa').click();
   await tunggu(250);

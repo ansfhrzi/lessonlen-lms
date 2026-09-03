@@ -29,7 +29,7 @@ yang ada di akar repositori.
 | `Setup.gs` | Skema **23 sheet**, `setupLengkap()`, seed, migrasi, `infoDatabase()` |
 | `Db.gs` | Lapisan akses Sheets: baca/tulis batch, cache, `LockService` |
 | `Util.gs` | Generator ID (sheet `Counters` + lock), hash kata sandi, sanitasi, audit log |
-| `Auth.gs` | Login, sesi, ganti/lupa/reset kata sandi (port v1) + biodata murid (email, no WA, **tanggal lahir**; NISN opsional) + **lupa sandi/username mandiri** (verifikasi 3 data → reset otomatis; gagal → hubungi guru) |
+| `Auth.gs` | Login, sesi, ganti/lupa/reset kata sandi (port v1) + biodata murid (email, no WA, **tanggal lahir**; NISN opsional) + **lupa sandi/username mandiri** (verifikasi 3 data → reset otomatis; §5.8) + **login alternatif pakai No. WA + tgl lahir** (murid, langsung masuk; gagal → hubungi guru) |
 | `Murid.gs` | **Tahap 3.1** — Kelola Murid: daftar/cari/filter, tambah/edit (sandi sementara), detail (+`pwd_awal`), impor massal + pratinjau (dedupe username) |
 | `Kelas.gs` | **Tahap 3.2** — Kelola Kelas: CRUD + arsip (ditolak bila dipakai course aktif), detail + murid ter-enroll, murid tersedia utk enroll (bawa **rombel** utk filter dialog), enroll (dedupe + reaktivasi + notif `enroll_kelas`), keluarkan, **`kelasSaya`** (endpoint murid: kelas yang diikuti + mapel aktif — kartu Kelas Saya) |
 | `Course.gs` | **Tahap 3.3** — Kelola Course: "Course" = Teaching_Assignments (label `KELAS - MAPEL`); buat = kelas + mapel bebas (auto-dedupe `Subjects`), duplikat ditolak, edit ganti kelas/mapel, hapus = lepas relasi; buat ulang → reaktivasi |

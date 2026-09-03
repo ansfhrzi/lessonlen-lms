@@ -52,9 +52,9 @@ MOCK = r"""
       { notif_id: 'n3', jenis: 'info', judul: 'Jadwal simpan panen bergeser', pesan: 'Mulai pekan ini', dibaca: true, created_at: '2026-08-28 13:05' }
     ],
     muridDaftar: [
-      { user_id: 'u-m1', nama: 'Rara Aisyah Putri', username: 'siswa01', nisn: '0091234561', no_wa: '081234567001', rombel: 'XI TKJ 1', status: 'aktif', last_login: '2026-09-01 06:55' },
+      { user_id: 'u-m1', nama: 'Rara Aisyah Putri', username: 'siswa01', nisn: '0091234561', no_wa: '081234567001', tanggal_lahir: '2008-03-15', rombel: 'XI TKJ 1', status: 'aktif', last_login: '2026-09-01 06:55', biodata_ok: false },
       { user_id: 'u-m2', nama: 'Bayu Setiawan', username: 'siswa02', nisn: '0091234562', no_wa: '081234567002', rombel: 'XI TKJ 1', status: 'aktif', last_login: '2026-08-31 20:11' },
-      { user_id: 'u-m3', nama: 'Citra Maharani', username: 'siswa03', nisn: '', no_wa: '081234567003', rombel: 'XI TKJ 1', status: 'aktif', last_login: '' },
+      { user_id: 'u-m3', nama: 'Citra Maharani', username: 'siswa03', nisn: '', no_wa: '081234567003', tanggal_lahir: '2009-05-10', rombel: 'XI TKJ 1', status: 'aktif', last_login: '', biodata_ok: true },
       { user_id: 'u-m4', nama: 'Dimas Prakoso', username: 'siswa04', nisn: '0091234564', no_wa: '', rombel: 'XI TKJ 2', status: 'aktif', last_login: '2026-08-29 07:30' },
       { user_id: 'u-m5', nama: 'Eka Nurjanah', username: 'siswa05', nisn: '', no_wa: '081234567005', rombel: 'XI TKJ 2', status: 'nonaktif', last_login: '2026-08-10 08:00' },
       { user_id: 'u-m6', nama: 'Fajar Ramadhan', username: 'siswa06', nisn: '0091234566', no_wa: '081234567006', rombel: 'XI RPL 1', status: 'aktif', last_login: '' }
@@ -94,7 +94,7 @@ MOCK = r"""
                           daftar: db.perlu.slice(0, 5) } };
     }
     return { role: 'murid', kelas_diikuti: 1, notif_baru: 2,
-             biodata_kurang: !db.muridBiodataIsi };
+             biodata_kurang: !(db.sesi && db.sesi.biodata_ok) };
   }
 
   /* --- helper susunan (Kelola Topik & Item) --- */
@@ -137,6 +137,27 @@ MOCK = r"""
                pesan: 'Nama pengguna atau kata sandi salah.' };
     },
     cekSesi: function () { return db.sesi; },
+    /* §5.8: masuk murid pakai No. WA + tgl lahir (contoh: 081234567001 / 2008-03-15) */
+    loginWa: function (noWa, tglLahir) {
+      var wa = String(noWa || '').replace(/[^0-9]/g, '').replace(/^08/, '62');
+      var tgl = String(tglLahir || '').trim();
+      var cocok = db.muridDaftar.filter(function (m) {
+        var mw = String(m.no_wa || '').replace(/[^0-9]/g, '').replace(/^08/, '62');
+        return m.status === 'aktif' && mw === wa && (m.tanggal_lahir || '') === tgl;
+      });
+      if (cocok.length !== 1) {
+        return { ok: false, error: 'LOGIN_GAGAL',
+                 pesan: 'Data tidak cocok. Silakan hubungi guru Anda.' };
+      }
+      var m = cocok[0];
+      db.sesi = { user_id: m.user_id, username: m.username, nama: m.nama,
+                  role: 'murid', harus_ganti_password: false,
+                  biodata_ok: m.biodata_ok === true,
+                  biodata: { nisn: m.nisn || '', email: '',
+                             no_wa: m.no_wa || '', tanggal_lahir: m.tanggal_lahir || '' } };
+      return { token: 't-token', user: db.sesi,
+               harus_ganti_password: false, biodata_kurang: false, via: 'wa' };
+    },
     ringkasDashboard: function () { return ringkas(); },
     daftarNotifikasi: function () { return db.notif; },
     logout: function () { db.sesi = null; return {}; },
@@ -144,6 +165,11 @@ MOCK = r"""
     ajukanReset: function () { return { diterima: true }; },
     simpanBiodata: function (t, b) {
       db.muridBiodataIsi = true;
+      if (db.sesi) {
+        db.sesi.biodata_ok = true;
+        var mm = db.muridDaftar.filter(function (x) { return x.user_id === db.sesi.user_id; })[0];
+        if (mm) mm.biodata_ok = true;
+      }
       db.murid.biodata = {
         nisn: (b.nisn || '').trim(), email: (b.email || '').trim().toLowerCase(),
         no_wa: b.no_wa || '', tanggal_lahir: b.tanggal_lahir || ''

@@ -26,6 +26,43 @@ var Auth = (function () {
       masuk();
     });
     Core.$('btn-lupa').addEventListener('click', dialogLupa);
+
+    /* §5.8: mode masuk pakai Nomor WA */
+    Core.$('btn-mode-wa').addEventListener('click', function () {
+      var pakaiWa = Core.$('form-login-wa').style.display === 'none';
+      Core.$('form-login').style.display = pakaiWa ? 'none' : '';
+      Core.$('form-login-wa').style.display = pakaiWa ? '' : 'none';
+      this.textContent = pakaiWa ? '← Masuk pakai nama pengguna'
+                                 : 'Masuk pakai Nomor WA';
+      Core.sembunyikanPesanError(Core.$('salah-login'));
+      Core.sembunyikanPesanError(Core.$('salah-wa'));
+      (pakaiWa ? Core.$('in-wa') : Core.$('in-username')).focus();
+    });
+    Core.$('form-login-wa').addEventListener('submit', function (e) {
+      e.preventDefault();
+      masukWa();
+    });
+  }
+
+  function masukWa() {
+    var wa = Core.$('in-wa').value;
+    var tgl = Core.$('in-wa-tgl').value;
+    var salah = Core.$('salah-wa');
+    Core.sembunyikanPesanError(salah);
+    if (!String(wa).trim() || !tgl) {
+      Core.tampilkanPesanError(salah, 'Isi Nomor WhatsApp dan tanggal lahir.');
+      return;
+    }
+    Core.kirimForm(Core.$('btn-masuk-wa'), true, 'Memeriksa…');
+    Core.api('loginWa', wa, tgl).then(function (d) {
+      /* §5.8: langsung masuk — tanpa ganti sandi, tanpa isian biodata */
+      Core.kirimForm(Core.$('btn-masuk-wa'), false);
+      Core.simpanToken(d.token);
+      Core.muat();
+    }).catch(function (err) {
+      Core.kirimForm(Core.$('btn-masuk-wa'), false);
+      Core.tampilkanPesanError(salah, err.message);
+    });
   }
 
   function masuk() {

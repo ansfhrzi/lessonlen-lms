@@ -27,7 +27,26 @@
         <button class="btn btn-penuh mt-8" type="submit" id="btn-masuk">Masuk</button>
       </form>
 
-      <div class="tengah mt-16">
+      <form id="form-login-wa" autocomplete="off" style="display:none">
+        <div class="grup">
+          <label for="in-wa">Nomor WhatsApp</label>
+          <input class="isian" id="in-wa" inputmode="tel"
+                 placeholder="mis. 081234567001" autocapitalize="off">
+          <span class="bantuan">Nomor WA yang tercatat di biodata Anda.</span>
+        </div>
+        <div class="grup">
+          <label for="in-wa-tgl">Tanggal lahir</label>
+          <input class="isian" id="in-wa-tgl" type="date">
+        </div>
+        <div class="pesan-salah" id="salah-wa"></div>
+        <button class="btn btn-penuh mt-8" type="submit" id="btn-masuk-wa">Masuk</button>
+      </form>
+
+      <div class="tengah mt-8" style="margin-top:8px">
+        <button class="btn-teks kecil" id="btn-mode-wa">Masuk pakai Nomor WA</button>
+      </div>
+
+      <div class="tengah mt-8">
         <button class="btn-teks kecil" id="btn-lupa">Lupa kata sandi / username?</button>
       </div>
 

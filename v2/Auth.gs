@@ -164,6 +164,77 @@ var Auth = (function () {
     }};
   }
 
+  /* -------------------------------------------------- login alternatif WA */
+
+  /** §5.8 (keputusan 2026-09-03): murid masuk dengan No. WA + tgl lahir.
+   *  · Hanya murid; akun aktif; biodata WA+tgl lahir harus terisi.
+   *  · Langsung masuk — TIDAK memaksa ganti password (tanpa kecuali);
+   *    `harus_ganti_password` tetap berlaku hanya di login username.
+   *  · WA+tgl lahir cocok pada >1 akun → ditolak netral (anti akun orang).
+   *  · Batas percobaan = login biasa (5x/15 menit, kunci per no WA).
+   *  · Pesan gagal selalu netral — tidak membocorkan keberadaan akun. */
+  function loginWa(noWa, tglLahir) {
+    var wa = Util.normalisasiWa(noWa);
+    var tgl = Util.tglLahirSah(tglLahir);
+    if (!wa || !tgl) {
+      return { ok: false, error: 'LOGIN_GAGAL',
+               pesan: 'Data tidak cocok. Silakan hubungi guru Anda.' };
+    }
+
+    var kunci = _kunciKey('wa_' + wa);
+    if (_cekTerkunci(kunci) >= MAKS_GAGAL) {
+      return { ok: false, error: 'AKUN_TERKUNCI',
+               pesan: 'Terlalu banyak percobaan gagal. Coba lagi dalam ' +
+                      MENIT_KUNCI + ' menit.' };
+    }
+
+    var samaTanggal = function (u) {
+      var t = u.tanggal_lahir;
+      if (t instanceof Date) t = Util.formatTanggal(t).slice(0, 10);
+      return String(t || '').trim() === tgl;
+    };
+
+    var cocok = Db.baca('Users').filter(function (u) {
+      return u.role === 'murid' && u.status === 'aktif' &&
+             Util.normalisasiWa(u.no_wa) === wa && samaTanggal(u);
+    });
+
+    var ekor = 'wa=…' + wa.slice(-3);
+    var gagal = function (detail) {
+      var n = _tambahGagal(kunci);
+      Util.catatLog('', 'LOGIN_WA', ekor + ' ' + detail + ' percobaan=' + n, 'gagal');
+      return { ok: false, error: 'LOGIN_GAGAL',
+               pesan: 'Data tidak cocok. Silakan hubungi guru Anda.' +
+                      (n >= 3 ? ' Sisa percobaan: ' + (MAKS_GAGAL - n) + '.' : '') };
+    };
+
+    if (!cocok.length) return gagal('tak_cocok');
+    if (cocok.length > 1) {
+      /* jangan pilih-memilih: tolak netral agar tak membuka akun orang lain */
+      _resetGagal(kunci);
+      Util.catatLog('', 'LOGIN_WA', ekor + ' duplikat=' + cocok.length, 'gagal');
+      return { ok: false, error: 'LOGIN_GAGAL',
+               pesan: 'Data tidak cocok. Silakan hubungi guru Anda.' };
+    }
+
+    var user = cocok[0];
+    _resetGagal(kunci);
+
+    var token = _buatSesi(user);
+    Db.perbarui('Users', user._baris, { last_login: Util.sekarang() });
+    Util.catatLog(user.user_id, 'LOGIN_WA', 'role=' + user.role, 'ok', user.role);
+
+    return { ok: true, data: {
+      token: token,
+      user: { user_id: user.user_id, username: user.username,
+              nama: user.nama, role: user.role },
+      harus_ganti_password: false,     /* keputusan §5.8 poin 3 */
+      biodata_kurang: false,
+      biodata: null,
+      via: 'wa'
+    }};
+  }
+
   /* -------------------------------------------------- ganti kata sandi */
 
   function gantiPassword(sesi, lama, baru) {
@@ -449,6 +520,7 @@ var Auth = (function () {
     lupaPassword: lupaPassword,
     lupaUsername: lupaUsername,
     login: login,
+    loginWa: loginWa,
     gantiPassword: gantiPassword,
     ajukanReset: ajukanReset,
     getPermintaanReset: getPermintaanReset,
