@@ -374,6 +374,35 @@ Sebelum modul LMS dibuat, fondasi auth harus lulus seluruh pemeriksaan berikut p
 
 **Gate:** Jika PoC belum lulus, implementasi modul LMS tidak dilanjutkan.
 
+
+### 5.8 Login alternatif murid pakai Nomor WhatsApp (keputusan 2026-09-03)
+
+Murid yang **lupa username dan/atau password tetapi biodatanya sudah
+diisi** (§5.2 langkah 11) dapat masuk tanpa reset:
+
+```text
+MASUK PAKAI WA     : no WA + tanggal lahir → langsung masuk
+```
+
+Aturan (keputusan pemilik produk):
+
+1. **Hanya murid.** Guru selalu memakai username + kata sandi.
+2. Pencocokan `no_wa` dinormalisasi (format 62…) + `tanggal_lahir`
+   persis; akun harus **aktif** dan biodata terisi.
+3. **Langsung masuk, TANPA dipaksa ganti password** — tanpa kecuali.
+   Penanda `harus_ganti_password` tetap berlaku hanya pada login
+   username+password biasa.
+4. **WA + tanggal lahir yang cocok pada lebih dari satu akun → ditolak
+   dengan pesan netral** (sama seperti tidak cocok) — mencegah membuka
+   akun orang lain. Kasus duplikat dibereskan guru lewat data murid.
+5. Akun nonaktif diperlakukan sama seperti tidak cocok (netral).
+6. Batas percobaan sama dengan login biasa: **5x gagal / 15 menit →
+   dikunci 15 menit** (di CacheService, kunci terpisah per no WA).
+7. Percobaan gagal & keberhasilan dicatat di `Audit_Logs`.
+8. Jalur lupa sandi/username §5.5 **tetap ada** — fitur ini pelengkap,
+   bukan pengganti.
+9. Rencana "Ingat saya / login bertahan lintas browser" **dibatalkan**
+   (keputusan 2026-09-03) — digantikan fitur ini.
 ---
 
 ## 6. Authorization dan Isolasi Data
@@ -1650,6 +1679,14 @@ Sebelum implementasi, Admin/developer harus menyetujui jawaban atas pertanyaan b
 22. (Tambahan 2026-09-02, §5.5) Lupa sandi/username **mandiri** untuk murid: verifikasi username/email + no WA + tanggal lahir → sandi direset otomatis (lupa keduanya: username ikut ditampilkan). Biodata wajib murid bertambah **tanggal lahir** (kolom `Users.tanggal_lahir`); NISN opsional. Gagal/belum isi biodata → hubungi guru (jalur §5.3 tetap).
 19. Menetapkan database final menjadi 21 sheet dengan `Audit_Logs`.
 20. Membersihkan konsep arsitektur lama “1 project/spreadsheet per guru”.
+
+23. (Keputusan 2026-09-03)
+    a. **FR-091 (email notifikasi)** — penyesuaian: email **dikirim
+       manual oleh guru** (bukan otomatis oleh sistem); notifikasi
+       in-app tetap otomatis seperti sekarang. Implementasi pengiriman
+       manual menyusul sebagai fiturnya sendiri.
+    b. **FR-013 (murid melihat anggota kelas)** — **tidak diperlukan**;
+       murid hanya melihat kelas & mapel yang diikutinya.
 
 ---
 
