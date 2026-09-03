@@ -374,6 +374,34 @@ const tunggu = (ms) => new Promise(r => setTimeout(r, ms));
       d.getElementById('qz-rekap').textContent.includes('3 soal') &&
       !d.querySelector('.kotak-dialog'));
 
+  /* URL gambar tanpa skema -> validasi klien MENAHAN dialog terbuka */
+  d.getElementById('btn-tambah-soal').click();
+  await tunggu(300);
+  d.getElementById('f-qz-pertanyaan').value = 'Soal uji gambar salah skema';
+  const opsiGambar = d.querySelectorAll('[data-qz-opsi]');
+  opsiGambar[0].value = '5';
+  opsiGambar[1].value = '7';
+  d.querySelector('input[name="f-qz-kunci"][value="A"]').checked = true;
+  d.getElementById('f-qz-gambar').value = 'www.contoh.com/gambar.png';
+  d.querySelector('.kotak-dialog [data-aksi="ya"]').click();
+  await tunggu(300);
+  const galatQz = d.getElementById('salah-dialog-qz');
+  cek('quiz: URL gambar tanpa https ditolak DI TEMPAT (dialog utuh)',
+      !!d.querySelector('.kotak-dialog') &&
+      !!galatQz && galatQz.classList.contains('tampil') &&
+      galatQz.textContent.includes('https') &&
+      d.getElementById('f-qz-pertanyaan').value === 'Soal uji gambar salah skema' &&
+      d.getElementById('qz-rekap').textContent.includes('3 soal'));
+  d.getElementById('f-qz-gambar').value = 'https://contoh.com/gambar.png';
+  d.querySelector('.kotak-dialog [data-aksi="ya"]').click();
+  await tunggu(500);
+  cek('quiz: setelah URL dibetulkan soal masuk (rekap 4 soal)',
+      d.getElementById('qz-rekap').textContent.includes('4 soal') &&
+      !d.querySelector('.kotak-dialog') &&
+      [...d.querySelectorAll('.kartu-soal-qz')].some(k =>
+        k.querySelector('img.qz-gambar') &&
+        k.querySelector('img.qz-gambar').src === 'https://contoh.com/gambar.png'));
+
   d.getElementById('in-qz-kkm').value = '80';
   d.getElementById('btn-simpan-qz').click();
   await tunggu(500);

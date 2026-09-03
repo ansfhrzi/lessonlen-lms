@@ -557,6 +557,9 @@ MOCK = r"""
     quizSimpanSoal: function (t, itemId, p) {
       if (!String(p.question || '').trim())
         return { ok: false, error: 'VALIDASI_GAGAL', pesan: 'Pertanyaan wajib diisi.' };
+      if (p.gambar_url && !/^https?:\/\//i.test(p.gambar_url))
+        return { ok: false, error: 'VALIDASI_GAGAL',
+                 pesan: 'Tautan gambar harus diawali http:// atau https://' };
       var daftar = db.soal[itemId] = db.soal[itemId] || [];
       var opsi = (p.options || []).map(function (o) {
         return String(o || '').trim(); }).filter(function (o) { return o !== ''; });

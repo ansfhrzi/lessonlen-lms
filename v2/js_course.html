@@ -1022,7 +1022,8 @@ var CourseLayar = (function () {
       '<div id="f-qz-area-kunci"></div>' +
       '<div class="grup"><label>Pembahasan <span class="kecil">(opsional)</span></label>' +
       '<textarea class="isian" id="f-qz-pembahasan" rows="2">' +
-      Core.esc(s ? s.pembahasan : '') + '</textarea></div>';
+      Core.esc(s ? s.pembahasan : '') + '</textarea></div>' +
+      '<div class="pesan-salah" id="salah-dialog-qz"></div>';
     return html;
   }
 
@@ -1067,15 +1068,59 @@ var CourseLayar = (function () {
     area.innerHTML = html;
   }
 
-  function dialogSoalQz(s) {
+  /** Validasi klien dialog soal — cermin aturan server (Quiz.simpanSoal).
+      Return false = dialog tertahan terbuka + pesan tampil di dalamnya. */
+  function sahkanDialogQz(tirai) {
+    var kotak = tirai.querySelector('#salah-dialog-qz');
+    function pesan(teks) { kotak.classList.add('tampil'); kotak.textContent = teks; return false; }
+    kotak.classList.remove('tampil');
+
+    var tanya = tirai.querySelector('#f-qz-pertanyaan').value.trim();
+    if (!tanya) return pesan('Pertanyaan wajib diisi.');
+    if (tanya.length > 2000) return pesan('Pertanyaan maksimal 2000 karakter.');
+
+    var gambar = tirai.querySelector('#f-qz-gambar').value.trim();
+    if (gambar && !/^https?:\/\//i.test(gambar))
+      return pesan('Tautan gambar harus diawali http:// atau https://');
+    if (gambar.length > 500) return pesan('Tautan gambar maksimal 500 karakter.');
+
+    var tipe = tirai.querySelector('#f-qz-tipe').value;
+    if (tipe === 'pg') {
+      var terisi = [];
+      tirai.querySelectorAll('[data-qz-opsi]').forEach(function (i) {
+        if (i.value.trim()) terisi.push(i.dataset.h);
+      });
+      if (terisi.length < 2) return pesan('Pilihan ganda butuh minimal 2 opsi terisi.');
+      var kunci = tirai.querySelector('input[name="f-qz-kunci"]:checked');
+      if (!kunci) return pesan('Tandai dulu opsi yang benar (⦿).');
+      if (terisi.indexOf(kunci.value) === -1)
+        return pesan('Kunci harus salah satu opsi yang terisi.');
+    } else if (tipe === 'isian') {
+      var k = tirai.querySelector('#f-qz-kunci-isian').value.trim();
+      if (!k) return pesan('Kunci jawaban isian wajib diisi.');
+      if (k.length > 100) return pesan('Kunci isian maksimal 100 karakter.');
+    } else if (tipe === 'esai') {
+      var r = tirai.querySelector('#f-qz-rubrik').value;
+      if (r.length > 1000) return pesan('Rubrik maksimal 1000 karakter.');
+    }
+
+    var bobot = Number(tirai.querySelector('#f-qz-bobot').value);
+    if (!bobot || bobot < 1 || bobot > 100) return pesan('Bobot harus angka 1–100.');
+    return true;
+  }
+
+  function dialogSoalQz(s, ulang) {
     Core.dialog({
-      judul: s ? '✏️ Ubah Soal ' + s.order_no : '＋ Tambah Soal',
-      html: opsiHtmlSoal(s),
-      labelYa: s ? 'Simpan' : 'Tambah',
+      judul: s && s.question_id ? '✏️ Ubah Soal ' + s.order_no : '＋ Tambah Soal',
+      html: opsiHtmlSoal(ulang || s || null),
+      labelYa: s && s.question_id ? 'Simpan' : 'Tambah',
+      /* Validasi klien: dialog TETAP TERBUKA saat gagal, pesan tampil di
+         dalamnya — isian yang sudah diketik tidak hilang. */
+      saatYa: sahkanDialogQz,
       saatBuka: function (tirai) {
-        gambarKunciQz(tirai, s);
+        gambarKunciQz(tirai, ulang || s || null);
         tirai.querySelector('#f-qz-tipe').addEventListener('change', function () {
-          gambarKunciQz(tirai, s);
+          gambarKunciQz(tirai, ulang || s || null);
         });
       }
     }).then(function (ya) {
@@ -1109,7 +1154,7 @@ var CourseLayar = (function () {
         })
         .catch(function (err) {
           Core.toast(err.message, 'bahaya');
-          dialogSoalQz(s);
+          dialogSoalQz(s, p); /* buka ulang dengan isian yang barusan diketik */
         });
     });
   }
