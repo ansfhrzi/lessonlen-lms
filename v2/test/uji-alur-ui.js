@@ -349,6 +349,12 @@ const tunggu = (ms) => new Promise(r => setTimeout(r, ms));
   await tunggu(200);
   cek('quiz: 🔑 → opsi benar tersorot + kunci tampil',
       !!d.querySelector('.qz-opsi-benar') && !!d.querySelector('.qz-kunci'));
+  const kartuEsai = [...d.querySelectorAll('.kartu-soal-qz')]
+    .find(k => k.textContent.includes('Uraian'));
+  cek('quiz: 🔑 → pembahasan/rubrik ikut tampil (pg & esai)',
+      d.querySelector('.qz-kunci').textContent.includes('Pembahasan') &&
+      !!kartuEsai && kartuEsai.querySelector('.qz-kunci') &&
+      kartuEsai.querySelector('.qz-kunci').textContent.includes('Rubrik'));
   d.getElementById('btn-kunci-qz').click();
 
   d.getElementById('btn-tambah-soal').click();

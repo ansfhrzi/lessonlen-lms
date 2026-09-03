@@ -902,12 +902,17 @@ var CourseLayar = (function () {
         opsi = '<div class="kecil lembut">Murid menulis jawaban bebas — dikoreksi guru.</div>';
       }
       var kunci = '';
-      if (QZ.kunciTampil && s.type !== 'esai') {
-        kunci = '<div class="qz-kunci"><b>Kunci:</b> ' + Core.esc(
-          s.type === 'isian' ? s.answer_key :
-          s.type === 'benar_salah' ? s.answer_key : s.answer_key) +
-          (s.pembahasan ? ' · <i>Pembahasan: ' + Core.esc(s.pembahasan) + '</i>' : '') +
-          '</div>';
+      if (QZ.kunciTampil) {
+        if (s.type === 'esai') {
+          var potongan = [];
+          if (s.rubric) potongan.push('<b>Rubrik:</b> ' + Core.esc(s.rubric));
+          if (s.pembahasan) potongan.push('<i>Pembahasan: ' + Core.esc(s.pembahasan) + '</i>');
+          if (potongan.length) kunci = '<div class="qz-kunci">' + potongan.join(' · ') + '</div>';
+        } else {
+          kunci = '<div class="qz-kunci"><b>Kunci:</b> ' + Core.esc(s.answer_key) +
+            (s.pembahasan ? ' · <i>Pembahasan: ' + Core.esc(s.pembahasan) + '</i>' : '') +
+            '</div>';
+        }
       }
       return '<div class="kartu-soal-qz" data-soal="' + Core.esc(s.question_id) + '">' +
         '<div class="baris-antara">' +
