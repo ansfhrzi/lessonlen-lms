@@ -80,6 +80,9 @@ code { background: var(--permukaan); border-radius: 4px;
 .kecil   { font-size: .85rem; color: var(--teks-lembut); }
 .tengah  { text-align: center; }
 .mt-8    { margin-top: 8px; }
+.mb-8    { margin-bottom: 8px; }
+.baris-antara { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.lembut  { color: var(--teks-lembut); }
 .mt-16   { margin-top: 16px; }
 
 /* ---------- layar login (gaya v1) ---------- */
@@ -490,6 +493,23 @@ tbody tr:hover { background: var(--permukaan); }
 .ed-konten iframe { max-width: 100%; aspect-ratio: 16 / 9;
   width: 100%; border: 0; border-radius: 8px; }
 .ed-konten a { color: var(--hijau-tua); }
+/* ---------- editor quiz (poin 2b) ---------- */
+.kartu-soal-qz {
+  border: 1px solid var(--garis); border-radius: var(--radius-sm);
+  padding: 12px 14px; margin-bottom: 10px; background: var(--putih);
+}
+.qz-pertanyaan { font-weight: 600; margin: 8px 0 4px; white-space: pre-wrap; }
+.qz-gambar { max-width: 100%; border-radius: 8px; margin-top: 6px; }
+.qz-opsi { margin: 6px 0 0 6px; display: grid; gap: 2px; font-size: .92rem; }
+.qz-opsi-benar {
+  background: var(--hijau-muda); color: var(--hijau-tua);
+  border-radius: 6px; padding: 2px 8px; font-weight: 700;
+  display: inline-block; width: fit-content;
+}
+.qz-kunci {
+  margin-top: 8px; padding: 7px 12px; border-radius: 8px;
+  background: #FBF0D8; color: #9A7414; font-size: .85rem;
+}
 
 /* ---------- baris "Perlu tindakan" (bisa diklik → proses) ---------- */
 button.tindak-baris {

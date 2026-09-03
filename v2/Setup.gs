@@ -114,22 +114,30 @@ var SKEMA = {
 
   Quizzes: {
     head: ['quiz_id','item_id','deadline','max_attempts','show_score','status',
+           'kkm','acak_soal','acak_opsi','tampilkan_pembahasan',
            'created_at','updated_at'],
     lebar: { quiz_id:100, item_id:90, deadline:140, max_attempts:100,
-             show_score:100, status:90, created_at:140, updated_at:140 },
-    enum: { status: ['aktif','nonaktif'], show_score: [true,false] }
+             show_score:100, status:90, kkm:80, acak_soal:100,
+             acak_opsi:100, tampilkan_pembahasan:120,
+             created_at:140, updated_at:140 },
+    enum: { status: ['aktif','nonaktif'], show_score: [true,false],
+            acak_soal: [true,false], acak_opsi: [true,false],
+            tampilkan_pembahasan: [true,false] }
   },
 
   Quiz_Questions: {
     /* answer_key TIDAK boleh masuk respons endpoint murid. */
-    head: ['question_id','quiz_id','order_no','type','question','options_json',
-           'answer_key','rubric','points','ai_source','created_at'],
+    head: ['question_id','quiz_id','order_no','type','tingkat','question',
+           'options_json','answer_key','rubric','pembahasan','gambar_url',
+           'points','ai_source','created_at'],
     lebar: { question_id:110, quiz_id:100, order_no:80, type:110,
-             question:360, options_json:320, answer_key:100, rubric:260,
+             tingkat:70, question:360, options_json:320, answer_key:100,
+             rubric:260, pembahasan:320, gambar_url:220,
              points:70, ai_source:90, created_at:140 },
     enum: { type: ['pg','benar_salah','isian','esai'],
+            tingkat: ['C1','C2','C3','C4','C5','C6'],
             ai_source: [true,false] },
-    wrap: ['question','options_json','rubric']
+    wrap: ['question','options_json','rubric','pembahasan']
   },
 
   Quiz_Submissions: {

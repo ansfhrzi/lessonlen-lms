@@ -70,6 +70,27 @@ MOCK = r"""
       { teaching_assignment_id: 't3', class_id: 'k2', class_name: 'XI TKJ 2', subject_id: 's1', subject_name: 'Matematika', label: 'XI TKJ 2 - Matematika', academic_year: '2026/2027', status: 'aktif', jml_murid: 2 },
       { teaching_assignment_id: 't4', class_id: 'k3', class_name: 'XI RPL 1', subject_id: 's3', subject_name: 'Simpan Digital', label: 'XI RPL 1 - Simpan Digital', academic_year: '2025/2026', status: 'nonaktif', jml_murid: 1 }
     ],
+    /* Editor quiz (poin 2b): pengaturan + soal per item quiz */
+    quiz: {
+      'itm-3': { quiz_id: 'qiz-1', deadline: '', max_attempts: 2,
+              show_score: true, kkm: 75, acak_soal: true, acak_opsi: true,
+              tampilkan_pembahasan: false }
+    },
+    soal: {
+      'itm-3': [
+        { question_id: 'qqa-1', order_no: 1, type: 'pg', tingkat: 'C2',
+          question: 'Bentuk paling sederhana dari 6/9 adalah…',
+          options: ['2/3', '3/2', '6/3', '1/3'],
+          answer_key: 'A',
+          pembahasan: 'FPB dari 6 dan 9 adalah 3.',
+          gambar_url: '', points: 10, ai_source: false },
+        { question_id: 'qqa-2', order_no: 2, type: 'esai', tingkat: 'C4',
+          question: 'Jelaskan mengapa 10/15 bernilai sama dengan 2/3. Beri contohmu sendiri!',
+          options: [], answer_key: '',
+          rubric: 'Nilai penuh: sebut FPB + contoh benar.',
+          pembahasan: '', gambar_url: '', points: 20, ai_source: false }
+      ]
+    },
     /* Kelola Topik & Item (§7.8b): susunan gabungan per course */
     susunan: {
       t1: [
@@ -495,6 +516,89 @@ MOCK = r"""
                status: temuan.status, publish_at: temuan.publish_at || '',
                konten: temuan.konten || '', topic_id: topikTemuan,
                ta_id: taTemuan };
+    },
+    /* ===== Editor quiz (mirror Quiz.gs — poin 2b) ===== */
+    quizMuat: function (t, itemId) {
+      var item = courseCari('item', itemId);
+      if (!item || item.jenis !== 'quiz')
+        return { ok: false, error: 'VALIDASI_GAGAL', pesan: 'Item ini bukan quiz.' };
+      var q = db.quiz[itemId] = db.quiz[itemId] ||
+        { quiz_id: 'qiz-' + Date.now(), deadline: '', max_attempts: 1,
+          show_score: true, kkm: 75, acak_soal: true, acak_opsi: true,
+          tampilkan_pembahasan: false };
+      var daftar = db.soal[itemId] = db.soal[itemId] || [];
+      var rekap = { jml_soal: daftar.length, total_bobot: 0,
+                    per_tipe: {}, ada_esai: false };
+      daftar.forEach(function (x) {
+        rekap.total_bobot += x.points;
+        rekap.per_tipe[x.type] = (rekap.per_tipe[x.type] || 0) + 1;
+        if (x.type === 'esai') rekap.ada_esai = true;
+      });
+      return { item: { item_id: itemId, jenis: 'quiz',
+               judul: item.judul, deskripsi: item.deskripsi || '',
+               status: item.status, publish_at: item.publish_at || '',
+               topic_id: '', ta_id: courseTaId(itemId) || '' },
+               quiz: q, soal: daftar.map(function (x) {
+                 return Object.assign({}, x); }), rekap: rekap,
+               tingkat_tersedia: ['C1','C2','C3','C4','C5','C6'] };
+    },
+    quizSimpanPengaturan: function (t, itemId, p) {
+      var q = db.quiz[itemId] = db.quiz[itemId] ||
+        { quiz_id: 'qiz-' + Date.now() };
+      q.deadline = p.deadline || '';
+      q.max_attempts = Math.max(0, Math.min(99, Number(p.max_attempts) || 0));
+      q.kkm = Math.max(0, Math.min(100, Number(p.kkm) || 0));
+      q.show_score = !!p.show_score;
+      q.acak_soal = !!p.acak_soal;
+      q.acak_opsi = !!p.acak_opsi;
+      q.tampilkan_pembahasan = !!p.tampilkan_pembahasan;
+      return { disimpan: true };
+    },
+    quizSimpanSoal: function (t, itemId, p) {
+      if (!String(p.question || '').trim())
+        return { ok: false, error: 'VALIDASI_GAGAL', pesan: 'Pertanyaan wajib diisi.' };
+      var daftar = db.soal[itemId] = db.soal[itemId] || [];
+      var opsi = (p.options || []).map(function (o) {
+        return String(o || '').trim(); }).filter(function (o) { return o !== ''; });
+      if (p.type === 'pg') {
+        if (opsi.length < 2)
+          return { ok: false, error: 'VALIDASI_GAGAL',
+                   pesan: 'Pilihan ganda butuh minimal 2 opsi terisi.' };
+        if ('ABCDE'.indexOf(p.answer_key) === -1 ||
+            'ABCDE'.indexOf(p.answer_key) >= opsi.length)
+          return { ok: false, error: 'VALIDASI_GAGAL',
+                   pesan: 'Kunci jawaban harus huruf opsi yang terisi.' };
+      }
+      if (p.type === 'isian' && !String(p.answer_key || '').trim())
+        return { ok: false, error: 'VALIDASI_GAGAL',
+                 pesan: 'Isian singkat wajib punya kunci jawaban.' };
+      if (p.question_id) {
+        var lama = daftar.filter(function (x) { return x.question_id === p.question_id; })[0];
+        if (lama) Object.assign(lama, p);
+        return { question_id: p.question_id, baru: false };
+      }
+      var id = 'qqa-' + Date.now();
+      daftar.push(Object.assign({ question_id: id, order_no: daftar.length + 1,
+        ai_source: false, options: [], answer_key: '', rubric: '',
+        pembahasan: '', gambar_url: '', tingkat: '', points: 1 }, p,
+        { options: opsi, question_id: id, order_no: daftar.length + 1 }));
+      return { question_id: id, baru: true };
+    },
+    quizHapusSoal: function (t, itemId, questionId) {
+      db.soal[itemId] = (db.soal[itemId] || []).filter(function (x) {
+        return x.question_id !== questionId;
+      });
+      db.soal[itemId].forEach(function (x, i) { x.order_no = i + 1; });
+      return { terhapus: true };
+    },
+    quizPindahSoal: function (t, itemId, questionId, arah) {
+      var daftar = db.soal[itemId] || [];
+      var i = daftar.findIndex(function (x) { return x.question_id === questionId; });
+      var lawan = arah === 'atas' ? i - 1 : i + 1;
+      if (i < 0 || lawan < 0 || lawan >= daftar.length) return { pindah: false };
+      var tmp = daftar[i]; daftar[i] = daftar[lawan]; daftar[lawan] = tmp;
+      daftar.forEach(function (x, ix) { x.order_no = ix + 1; });
+      return { pindah: true };
     },
     courseHapusItem: function (t, itemId) {
       courseCari('item', itemId, function (it, topik) {

@@ -334,6 +334,50 @@ const tunggu = (ms) => new Promise(r => setTimeout(r, ms));
   d.getElementById('btn-kembali-e').click();
   await tunggu(400);
 
+  // --- poin 2b: klik item quiz → editor quiz ---
+  const barisQuiz = [...d.querySelectorAll('.isi-topik .baris-item-sus')]
+    .find(x => x.textContent.includes('Quiz pecahan'));
+  barisQuiz.click();
+  await tunggu(600);
+  cek('quiz: editor terbuka (rekap 2 soal · ada uraian)',
+      d.getElementById('jd-e').textContent === 'Quiz pecahan' &&
+      d.getElementById('qz-rekap').textContent.includes('2 soal') &&
+      d.getElementById('qz-rekap').textContent.includes('uraian'));
+  cek('quiz: kunci default TERSEMBUNYI', !d.querySelector('.qz-opsi-benar') &&
+      d.getElementById('btn-kunci-qz').textContent.includes('Lihat kunci'));
+  d.getElementById('btn-kunci-qz').click();
+  await tunggu(200);
+  cek('quiz: 🔑 → opsi benar tersorot + kunci tampil',
+      !!d.querySelector('.qz-opsi-benar') && !!d.querySelector('.qz-kunci'));
+  d.getElementById('btn-kunci-qz').click();
+
+  d.getElementById('btn-tambah-soal').click();
+  await tunggu(300);
+  cek('quiz: dialog soal (pg — 5 opsi + radio kunci A default)',
+      d.getElementById('f-qz-tipe').value === 'pg' &&
+      d.querySelectorAll('[data-qz-opsi]').length === 5 &&
+      d.querySelector('input[name="f-qz-kunci"][value="A"]').checked);
+  d.getElementById('f-qz-pertanyaan').value = '10/15 bentuk sederhananya?';
+  const opsiBaru = d.querySelectorAll('[data-qz-opsi]');
+  opsiBaru[0].value = '1/2';
+  opsiBaru[1].value = '2/3';
+  d.querySelector('input[name="f-qz-kunci"][value="B"]').checked = true;
+  d.querySelector('.kotak-dialog [data-aksi="ya"]').click();
+  await tunggu(500);
+  cek('quiz: soal baru masuk (rekap 3 soal)',
+      d.getElementById('qz-rekap').textContent.includes('3 soal') &&
+      !d.querySelector('.kotak-dialog'));
+
+  d.getElementById('in-qz-kkm').value = '80';
+  d.getElementById('btn-simpan-qz').click();
+  await tunggu(500);
+  cek('quiz: pengaturan tersimpan + rekap KKM 80',
+      d.getElementById('toast-wadah').textContent.includes('Pengaturan quiz tersimpan') &&
+      d.getElementById('qz-rekap').textContent.includes('KKM 80'));
+
+  d.getElementById('btn-kembali-e').click();
+  await tunggu(400);
+
   cek('susunan: 4 baris gabungan bernomor 1..4',
       d.querySelectorAll('#wadah-susunan .baris-susunan').length === 4 &&
       [...d.querySelectorAll('#wadah-susunan .nomor-sus')].map(x => x.textContent).join('') === '1234');

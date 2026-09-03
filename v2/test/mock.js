@@ -47,7 +47,9 @@ const HEAD = {
   Teaching_Assignments: ['teaching_assignment_id','class_id','teacher_id','subject_id','academic_year','status','created_at','updated_at'],
   Enrollment: ['enroll_id','class_id','user_id','tanggal_daftar','status'],
   Topics: ['topic_id','teaching_assignment_id','title','description','status','publish_at','sort_order','created_at','updated_at'],
-  Items: ['item_id','topic_id','ta_id','type','title','description','content','status','publish_at','related_id','sort_order','ai_source','ai_reviewed','created_at','updated_at']
+  Items: ['item_id','topic_id','ta_id','type','title','description','content','status','publish_at','related_id','sort_order','ai_source','ai_reviewed','created_at','updated_at'],
+  Quizzes: ['quiz_id','item_id','deadline','max_attempts','show_score','status','kkm','acak_soal','acak_opsi','tampilkan_pembahasan','created_at','updated_at'],
+  Quiz_Questions: ['question_id','quiz_id','order_no','type','tingkat','question','options_json','answer_key','rubric','pembahasan','gambar_url','points','ai_source','created_at']
 };
 const TABEL = {};   // nama -> array objek (sudah termasuk _baris)
 

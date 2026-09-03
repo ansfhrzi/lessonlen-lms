@@ -42,15 +42,17 @@ yang ada di akar repositori.
 | `js_beranda.html` | **UI Tahap 3** — beranda §22D: guru (4 angka + perlu tindakan + **Course saya**) & murid (stat + **kartu Kelas Saya** dgn daftar mapel + pengingat biodata) |
 | `js_murid.html` | **UI Tahap 3** — Kelola Murid: daftar+cari/filter, tambah (dialog sandi + kirim WA), detail (+`pwd_awal`, reset), edit, nonaktif, impor massal + pratinjau |
 | `js_kelas.html` | **UI Tahap 3** — Kelola Kelas: **dropdown pilih kelas + tabel siswa** di bawahnya (aksi per kelas aktif setelah dipilih), form buat/edit, tambah murid (list+filter rombel), keluarkan |
-| `js_course.html` | Kelola Course: **kartu course** → **layar Kelola Topik & Item** (poin 1) + **editor Materi** rute `item_editor` (poin 2a: toolbar execCommand + YouTube) | — susunan bernomor gabungan Topik + Quiz/Refleksi mandiri; ＋ = form Buat, ▲▼, 👁/🙈, 🕐 jadwal, ✏️, 🗑; ＋ Item = 5 jenis §7.8 |
+| `js_course.html` | Kelola Course: **kartu course** → **layar Kelola Topik & Item** (poin 1) + **editor per jenis item** rute `item_editor` — dispatcher `renderEditor`: **Materi** (2a: toolbar execCommand + YouTube) & **Quiz** (2b: pengaturan KKM/kesempatan/tenggat/acak, strip rekap, 🔑 kunci, daftar soal + dialog 4 tipe) | — susunan bernomor gabungan Topik + Quiz/Refleksi mandiri; ＋ = form Buat, ▲▼, 👁/🙈, 🕐 jadwal, ✏️, 🗑; ＋ Item = 5 jenis §7.8 |
 | `Topik.gs` | **Tahap 4 poin 1** — logika Topics/Items §7.8/§7.8b: susunan gabungan, buat/ubah/hapus/status/jadwal/pindah (renumber), notifikasi publish eksplisit |
+| `Quiz.gs` | **Tahap 4 poin 2b** — editor Quiz (guru): `muat` lazy baris `Quizzes` (default: kesempatan 1, KKM 75, acak soal+opsi ON, tampil nilai ON, pembahasan OFF), `simpanPengaturan` (tenggat boleh kosong), `simpanSoal`/`hapusSoal`/`pindahSoal` 4 tipe v1 (pg/benar_salah/isian/esai, bobot 1–100, tingkat C1–C6); `answer_key`/`rubric`/`pembahasan` hanya dikirim ke guru |
 | `js_rekap.html` | **UI Tahap 3** — Rekap Nilai placeholder "menyusul" |
 | `js_apikey.html` | **UI Tahap 3** — Status API Key: 10 slot + status, timpa daftar, reset cooldown |
-| `test/` | Uji node: `uji-auth-gate0.js` (18) + `uji-murid.js` (65) + `uji-lupa-akses.js` (35) + `uji-kelas.js` (55) + `uji-course.js` (41) + `uji-apikey.js` (31) + `uji-beranda.js` (18) + `uji-ui.js` (audit statis fungsi klien; daftar berkas auto) + `uji-ui-extra.js` (audit id/endpoint/CSS/rute) + `uji-alur-ui.js` (opsional: alur klik di jsdom, dilewati bila jsdom/pratinjau tak ada) |
+| `test/` | Uji node: `uji-auth-gate0.js` (18) + `uji-murid.js` (65) + `uji-lupa-akses.js` (35) + `uji-kelas.js` (55) + `uji-course.js` (41) + `uji-quiz.js` (33) + `uji-apikey.js` (31) + `uji-beranda.js` (18) + `uji-ui.js` (audit statis fungsi klien; daftar berkas auto) + `uji-ui-extra.js` (audit id/endpoint/CSS/rute) + `uji-alur-ui.js` (opsional: alur klik di jsdom, dilewati bila jsdom/pratinjau tak ada) |
 
 ## Cara pasang (sekali saja)
 
-> **DB lama (dipasang pra-Tahap 4):** jalankan **`migrasiStruktur()`** sekali — menambah kolom `Topics.publish_at`, `Items.ta_id`, `Items.publish_at` — lalu **`pasangTriggerSesi()`** sekali (pembersihan session tiap jam, §16.3).
+> **DB lama (dipasang pra-Tahap 4):** jalankan **`migrasiStruktur()`** sekali — menambah kolom `Topics.publish_at`, `Items.ta_id`, `Items.publish_at`,
+  `Quizzes.kkm/acak_soal/acak_opsi/tampilkan_pembahasan`, `Quiz_Questions.tingkat/pembahasan/gambar_url` — lalu **`pasangTriggerSesi()`** sekali (pembersihan session tiap jam, §16.3).
 
 1. Buat **project Apps Script baru** (script.google.com → New project).
 2. Salin seluruh berkas folder ini ke project (nama file harus sama persis,
@@ -123,9 +125,10 @@ di deployment `/exec` sungguhan:
   **Beranda ringkas → Kelola Murid → Kelola Kelas → Kelola Course →
   Status API Key**; menu Rekap Nilai tampil sebagai placeholder "menyusul"
 - 🔶 Tahap 4 — Konten course, per poin (prototipe → persetujuan → implement):
-  **poin 1 Kelola Topik & Item selesai** (`Topik.gs` + 13 endpoint + UI
-  susunan gabungan); berikutnya: poin 2 editor per jenis item, poin 3 alur
-  murid (`topikKelasSaya`), poin 4 urutan pengerjaan
+  **poin 1 Kelola Topik & Item** (`Topik.gs` + 13 endpoint + UI susunan
+  gabungan) & **poin 2a editor Materi** + **poin 2b editor Quiz** (`Quiz.gs` +
+  5 endpoint + UI) selesai; berikutnya: poin 2c editor Tugas, 2d editor
+  Refleksi, poin 3 alur murid (`topikKelasSaya`), poin 4 urutan pengerjaan
 - ⬜ Tahap 5 — Rekap nilai per course + export Excel
 - ⬜ Tahap 6 — Porting `Ai.gs` v1 (Gemini, perilaku tak berubah); API key
   dari menu Status terhubung penuh ke generator

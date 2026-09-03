@@ -186,7 +186,7 @@ var CourseLayar = (function () {
           /* klik area baris item → editor konten (2a: materi;
              quiz/tugas/refleksi menyusul 2b–2d) */
           var itm = cariData(id) || {};
-          if (itm.jenis === 'materi') {
+          if (itm.jenis === 'materi' || itm.jenis === 'quiz') {
             Core.pergiKe('item_editor', { id: id });
           } else {
             Core.toast('Editor ' + (NAMA_ITEM[itm.jenis] || 'item') +
@@ -207,7 +207,7 @@ var CourseLayar = (function () {
       if (tipe === 'item') {
         /* ✏️ pada item → editor konten (2a: materi; lainnya menyusul) */
         if (aksi === 'ubah') {
-          if (b.jenis === 'materi') {
+          if (b.jenis === 'materi' || b.jenis === 'quiz') {
             Core.pergiKe('item_editor', { id: id });
           } else {
             Core.toast('Editor ' + (NAMA_ITEM[b.jenis] || 'item') +
@@ -657,6 +657,22 @@ var CourseLayar = (function () {
 
   function renderEditor(params) {
     Core.$('layar').innerHTML =
+      '<div id="status-editor"><div class="pemuat"><span class="ikon">⏳</span>Memuat…</div></div>';
+    Core.api('courseAmbilKonten', Core.ambilToken(), params.id)
+      .then(function (d) {
+        if (d.jenis === 'quiz') { _editorQuiz(params.id, d); return; }
+        _editorMateri(params.id, d);
+      })
+      .catch(function (err) {
+        Core.$('layar').innerHTML =
+          '<div class="kosong-besar"><span class="ikon">⚠️</span><b>Gagal memuat</b>' +
+          Core.esc(err.message) + '</div>';
+      });
+  }
+
+  function _editorMateri(paramsId, d) {
+    var params = { id: paramsId };
+    Core.$('layar').innerHTML =
       '<div class="kepala" id="editor-item">' +
         '<button class="btn-teks" id="btn-kembali-e">←</button>' +
         '<div><h1 id="jd-e">…</h1><p id="jd-e-sub"></p></div>' +
@@ -759,25 +775,341 @@ var CourseLayar = (function () {
         });
     });
 
-    Core.api('courseAmbilKonten', Core.ambilToken(), params.id)
-      .then(function (d) {
-        TA_ID_E = d.ta_id || '';
-        EDITOR_JENIS = d.jenis;
-        var jd = Core.$('jd-e');
-        if (jd) jd.textContent = d.judul || '(tanpa judul)';
-        var sub = Core.$('jd-e-sub');
-        if (sub) sub.textContent = 'Editor ' + (NAMA_ITEM[d.jenis] || d.jenis);
-        Core.$('in-e-judul').value = d.judul || '';
-        Core.$('in-e-desk').value = d.deskripsi || '';
-        Core.$('in-e-status').value = d.status === 'publish' ? 'publish' : 'draft';
-        Core.$('ed-konten').innerHTML = d.konten || '';
-      })
-      .catch(function (err) {
-        Core.$('status-editor').innerHTML =
-          '<div class="kosong-besar"><span class="ikon">⚠️</span><b>Gagal memuat</b>' +
-          Core.esc(err.message) + '</div>';
-      });
+    TA_ID_E = d.ta_id || '';
+    EDITOR_JENIS = d.jenis;
+    var jd = Core.$('jd-e');
+    if (jd) jd.textContent = d.judul || '(tanpa judul)';
+    var sub = Core.$('jd-e-sub');
+    if (sub) sub.textContent = 'Editor ' + (NAMA_ITEM[d.jenis] || d.jenis);
+    Core.$('in-e-judul').value = d.judul || '';
+    Core.$('in-e-desk').value = d.deskripsi || '';
+    Core.$('in-e-status').value = d.status === 'publish' ? 'publish' : 'draft';
+    Core.$('ed-konten').innerHTML = d.konten || '';
   }
+
+  /* ============================================================
+     EDITOR QUIZ — Tahap 4 poin 2b (pengaturan + bank soal)
+     ============================================================ */
+
+  var NAMA_TIPE_SOAL = { pg: 'Pilihan Ganda', benar_salah: 'Benar–Salah',
+                         isian: 'Isian Singkat', esai: 'Uraian' };
+  var QZ = { itemId: '', taId: '', data: null, kunciTampil: false };
+
+  function _editorQuiz(paramsId, d) {
+    QZ.itemId = paramsId; QZ.taId = d.ta_id || ''; QZ.data = null;
+    Core.$('layar').innerHTML =
+      '<div class="kepala" id="editor-item">' +
+        '<button class="btn-teks" id="btn-kembali-e">←</button>' +
+        '<div><h1 id="jd-e">' + Core.esc(d.judul || 'Quiz') + '</h1>' +
+        '<p id="jd-e-sub">Editor Quiz</p></div>' +
+        '<div class="kepala-aksi">' +
+          '<button class="btn" id="btn-tambah-soal">＋ Tambah soal</button>' +
+        '</div></div>' +
+      '<div class="judul-seksi">Pengaturan quiz</div>' +
+      '<div class="kartu"><div class="kartu-isi" id="qz-pengaturan">' +
+        '<div class="baris-form">' +
+          '<div class="grup"><label>Tenggat <span class="kecil">(kosong = tanpa tenggat)</span></label>' +
+          '<input type="date" class="isian" id="in-qz-tenggat"></div>' +
+          '<div class="grup"><label>Kesempatan mengerjakan <span class="kecil">(0 = bebas)</span></label>' +
+          '<input type="number" min="0" max="99" class="isian" id="in-qz-kesempatan" value="1"></div>' +
+          '<div class="grup"><label>KKM</label>' +
+          '<input type="number" min="0" max="100" class="isian" id="in-qz-kkm" value="75"></div>' +
+        '</div>' +
+        '<div class="baris-form">' +
+          '<label class="grup" style="flex-direction:row;align-items:center;gap:8px;cursor:pointer">' +
+            '<input type="checkbox" id="in-qz-nilai"> Tampilkan nilai otomatis</label>' +
+          '<label class="grup" style="flex-direction:row;align-items:center;gap:8px;cursor:pointer">' +
+            '<input type="checkbox" id="in-qz-acak-soal" checked> Acak urutan soal</label>' +
+          '<label class="grup" style="flex-direction:row;align-items:center;gap:8px;cursor:pointer">' +
+            '<input type="checkbox" id="in-qz-acak-opsi" checked> Acak opsi jawaban</label>' +
+          '<label class="grup" style="flex-direction:row;align-items:center;gap:8px;cursor:pointer">' +
+            '<input type="checkbox" id="in-qz-pembahasan"> Tampilkan pembahasan</label>' +
+        '</div>' +
+        '<div class="pesan-salah" id="salah-qz"></div>' +
+        '<button class="btn btn-sekunder btn-kecil" id="btn-simpan-qz">💾 Simpan pengaturan</button>' +
+      '</div></div>' +
+      '<div class="judul-seksi baris-antara">Bank soal ' +
+        '<span class="kecil lembut" id="qz-rekap"></span></div>' +
+      '<div class="kartu"><div class="kartu-isi">' +
+        '<div class="baris-antara mb-8">' +
+          '<span class="kecil lembut">Kunci jawaban disembunyikan.</span>' +
+          '<button class="btn btn-sekunder btn-kecil" id="btn-kunci-qz">🔑 Lihat kunci</button>' +
+        '</div>' +
+        '<div id="qz-daftar-soal"></div>' +
+      '</div></div>' +
+      '<div id="status-qz"></div>';
+
+    Core.$('btn-kembali-e').addEventListener('click', function () {
+      Core.pergiKe('course_detail', { id: QZ.taId });
+    });
+    Core.$('btn-kunci-qz').addEventListener('click', function () {
+      QZ.kunciTampil = !QZ.kunciTampil;
+      this.textContent = QZ.kunciTampil ? '🙈 Sembunyikan kunci' : '🔑 Lihat kunci';
+      gambarSoal();
+    });
+    Core.$('btn-simpan-qz').addEventListener('click', simpanPengaturanQz);
+    Core.$('btn-tambah-soal').addEventListener('click', function () {
+      dialogSoalQz(null);
+    });
+
+    muatQz();
+  }
+
+  function muatQz() {
+    Core.api('quizMuat', Core.ambilToken(), QZ.itemId).then(function (d) {
+      QZ.data = d;
+      Core.$('in-qz-tenggat').value = (d.quiz.deadline || '').slice(0, 10);
+      Core.$('in-qz-kesempatan').value = d.quiz.max_attempts;
+      Core.$('in-qz-kkm').value = d.quiz.kkm;
+      Core.$('in-qz-nilai').checked = !!d.quiz.show_score;
+      Core.$('in-qz-acak-soal').checked = !!d.quiz.acak_soal;
+      Core.$('in-qz-acak-opsi').checked = !!d.quiz.acak_opsi;
+      Core.$('in-qz-pembahasan').checked = !!d.quiz.tampilkan_pembahasan;
+      var r = d.rekap;
+      Core.$('qz-rekap').textContent =
+        r.jml_soal + ' soal · total bobot ' + r.total_bobot +
+        ' · KKM ' + d.quiz.kkm +
+        (r.ada_esai ? ' · ⚠ ada uraian (dikoreksi guru)' : '');
+      gambarSoal();
+    }).catch(function (err) {
+      Core.$('status-qz').innerHTML =
+        '<div class="kosong-besar"><span class="ikon">⚠️</span><b>Gagal memuat</b>' +
+        Core.esc(err.message) + '</div>';
+    });
+  }
+
+  function gambarSoal() {
+    var wadah = Core.$('qz-daftar-soal');
+    if (!wadah || !QZ.data) return;
+    var daftar = QZ.data.soal;
+    if (!daftar.length) {
+      wadah.innerHTML = '<div class="kosong"><b>Quiz ini belum punya soal</b>' +
+        'Tekan “＋ Tambah soal” di kanan atas.</div>';
+      return;
+    }
+    wadah.innerHTML = daftar.map(function (s, i) {
+      var opsi = '';
+      if (s.type === 'pg') {
+        opsi = '<div class="qz-opsi">' + (s.options || []).map(function (o, ix) {
+          return '<div' + (QZ.kunciTampil && s.answer_key === 'ABCDE'.charAt(ix)
+            ? ' class="qz-opsi-benar"' : '') + '>' +
+            '<b>' + 'ABCDE'.charAt(ix) + '.</b> ' + Core.esc(o) + '</div>';
+        }).join('') + '</div>';
+      } else if (s.type === 'benar_salah') {
+        opsi = '<div class="qz-opsi"><div' +
+          (QZ.kunciTampil ? ' class="qz-opsi-benar"' : '') + '>Benar / Salah</div></div>';
+      } else if (s.type === 'esai') {
+        opsi = '<div class="kecil lembut">Murid menulis jawaban bebas — dikoreksi guru.</div>';
+      }
+      var kunci = '';
+      if (QZ.kunciTampil && s.type !== 'esai') {
+        kunci = '<div class="qz-kunci"><b>Kunci:</b> ' + Core.esc(
+          s.type === 'isian' ? s.answer_key :
+          s.type === 'benar_salah' ? s.answer_key : s.answer_key) +
+          (s.pembahasan ? ' · <i>Pembahasan: ' + Core.esc(s.pembahasan) + '</i>' : '') +
+          '</div>';
+      }
+      return '<div class="kartu-soal-qz" data-soal="' + Core.esc(s.question_id) + '">' +
+        '<div class="baris-antara">' +
+          '<span class="badge badge-info">Soal ' + s.order_no + '</span>' +
+          '<span class="kecil lembut">' + (NAMA_TIPE_SOAL[s.type] || s.type) +
+            ' · bobot ' + s.points +
+            (s.tingkat ? ' · ' + s.tingkat : '') + '</span>' +
+          '<span style="margin-left:auto"></span>' +
+          '<button class="btn-teks kecil" data-aksi="atas" title="Naik"' +
+            (i === 0 ? ' disabled' : '') + '>▲</button>' +
+          '<button class="btn-teks kecil" data-aksi="bawah" title="Turun"' +
+            (i === daftar.length - 1 ? ' disabled' : '') + '>▼</button>' +
+          '<button class="btn-teks kecil" data-aksi="ubah" title="Ubah">✏️</button>' +
+          '<button class="btn-teks kecil merah" data-aksi="hapus" title="Hapus">🗑</button>' +
+        '</div>' +
+        '<div class="qz-pertanyaan">' + Core.esc(s.question) + '</div>' +
+        (s.gambar_url ? '<img class="qz-gambar" src="' + Core.esc(s.gambar_url) +
+          '" alt="gambar soal">' : '') +
+        opsi + kunci +
+      '</div>';
+    }).join('');
+
+    wadah.querySelectorAll('[data-aksi]').forEach(function (b) {
+      b.addEventListener('click', function () {
+        aksiSoalQz(b.dataset.aksi, b.closest('[data-soal]').dataset.soal);
+      });
+    });
+  }
+
+  function aksiSoalQz(aksi, soalId) {
+    if (aksi === 'atas' || aksi === 'bawah') {
+      Core.api('quizPindahSoal', Core.ambilToken(), QZ.itemId, soalId, aksi)
+        .then(muatQz)
+        .catch(function (err) { Core.toast(err.message, 'bahaya'); });
+      return;
+    }
+    if (aksi === 'ubah') {
+      var s = QZ.data.soal.filter(function (x) {
+        return x.question_id === soalId; })[0];
+      dialogSoalQz(s);
+      return;
+    }
+    if (aksi === 'hapus') {
+      Core.konfirmasi('Hapus soal ini?',
+        'Soal dihapus dari quiz. Soal lain dinomori ulang.',
+        { labelYa: 'Ya, hapus', bahaya: true })
+        .then(function (ya) {
+          if (!ya) return;
+          Core.api('quizHapusSoal', Core.ambilToken(), QZ.itemId, soalId)
+            .then(function () {
+              Core.toast('Soal dihapus.', 'sukses');
+              muatQz();
+            })
+            .catch(function (err) { Core.toast(err.message, 'bahaya'); });
+        });
+    }
+  }
+
+  function simpanPengaturanQz() {
+    var salah = Core.$('salah-qz');
+    Core.sembunyikanPesanError(salah);
+    Core.api('quizSimpanPengaturan', Core.ambilToken(), QZ.itemId, {
+      deadline: Core.$('in-qz-tenggat').value,
+      max_attempts: Number(Core.$('in-qz-kesempatan').value) || 0,
+      kkm: Number(Core.$('in-qz-kkm').value) || 0,
+      show_score: Core.$('in-qz-nilai').checked,
+      acak_soal: Core.$('in-qz-acak-soal').checked,
+      acak_opsi: Core.$('in-qz-acak-opsi').checked,
+      tampilkan_pembahasan: Core.$('in-qz-pembahasan').checked
+    }).then(function () {
+      Core.toast('Pengaturan quiz tersimpan.', 'sukses');
+      muatQz();
+    }).catch(function (err) {
+      Core.tampilkanPesanError(salah, err.message);
+    });
+  }
+
+  /* ---------- dialog tambah/ubah soal ---------- */
+
+  function opsiHtmlSoal(s) {
+    var tipe = s ? s.type : 'pg';
+    var html =
+      '<div class="baris-form">' +
+        '<div class="grup"><label>Tipe soal</label>' +
+        '<select class="isian" id="f-qz-tipe">' +
+        ['pg', 'benar_salah', 'isian', 'esai'].map(function (t) {
+          return '<option value="' + t + '"' +
+            (tipe === t ? ' selected' : '') + '>' + NAMA_TIPE_SOAL[t] + '</option>';
+        }).join('') + '</select></div>' +
+        '<div class="grup"><label>Bobot (1–100)</label>' +
+        '<input type="number" min="1" max="100" class="isian" id="f-qz-bobot" value="' +
+        (s ? s.points : 1) + '"></div>' +
+        '<div class="grup"><label>Tingkat kognitif</label>' +
+        '<select class="isian" id="f-qz-tingkat"><option value="">—</option>' +
+        ['C1','C2','C3','C4','C5','C6'].map(function (t) {
+          return '<option value="' + t + '"' +
+            (s && s.tingkat === t ? ' selected' : '') + '>' + t + '</option>';
+        }).join('') + '</select></div>' +
+      '</div>' +
+      '<div class="grup"><label>Pertanyaan <span class="wajib">*</span></label>' +
+      '<textarea class="isian" id="f-qz-pertanyaan" rows="3" ' +
+      'placeholder="Tulis pertanyaan…">' +
+      Core.esc(s ? s.question : '') + '</textarea></div>' +
+      '<div class="grup"><label>Tautan gambar <span class="kecil">(opsional)</span></label>' +
+      '<input class="isian" id="f-qz-gambar" placeholder="https://…" value="' +
+      Core.esc(s ? s.gambar_url : '') + '"></div>' +
+      '<div id="f-qz-area-kunci"></div>' +
+      '<div class="grup"><label>Pembahasan <span class="kecil">(opsional)</span></label>' +
+      '<textarea class="isian" id="f-qz-pembahasan" rows="2">' +
+      Core.esc(s ? s.pembahasan : '') + '</textarea></div>';
+    return html;
+  }
+
+  function gambarKunciQz(tirai, s) {
+    var tipe = tirai.querySelector('#f-qz-tipe').value;
+    var area = tirai.querySelector('#f-qz-area-kunci');
+    var opsi = (s && s.options && s.options.length) ? s.options
+               : ['', '', '', ''];
+    var html = '';
+    if (tipe === 'pg') {
+      html = '<div class="grup"><label>Opsi & kunci jawaban <span class="wajib">*</span>' +
+        ' <span class="kecil">(tandai ⦿ pada opsi yang benar)</span></label>' +
+        ['A','B','C','D','E'].map(function (h, i) {
+          return '<div class="baris-form" style="gap:8px;margin-bottom:6px">' +
+            '<input type="radio" name="f-qz-kunci" value="' + h + '"' +
+            (s && s.answer_key === h ? ' checked' :
+              (!s && i === 0 ? ' checked' : '')) + '>' +
+            '<input class="isian" data-qz-opsi="1" data-h="' + h +
+            '" placeholder="Opsi ' + h + '" value="' +
+            Core.esc(opsi[i] || '') + '"></div>';
+        }).join('') + '</div>';
+    } else if (tipe === 'benar_salah') {
+      html = '<div class="grup"><label>Kunci jawaban</label>' +
+        '<select class="isian" id="f-qz-kunci-bs">' +
+        '<option value="Benar"' + (s && s.answer_key === 'Salah' ? '' : ' selected') +
+        '>Benar</option>' +
+        '<option value="Salah"' + (s && s.answer_key === 'Salah' ? ' selected' : '') +
+        '>Salah</option></select></div>';
+    } else if (tipe === 'isian') {
+      html = '<div class="grup"><label>Kunci jawaban <span class="wajib">*</span></label>' +
+        '<input class="isian" id="f-qz-kunci-isian" value="' +
+        Core.esc(s ? s.answer_key : '') +
+        '" placeholder="mis. 2/3"><span class="bantuan">Pencocokan longgar ' +
+        'saat koreksi otomatis.</span></div>';
+    } else {
+      html = '<div class="grup"><label>Rubrik / pedoman penilaian ' +
+        '<span class="kecil">(opsional)</span></label>' +
+        '<textarea class="isian" id="f-qz-rubrik" rows="2">' +
+        Core.esc(s ? s.rubric : '') + '</textarea>' +
+        '<span class="bantuan">Jawaban uraian dikoreksi guru.</span></div>';
+    }
+    area.innerHTML = html;
+  }
+
+  function dialogSoalQz(s) {
+    Core.dialog({
+      judul: s ? '✏️ Ubah Soal ' + s.order_no : '＋ Tambah Soal',
+      html: opsiHtmlSoal(s),
+      labelYa: s ? 'Simpan' : 'Tambah',
+      saatBuka: function (tirai) {
+        gambarKunciQz(tirai, s);
+        tirai.querySelector('#f-qz-tipe').addEventListener('change', function () {
+          gambarKunciQz(tirai, s);
+        });
+      }
+    }).then(function (ya) {
+      if (!ya) return;
+      var tipe = Core.$('f-qz-tipe').value;
+      var p = {
+        type: tipe,
+        question: Core.$('f-qz-pertanyaan').value,
+        points: Number(Core.$('f-qz-bobot').value) || 1,
+        tingkat: Core.$('f-qz-tingkat').value,
+        pembahasan: Core.$('f-qz-pembahasan').value,
+        gambar_url: Core.$('f-qz-gambar').value
+      };
+      if (s) p.question_id = s.question_id;
+      if (tipe === 'pg') {
+        p.options = Array.prototype.map.call(
+          document.querySelectorAll('[data-qz-opsi]'), function (i) { return i.value; });
+        var terpilih = document.querySelector('input[name="f-qz-kunci"]:checked');
+        p.answer_key = terpilih ? terpilih.value : '';
+      } else if (tipe === 'benar_salah') {
+        p.answer_key = Core.$('f-qz-kunci-bs').value;
+      } else if (tipe === 'isian') {
+        p.answer_key = Core.$('f-qz-kunci-isian').value;
+      } else {
+        p.rubric = Core.$('f-qz-rubrik').value;
+      }
+      Core.api('quizSimpanSoal', Core.ambilToken(), QZ.itemId, p)
+        .then(function (r) {
+          Core.toast(r.baru ? 'Soal ditambahkan.' : 'Soal disimpan.', 'sukses');
+          muatQz();
+        })
+        .catch(function (err) {
+          Core.toast(err.message, 'bahaya');
+          dialogSoalQz(s);
+        });
+    });
+  }
+
+  /* ---------- buat / edit course (kartu) ---------- */
 
   /* ---------- buat / edit course (kartu) ---------- */
 

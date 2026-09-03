@@ -245,6 +245,46 @@ function courseAmbilKonten(token, itemId) {
   });
 }
 
+/* ============================================================
+ *  API — EDITOR QUIZ (Tahap 4 poin 2b — §7.10/§7.11)
+ *  Logika ada di Quiz.gs; answer_key tak pernah ke endpoint murid.
+ * ============================================================ */
+
+/** Data layar editor quiz (lazily membuat baris Quizzes). */
+function quizMuat(token, itemId) {
+  return _bungkus(token, 'guru', function (sesi) {
+    return Quiz.muat(sesi, itemId);
+  });
+}
+
+/** Simpan pengaturan quiz (tenggat, kesempatan, KKM, acak…). */
+function quizSimpanPengaturan(token, itemId, p) {
+  return _bungkus(token, 'guru', function (sesi) {
+    return Quiz.simpanPengaturan(sesi, itemId, p);
+  });
+}
+
+/** Tambah/ubah satu soal (kunci divalidasi ketat per tipe). */
+function quizSimpanSoal(token, itemId, p) {
+  return _bungkus(token, 'guru', function (sesi) {
+    return Quiz.simpanSoal(sesi, itemId, p);
+  });
+}
+
+/** Hapus soal + renumber. */
+function quizHapusSoal(token, itemId, questionId) {
+  return _bungkus(token, 'guru', function (sesi) {
+    return Quiz.hapusSoal(sesi, itemId, questionId);
+  });
+}
+
+/** ▲▼ soal: tukar tetangga dalam quiz. */
+function quizPindahSoal(token, itemId, questionId, arah) {
+  return _bungkus(token, 'guru', function (sesi) {
+    return Quiz.pindahSoal(sesi, itemId, questionId, arah);
+  });
+}
+
 /** Hapus item dalam topik. */
 function courseHapusItem(token, itemId) {
   return _bungkus(token, 'guru', function (sesi) {
