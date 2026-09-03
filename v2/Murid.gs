@@ -107,6 +107,9 @@ var Murid = (function () {
       email: u.email || '',
       nisn: u.nisn || '',
       no_wa: u.no_wa || '',
+      tanggal_lahir: (u.tanggal_lahir instanceof Date)
+        ? Util.formatTanggal(u.tanggal_lahir).slice(0, 10)
+        : String(u.tanggal_lahir || ''),
       status: u.status,
       /* Sandi sementara terakhir — terlihat guru sampai murid mengganti. */
       pwd_awal: u.pwd_awal || '',
@@ -212,6 +215,16 @@ var Murid = (function () {
           }
           return wa;
         },
+        tanggal_lahir: function (v) {
+          var s = String(v || '').trim();
+          if (!s) return '';                    /* boleh dikosongkan */
+          var t = Util.tglLahirSah(s);
+          if (!t) {
+            throw _err('VALIDASI_GAGAL',
+              'Tanggal lahir tidak sah. Contoh benar: 2008-08-08.');
+          }
+          return t;
+        },
         status: function (v) { return v === 'nonaktif' ? 'nonaktif' : 'aktif'; }
       });
 
@@ -234,6 +247,15 @@ var Murid = (function () {
       throw _err('DUPLIKAT', 'Nama pengguna "' + username + '" sudah dipakai.');
     }
 
+    var tglLahir = '';
+    if (String(p.tanggal_lahir || '').trim()) {
+      tglLahir = Util.tglLahirSah(p.tanggal_lahir);
+      if (!tglLahir) {
+        throw _err('VALIDASI_GAGAL',
+          'Tanggal lahir tidak sah. Contoh benar: 2008-08-08.');
+      }
+    }
+
     /* Sandi kustom dari guru dipakai bila cukup panjang (v1: ≥6);
        selain itu sandi sementara acak. Keduanya wajib diganti murid. */
     var pwd = p.password && String(p.password).length >= 6
@@ -252,6 +274,7 @@ var Murid = (function () {
       email: String(p.email || '').trim().toLowerCase().slice(0, 100),
       nisn: String(p.nisn || '').trim(),
       no_wa: Util.normalisasiWa(p.no_wa) || '',
+      tanggal_lahir: tglLahir,
       status: 'aktif',
       harus_ganti_password: true,
       last_login: '',

@@ -222,6 +222,16 @@ const tunggu = (ms) => new Promise(r => setTimeout(r, ms));
   await tunggu(300);
   cek('murid: daftar bertambah jadi 7', d.querySelectorAll('#wadah-tabel tbody tr').length === 7);
 
+  // tanggal lahir kini bisa diisi guru (dipakai login WA & pemulihan akses)
+  d.querySelector('#wadah-tabel [data-edit]').click();
+  await tunggu(300);
+  cek('murid: form edit punya input tanggal lahir', !!d.getElementById('in-m-tgl'));
+  d.getElementById('in-m-tgl').value = '2009-04-17';
+  d.querySelector('.kotak-dialog [data-aksi="ya"]').click();
+  await tunggu(500);
+  cek('murid: tanggal lahir tersimpan (toast "Perubahan tersimpan")',
+      d.getElementById('toast-wadah').textContent.includes('Perubahan tersimpan'));
+
   // --- Kelola Kelas: DROPDOWN kelas + tabel siswa (permintaan) ---
   d.querySelector('#menu-utama a[data-rute="kelas"]').click();
   await tunggu(500);

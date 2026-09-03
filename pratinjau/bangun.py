@@ -53,7 +53,7 @@ MOCK = r"""
     ],
     muridDaftar: [
       { user_id: 'u-m1', nama: 'Rara Aisyah Putri', username: 'siswa01', nisn: '0091234561', no_wa: '081234567001', tanggal_lahir: '2008-03-15', rombel: 'XI TKJ 1', status: 'aktif', last_login: '2026-09-01 06:55', biodata_ok: false },
-      { user_id: 'u-m2', nama: 'Bayu Setiawan', username: 'siswa02', nisn: '0091234562', no_wa: '081234567002', rombel: 'XI TKJ 1', status: 'aktif', last_login: '2026-08-31 20:11' },
+      { user_id: 'u-m2', nama: 'Bayu Setiawan', username: 'siswa02', nisn: '0091234562', no_wa: '081234567002', tanggal_lahir: '2008-08-08', rombel: 'XI TKJ 1', status: 'aktif', last_login: '2026-08-31 20:11' },
       { user_id: 'u-m3', nama: 'Citra Maharani', username: 'siswa03', nisn: '', no_wa: '081234567003', tanggal_lahir: '2009-05-10', rombel: 'XI TKJ 1', status: 'aktif', last_login: '', biodata_ok: true },
       { user_id: 'u-m4', nama: 'Dimas Prakoso', username: 'siswa04', nisn: '0091234564', no_wa: '', rombel: 'XI TKJ 2', status: 'aktif', last_login: '2026-08-29 07:30' },
       { user_id: 'u-m5', nama: 'Eka Nurjanah', username: 'siswa05', nisn: '', no_wa: '081234567005', rombel: 'XI TKJ 2', status: 'nonaktif', last_login: '2026-08-10 08:00' },
@@ -213,7 +213,7 @@ MOCK = r"""
       var m = db.muridDaftar.filter(function (x) { return x.user_id === id; })[0] || {};
       return Object.assign({}, m, {
         email: m.no_wa ? 'rahasia@contoh.id' : '',
-        tanggal_lahir: '2009-04-17',
+        tanggal_lahir: m.tanggal_lahir || '',
         kelas: [{ name: m.rombel || 'XI TKJ 1' }],
         pwd_awal: m.username === 'siswa01' ? '' : 'Xk' + id.slice(-2) + 'aQ',
         sudah_ganti: m.username === 'siswa01'
@@ -224,7 +224,8 @@ MOCK = r"""
         var id = 'u-m' + Math.floor(Math.random() * 90 + 10);
         var sandi = Math.random().toString(36).slice(2, 8);
         db.muridDaftar.unshift({ user_id: id, nama: p.nama, username: p.username,
-          nisn: p.nisn || '', no_wa: p.no_wa || '', rombel: p.rombel || '',
+          nisn: p.nisn || '', no_wa: p.no_wa || '',
+          tanggal_lahir: p.tanggal_lahir || '', rombel: p.rombel || '',
           status: 'aktif', last_login: '' });
         return { baru: true, user_id: id, nama: p.nama, username: p.username,
                  password_sementara: sandi, no_wa: p.no_wa || '' };
@@ -232,6 +233,7 @@ MOCK = r"""
       var m = db.muridDaftar.filter(function (x) { return x.user_id === p.user_id; })[0];
       if (m) { if (p.nama) m.nama = p.nama; if (p.no_wa !== undefined) m.no_wa = p.no_wa;
                if (p.nisn !== undefined) m.nisn = p.nisn;
+               if (p.tanggal_lahir !== undefined) m.tanggal_lahir = p.tanggal_lahir;
                if (p.rombel !== undefined) m.rombel = p.rombel;
                if (p.status) m.status = p.status; }
       return {};

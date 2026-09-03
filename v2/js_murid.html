@@ -162,9 +162,15 @@ var MuridLayar = (function () {
         '<input class="isian" id="in-m-wa" inputmode="numeric" value="' +
         Core.esc(m ? m.no_wa : '') + '" placeholder="08xxxxxxxxxx"></div>' +
       '</div>' +
-      '<div class="grup"><label>Rombel <span class="kecil">(label bebas)</span></label>' +
-      '<input class="isian" id="in-m-rombel" value="' + Core.esc(m ? m.rombel : '') +
-      '" placeholder="mis. XI TKJ 1"></div>' +
+      '<div class="baris-form">' +
+        '<div class="grup"><label>Tanggal lahir <span class="kecil">' +
+        '(login WA &amp; pemulihan akses)</span></label>' +
+        '<input class="isian" id="in-m-tgl" type="date" value="' +
+        Core.esc(m ? (m.tanggal_lahir || '') : '') + '"></div>' +
+        '<div class="grup"><label>Rombel <span class="kecil">(label bebas)</span></label>' +
+        '<input class="isian" id="in-m-rombel" value="' + Core.esc(m ? m.rombel : '') +
+        '" placeholder="mis. XI TKJ 1"></div>' +
+      '</div>' +
       '<div class="pesan-salah" id="salah-murid"></div>';
 
     Core.dialog({
@@ -183,6 +189,7 @@ var MuridLayar = (function () {
         nama: Core.$('in-m-nama').value,
         nisn: Core.$('in-m-nisn').value,
         no_wa: Core.$('in-m-wa').value,
+        tanggal_lahir: Core.$('in-m-tgl').value,
         rombel: Core.$('in-m-rombel').value
       };
       if (m) p.user_id = userId;

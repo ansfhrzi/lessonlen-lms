@@ -243,7 +243,44 @@ r = muridDetail('token-sampah', RINA);
 cek('endpoint tanpa sesi valid ditolak', r.ok === false &&
     r.error === 'SESI_INVALID');
 
-/* ============ hasil ============ */
+console.log('\n== TANGGAL LAHIR VIA FORM GURU (baru) ==');
+
+r = cobalah(function () {
+  return Murid.simpan(SESI_GURU, { nama: 'Fira Amalia', username: 'fira',
+    tanggal_lahir: '15/03/2008' });
+});
+cek('buat murid dgn dd/mm/yyyy → tersimpan normal YYYY-MM-DD',
+    r.baru === true &&
+    Db.cari('Users', 'user_id', r.user_id).tanggal_lahir === '2008-03-15',
+    JSON.stringify(r));
+const FIRA = r.user_id;
+
+r = cobalah(function () {
+  return Murid.simpan(SESI_GURU, { nama: 'Salah Tanggal', username: 'salah1',
+    tanggal_lahir: 'bukan-tanggal' });
+});
+cek('tanggal asing saat buat → VALIDASI_GAGAL', r.error === 'VALIDASI_GAGAL');
+
+r = cobalah(function () {
+  return Murid.simpan(SESI_GURU, { user_id: FIRA, tanggal_lahir: '2020-13-40' });
+});
+cek('tanggal mustahil saat edit → VALIDASI_GAGAL', r.error === 'VALIDASI_GAGAL');
+
+Murid.simpan(SESI_GURU, { user_id: FIRA, tanggal_lahir: '2008-03-16' });
+cek('edit tanggal lahir tersimpan',
+    Db.cari('Users', 'user_id', FIRA).tanggal_lahir === '2008-03-16');
+
+Murid.simpan(SESI_GURU, { user_id: FIRA, tanggal_lahir: '' });
+cek('edit mengosongkan tanggal lahir boleh',
+    Db.cari('Users', 'user_id', FIRA).tanggal_lahir === '');
+
+r = Murid.detail(SESI_GURU, FIRA);
+cek('detail & daftar membawa tanggal_lahir',
+    r.tanggal_lahir === '' &&
+    Murid.daftar(SESI_GURU).some(function (x) {
+      return x.tanggal_lahir === '2008-03-15'; }) === false);
+
+console.log('\n== ENDPOINT (Code.gs) ==');
 console.log('\n----------------------------------------------------');
 if (gagal === 0) console.log('SEMUA ' + no + ' UJI MURID LULUS ✔');
 else { console.log('UJI MURID GAGAL ✘ — ' + gagal + ' dari ' + no + ' kasus.'); process.exit(1); }
