@@ -244,6 +244,60 @@ cek('urutan gabungan hasil endpoint benar (Tryout, Kuis UAS, Statistika)',
     r.baris.map(b => b.judul).join('|') === 'Tryout operasi hitung|Kuis UAS|Statistika',
     JSON.stringify(r.baris.map(b => b.judul)));
 
+console.log('\n== EDITOR MATERI (poin 2a) ==');
+
+r = Topik.buatBaris(SESI_GURU, TA1, { jenis_baris: 'topik', judul: 'Editor Uji' });
+const TPC_E = r.id;
+r = Topik.buatItem(SESI_GURU, TPC_E, { type: 'materi', judul: 'Item materi' });
+const ID_MATERI = r.id;
+r = Topik.buatItem(SESI_GURU, TPC_E, { type: 'quiz', judul: 'Item quiz' });
+const ID_QUIZ = r.id;
+
+r = courseAmbilKonten(TOKEN_G, ID_MATERI);
+cek('courseAmbilKonten: data editor lengkap',
+    r.ok === true && r.data.jenis === 'materi' && r.data.judul === 'Item materi' &&
+    r.data.ta_id === TA1 && r.data.topic_id === TPC_E &&
+    typeof r.data.konten === 'string', JSON.stringify(r));
+
+r = cobalah(function () {
+  return Topik.ubahItem(SESI_GURU, ID_MATERI, { judul: 'Item materi',
+    status: 'draft',
+    konten: '<p>baik</p><scr' + 'ipt>jahat()</scr' + 'ipt>' +
+            '<iframe src="https://www.youtube-nocookie.com/embed/AbCdEfGhIj0"></iframe>' });
+});
+cek('simpan konten materi OK & tersimpan',
+    !r.error && Db.cari('Items', 'item_id', ID_MATERI).content
+      .indexOf('<p>baik</p>') === 0,
+    JSON.stringify(r));
+const simpanan = Db.cari('Items', 'item_id', ID_MATERI).content;
+cek('sanitasi: <script> dibuang', simpanan.indexOf('jahat') === -1, simpanan);
+cek('sanitasi: iframe youtube-nocookie dipertahankan',
+    simpanan.indexOf('youtube-nocookie.com/embed/AbCdEfGhIj0') >= 0);
+
+r = cobalah(function () {
+  return Topik.ubahItem(SESI_GURU, ID_MATERI, { judul: 'Item materi',
+    konten: '<p>x</p><a href="javascript:evil()">klik</a>' });
+});
+cek('sanitasi: href javascript: dinetralkan',
+    Db.cari('Items', 'item_id', ID_MATERI).content.indexOf('javascript:') === -1);
+
+/* quiz dgn konten → ditolak (editor quiz menyusul 2b) */
+r = cobalah(function () {
+  return Topik.ubahItem(SESI_GURU, ID_QUIZ, { judul: 'Item quiz',
+    konten: '<p>soal?</p>' });
+});
+cek('konten utk non-materi ditolak (menyusul 2b–2d)',
+    r.error === 'VALIDASI_GAGAL' && r.pesan.indexOf('menyusul') >= 0,
+    JSON.stringify(r));
+
+/* konten kosong pada non-materi = boleh (tidak mengubah apa pun) */
+r = Topik.ubahItem(SESI_GURU, ID_QUIZ, { judul: 'Item quiz', konten: '' });
+cek('konten kosong utk non-materi diabaikan', !r.error);
+
+
+r = Topik.hapusBaris(SESI_GURU, 'topik', TPC_E);
+cek('beres-beres: topik uji editor terhapus', !r.error);
+
 console.log('\n========================================');
 console.log(no + ' cek, ' + gagal + ' gagal');
 process.exit(gagal ? 1 : 0);

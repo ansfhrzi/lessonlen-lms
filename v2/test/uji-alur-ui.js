@@ -312,6 +312,28 @@ const tunggu = (ms) => new Promise(r => setTimeout(r, ms));
       d.getElementById('jd-c-sub').textContent.includes('murid') &&
       d.getElementById('layar').textContent.includes('Susunan course') &&
       d.getElementById('layar').textContent.includes('Refleksi mandiri'));
+  // --- poin 2a: klik item materi → editor ---
+  d.querySelector('.isi-topik .baris-item-sus').click();
+  await tunggu(500);
+  cek('editor: layar terbuka, judul & konten termuat',
+      !!d.getElementById('ed-konten') &&
+      d.getElementById('jd-e').textContent === 'Menyederhanakan pecahan' &&
+      d.getElementById('ed-konten').innerHTML.includes('Pecahan paling sederhana'));
+  cek('editor: toolbar 13 alat', d.querySelectorAll('#ed-alat .alat-tombol').length === 13);
+  d.getElementById('ed-konten').innerHTML =
+    '<h3>Diperbarui uji</h3><p>Paragraf baru</p>';
+  d.getElementById('btn-simpan-e').click();
+  await tunggu(500);
+  cek('editor: simpan → toast & kembali ke susunan',
+      d.getElementById('toast-wadah').textContent.includes('tersimpan') &&
+      !!d.getElementById('wadah-susunan'));
+  d.querySelector('.isi-topik .baris-item-sus').click();   // topik sudah terbuka
+  await tunggu(500);
+  cek('editor: konten tersimpan persisten', 
+      d.getElementById('ed-konten').innerHTML.includes('Diperbarui uji'));
+  d.getElementById('btn-kembali-e').click();
+  await tunggu(400);
+
   cek('susunan: 4 baris gabungan bernomor 1..4',
       d.querySelectorAll('#wadah-susunan .baris-susunan').length === 4 &&
       [...d.querySelectorAll('#wadah-susunan .nomor-sus')].map(x => x.textContent).join('') === '1234');

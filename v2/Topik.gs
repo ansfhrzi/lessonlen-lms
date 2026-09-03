@@ -370,11 +370,24 @@ var Topik = (function () {
     var desk = String(p.deskripsi == null ? '' : p.deskripsi).trim().slice(0, 500);
     var status = p.status === 'publish' ? 'publish' : 'draft';
     var lama = it.status;
-    Db.perbarui('Items', it._baris, {
+
+    /* konten (poin 2a: editor MATERI; jenis lain menyusul 2b–2d) */
+    var konten;
+    if (p.konten !== undefined) {
+      if (it.type !== 'materi' && String(p.konten || '').trim()) {
+        _err('VALIDASI_GAGAL', 'Editor untuk ' + it.type +
+          ' menyusul (Tahap 4 poin 2).');
+      }
+      konten = Util.sanitasi(String(p.konten || ''));
+    }
+
+    var tulis = {
       title: judul, description: desk, status: status,
       publish_at: status === 'draft' ? '' : (it.publish_at || ''),
       updated_at: _kini()
-    });
+    };
+    if (konten !== undefined) tulis.content = konten;
+    Db.perbarui('Items', it._baris, tulis);
     if (lama !== 'publish' && status === 'publish') {
       var t = Db.cari('Topics', 'topic_id', it.topic_id);
       _notifikasiPertemuanBaru(_ta(sesi, t.teaching_assignment_id), judul);
@@ -416,6 +429,20 @@ var Topik = (function () {
     return { status: jadwal ? 'scheduled' : 'publish', publish_at: jadwal };
   }
 
+  /** Editor item (poin 2a): seluruh data layar editor dalam 1 panggilan. */
+  function ambilKontenItem(sesi, itemId) {
+    var it = _item(sesi, itemId);
+    var t = Db.cari('Topics', 'topic_id', it.topic_id);
+    return {
+      item_id: it.item_id, jenis: it.type,
+      judul: it.title, deskripsi: it.description || '',
+      status: it.status, publish_at: it.publish_at || '',
+      konten: it.content || '',
+      topic_id: it.topic_id,
+      ta_id: t ? t.teaching_assignment_id : it.ta_id
+    };
+  }
+
   /** ▲▼ item: tukar tetangga DI DALAM topiknya + renumber. */
   function pindahItem(sesi, topicId, itemId, arah) {
     if (arah !== 'atas' && arah !== 'bawah') {
@@ -441,6 +468,7 @@ var Topik = (function () {
     ubahStatusBaris: ubahStatusBaris, aturJadwalBaris: aturJadwalBaris,
     pindahBaris: pindahBaris,
     buatItem: buatItem, ubahItem: ubahItem, hapusItem: hapusItem,
+    ambilKontenItem: ambilKontenItem,
     ubahStatusItem: ubahStatusItem, aturJadwalItem: aturJadwalItem,
     pindahItem: pindahItem
   };

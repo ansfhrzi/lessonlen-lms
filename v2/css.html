@@ -443,6 +443,53 @@ tbody tr:hover { background: var(--permukaan); }
 .isi-topik .baris-item-sus.draf .sus-judul,
 .isi-topik .baris-item-sus.draf .sus-meta { color: #74836F; }
 .kosong-item { color: var(--teks-lembut); font-size: .8rem; cursor: default; }
+/* ---------- editor konten item (poin 2a — pola editor v1) ---------- */
+.alat-editor {
+  display: flex; flex-wrap: wrap; gap: 4px;
+  padding: 6px; border: 1px solid var(--garis); border-bottom: 0;
+  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+  background: var(--permukaan);
+}
+.alat-tombol {
+  min-width: 34px; min-height: 32px; padding: 4px 8px;
+  border: 1px solid var(--garis); border-radius: 7px;
+  background: var(--putih); font-family: var(--font); font-size: .85rem;
+  font-weight: 700; color: var(--teks); cursor: pointer;
+}
+.alat-tombol:hover { background: var(--hijau-muda); border-color: var(--hijau); }
+.alat-tombol.tebal { font-weight: 800; }
+.alat-tombol.miring { font-style: italic; font-family: Georgia, serif; }
+.alat-tombol.garis-b { text-decoration: underline; }
+.ed-konten {
+  min-height: 320px; max-height: 60vh; overflow: auto;
+  padding: 16px 18px; border: 1px solid var(--garis);
+  border-radius: 0 0 var(--radius-sm) var(--radius-sm);
+  background: var(--putih); font-family: var(--font); font-size: .95rem;
+  line-height: 1.65; color: var(--teks); outline: none;
+  word-break: break-word;
+}
+.ed-konten:focus { border-color: var(--hijau);
+  box-shadow: 0 0 0 3px rgba(123, 201, 111, .22); }
+.ed-konten:empty::before {
+  content: attr(data-placeholder); color: #9AAB9B; pointer-events: none;
+}
+.ed-konten h3 { margin: 18px 0 6px; font-size: 1.12rem; }
+.ed-konten h4 { margin: 14px 0 4px; font-size: 1rem; }
+.ed-konten p { margin: 0 0 10px; }
+.ed-konten ul, .ed-konten ol { margin: 0 0 10px; padding-left: 22px; }
+.ed-konten blockquote {
+  margin: 10px 0; padding: 8px 14px; border-left: 4px solid var(--hijau);
+  background: var(--hijau-muda); border-radius: 0 8px 8px 0; color: #3F5B3C;
+}
+.ed-konten pre {
+  margin: 10px 0; padding: 12px; background: #F0F4EF; border-radius: 8px;
+  font-family: ui-monospace, Menlo, Consolas, monospace; font-size: .85rem;
+  white-space: pre-wrap;
+}
+.ed-konten img { max-width: 100%; border-radius: 8px; }
+.ed-konten iframe { max-width: 100%; aspect-ratio: 16 / 9;
+  width: 100%; border: 0; border-radius: 8px; }
+.ed-konten a { color: var(--hijau-tua); }
 
 /* ---------- baris "Perlu tindakan" (bisa diklik → proses) ---------- */
 button.tindak-baris {

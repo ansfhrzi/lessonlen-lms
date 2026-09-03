@@ -74,7 +74,7 @@ MOCK = r"""
     susunan: {
       t1: [
         { id: 'tpc-1', tipe: 'topik', jenis: 'topik', judul: 'Pecahan & pecahan desimal', deskripsi: 'Bangun bilangan pecahan', status: 'publish', publish_at: '', item: [
-          { id: 'itm-1', jenis: 'materi', judul: 'Menyederhanakan pecahan', deskripsi: '', status: 'publish', publish_at: '' },
+          { id: 'itm-1', jenis: 'materi', judul: 'Menyederhanakan pecahan', deskripsi: 'Bahan bacaan pertemuan pertama', status: 'publish', publish_at: '', konten: '<h3>Pecahan paling sederhana</h3><p>Pecahan disederhanakan dengan membagi pembilang dan penyebut dengan <b>FPB</b>-nya.</p><ul><li>6/9 &rarr; 2/3 (dibagi 3)</li><li>10/15 &rarr; 2/3 (dibagi 5)</li></ul><blockquote>Nilai pecahan tidak berubah selama pembilang &amp; penyebut dibagi angka yang sama.</blockquote>' },
           { id: 'itm-2', jenis: 'tugas_individu', judul: 'Latihan 12 soal', deskripsi: '', status: 'draft', publish_at: '' },
           { id: 'itm-3', jenis: 'quiz', judul: 'Quiz pecahan', deskripsi: '', status: 'publish', publish_at: '' }
         ] },
@@ -464,8 +464,37 @@ MOCK = r"""
         it.judul = p.judul; it.deskripsi = p.deskripsi || '';
         if (p.status) it.status = p.status;
         if (p.status === 'draft') it.publish_at = '';
+        if (p.konten !== undefined) {
+          if (it.jenis !== 'materi' && String(p.konten || '').trim())
+            return { ok: false, error: 'VALIDASI_GAGAL',
+                     pesan: 'Editor untuk ' + it.jenis + ' menyusul (Tahap 4 poin 2).' };
+          it.konten = p.konten;
+        }
       });
       return { diubah: true };
+    },
+    /* editor item (poin 2a): data layar editor + konten */
+    courseAmbilKonten: function (t, itemId) {
+      var temuan = null, taTemuan = '', topikTemuan = '';
+      for (var taId in db.susunan) {
+        var daftar = db.susunan[taId] || [];
+        for (var i = 0; i < daftar.length; i++) {
+          var b = daftar[i];
+          if (b.tipe === 'topik' && b.item) {
+            for (var j = 0; j < b.item.length; j++) {
+              if (b.item[j].id === itemId) { temuan = b.item[j];
+                taTemuan = taId; topikTemuan = b.id; }
+            }
+          }
+        }
+      }
+      if (!temuan) return { ok: false, error: 'TIDAK_DITEMUKAN',
+                            pesan: 'Item tidak ditemukan.' };
+      return { item_id: temuan.id, jenis: temuan.jenis,
+               judul: temuan.judul, deskripsi: temuan.deskripsi || '',
+               status: temuan.status, publish_at: temuan.publish_at || '',
+               konten: temuan.konten || '', topic_id: topikTemuan,
+               ta_id: taTemuan };
     },
     courseHapusItem: function (t, itemId) {
       courseCari('item', itemId, function (it, topik) {

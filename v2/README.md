@@ -42,7 +42,7 @@ yang ada di akar repositori.
 | `js_beranda.html` | **UI Tahap 3** — beranda §22D: guru (4 angka + perlu tindakan + **Course saya**) & murid (stat + **kartu Kelas Saya** dgn daftar mapel + pengingat biodata) |
 | `js_murid.html` | **UI Tahap 3** — Kelola Murid: daftar+cari/filter, tambah (dialog sandi + kirim WA), detail (+`pwd_awal`, reset), edit, nonaktif, impor massal + pratinjau |
 | `js_kelas.html` | **UI Tahap 3** — Kelola Kelas: **dropdown pilih kelas + tabel siswa** di bawahnya (aksi per kelas aktif setelah dipilih), form buat/edit, tambah murid (list+filter rombel), keluarkan |
-| `js_course.html` | Kelola Course: **kartu course** (buat/edit/hapus) → dibuka: **layar Kelola Topik & Item** (Tahap 4 poin 1) — susunan bernomor gabungan Topik + Quiz/Refleksi mandiri; ＋ = form Buat, ▲▼, 👁/🙈, 🕐 jadwal, ✏️, 🗑; ＋ Item = 5 jenis §7.8 |
+| `js_course.html` | Kelola Course: **kartu course** → **layar Kelola Topik & Item** (poin 1) + **editor Materi** rute `item_editor` (poin 2a: toolbar execCommand + YouTube) | — susunan bernomor gabungan Topik + Quiz/Refleksi mandiri; ＋ = form Buat, ▲▼, 👁/🙈, 🕐 jadwal, ✏️, 🗑; ＋ Item = 5 jenis §7.8 |
 | `Topik.gs` | **Tahap 4 poin 1** — logika Topics/Items §7.8/§7.8b: susunan gabungan, buat/ubah/hapus/status/jadwal/pindah (renumber), notifikasi publish eksplisit |
 | `js_rekap.html` | **UI Tahap 3** — Rekap Nilai placeholder "menyusul" |
 | `js_apikey.html` | **UI Tahap 3** — Status API Key: 10 slot + status, timpa daftar, reset cooldown |

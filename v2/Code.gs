@@ -231,10 +231,17 @@ function courseBuatItem(token, topicId, p) {
   });
 }
 
-/** Ubah item dalam topik (judul/deskripsi/status). */
+/** Ubah item dalam topik (judul/deskripsi/status; +konten utk materi). */
 function courseUbahItem(token, itemId, p) {
   return _bungkus(token, 'guru', function (sesi) {
     return Topik.ubahItem(sesi, itemId, p);
+  });
+}
+
+/** Editor item (poin 2a): data layar editor + konten. */
+function courseAmbilKonten(token, itemId) {
+  return _bungkus(token, 'guru', function (sesi) {
+    return Topik.ambilKontenItem(sesi, itemId);
   });
 }
 
