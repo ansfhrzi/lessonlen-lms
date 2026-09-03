@@ -87,8 +87,8 @@ var Beranda = (function () {
   }
 
   /* Daftar course nyata milik guru (menggantikan pintasan statis).
-     Klik course → layar Kelola Course; konten per course menyusul
-     pada Tahap 4. */
+     Klik course AKTIF → LANGSUNG buka course (layar Kelola Topik &
+     Item); nonaktif → pengingat mengaktifkan lewat Kelola Course. */
   function muatCourseSaya() {
     var wadah = Core.$('wadah-course');
     Core.api('courseDaftar', Core.ambilToken()).then(function (daftar) {
@@ -112,7 +112,8 @@ var Beranda = (function () {
 
       wadah.innerHTML = daftar.map(function (c) {
         return '<a href="#" class="barang-course" data-id="' +
-          Core.esc(c.teaching_assignment_id) + '">' +
+          Core.esc(c.teaching_assignment_id) + '" data-aktif="' +
+          (c.status === 'aktif' ? '1' : '0') + '">' +
           '<span class="avatar">📚</span>' +
           '<span class="barang-tengah"><b>' + Core.esc(c.subject_name) + '</b>' +
           '<small>' + Core.esc(c.class_name) + ' · ' +
@@ -126,7 +127,12 @@ var Beranda = (function () {
       wadah.querySelectorAll('.barang-course').forEach(function (a) {
         a.addEventListener('click', function (e) {
           e.preventDefault();
-          Core.pergiKe('course');
+          if (a.dataset.aktif === '1') {
+            Core.pergiKe('course_detail', { id: a.dataset.id });
+          } else {
+            Core.toast('Course nonaktif — aktifkan lewat menu Kelola Course.',
+                       'peringatan');
+          }
         });
       });
     }).catch(function (err) {

@@ -185,7 +185,10 @@ const tunggu = (ms) => new Promise(r => setTimeout(r, ms));
   cek('beranda: course pertama = aktif teratas', d.querySelector('#wadah-course .barang-course .badge').textContent.includes('Aktif'));
   d.querySelector('#wadah-course .barang-course').click();
   await tunggu(400);
-  cek('klik course → layar Kelola Course', d.getElementById('layar').textContent.includes('Kelola Course'));
+  cek('klik course beranda → LANGSUNG buka course (Kelola Topik & Item)',
+      d.getElementById('layar').textContent.includes('Susunan course') &&
+      d.getElementById('jd-c').textContent === 'Bahasa Indonesia' &&
+      !!d.getElementById('wadah-susunan'));
   d.querySelector('#menu-utama a[data-rute="beranda"]').click();
   await tunggu(300);
 
