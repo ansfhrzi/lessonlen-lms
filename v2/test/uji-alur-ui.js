@@ -428,6 +428,14 @@ const tunggu = (ms) => new Promise(r => setTimeout(r, ms));
   cek('quiz: gambar gagal muat -> chip peringatan di kartu',
       !!d.querySelector('.qz-gambar-gagal'));
 
+  /* gambar dikirim TANPA Referer (situs hotlink-protection jadi izin) */
+  const metaRef = d.querySelector('meta[name="referrer"]');
+  cek('quiz: halaman kirim gambar tanpa Referer (meta no-referrer + atribut img)',
+      !!metaRef && metaRef.content === 'no-referrer' &&
+      pv.getAttribute('referrerpolicy') === 'no-referrer' &&
+      [...d.querySelectorAll('.kartu-soal-qz img.qz-gambar')]
+        .every(function (i) { return i.getAttribute('referrerpolicy') === 'no-referrer'; }));
+
   d.getElementById('in-qz-kkm').value = '80';
   d.getElementById('btn-simpan-qz').click();
   await tunggu(500);

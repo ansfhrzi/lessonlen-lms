@@ -856,7 +856,7 @@ var CourseLayar = (function () {
       if (!e.target || e.target.tagName !== 'IMG') return;
       var gagal = document.createElement('div');
       gagal.className = 'qz-gambar-gagal';
-      gagal.textContent = '⚠️ Gambar gagal dimuat — pastikan tautan langsung ke berkas gambar (bukan halaman web).';
+      gagal.textContent = '⚠️ Gambar gagal dimuat — pastikan tautan langsung ke berkas gambar. Bila situsnya memblokir sematan, unggah gambarnya ke Google Drive lalu tempel tautannya.';
       e.target.replaceWith(gagal);
     }, true);
 
@@ -947,7 +947,7 @@ var CourseLayar = (function () {
           '<button class="btn-teks kecil merah" data-aksi="hapus" title="Hapus">🗑</button>' +
         '</div>' +
         '<div class="qz-pertanyaan">' + Core.esc(s.question) + '</div>' +
-        (s.gambar_url ? '<img class="qz-gambar" loading="lazy" src="' + Core.esc(urlGambarQz(s.gambar_url)) +
+        (s.gambar_url ? '<img class="qz-gambar" loading="lazy" referrerpolicy="no-referrer" src="' + Core.esc(urlGambarQz(s.gambar_url)) +
           '" alt="gambar soal">' : '') +
         opsi + kunci +
       '</div>';
@@ -1038,7 +1038,7 @@ var CourseLayar = (function () {
       '<input class="isian" id="f-qz-gambar" placeholder="https://…" value="' +
       Core.esc(s ? s.gambar_url : '') + '">' +
       '<span class="bantuan">Tautan LANGSUNG ke berkas gambar. Tautan Google Drive otomatis dikonversi.</span>' +
-      '<img id="f-qz-pratinjau-gambar" class="qz-gambar-pratinjau" alt="pratinjau gambar soal" hidden>' +
+      '<img id="f-qz-pratinjau-gambar" class="qz-gambar-pratinjau" referrerpolicy="no-referrer" alt="pratinjau gambar soal" hidden>' +
       '<div class="pesan-salah" id="f-qz-gambar-gagal"></div></div>' +
       '<div id="f-qz-area-kunci"></div>' +
       '<div class="grup"><label>Pembahasan <span class="kecil">(opsional)</span></label>' +
@@ -1156,7 +1156,7 @@ var CourseLayar = (function () {
         }
         pratinjau.addEventListener('error', function () {
           pratinjau.hidden = true;
-          gagal.textContent = 'Gambar gagal dimuat — pastikan tautan langsung ke berkas gambar (bukan halaman web).';
+          gagal.textContent = 'Gambar gagal dimuat — pastikan tautan langsung ke berkas gambar. Bila situsnya memblokir sematan: unduh gambarnya, unggah ke Google Drive, lalu tempel tautan Drive-nya di sini.';
           gagal.classList.add('tampil');
         });
         inGambar.addEventListener('input', segarkanGambarQz);

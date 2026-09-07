@@ -680,6 +680,7 @@ halaman = f"""<!DOCTYPE html>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="no-referrer">
 <title>LessonLen — Pratinjau UI Tahap 3 (data contoh)</title>
 <style>
 .pratinjau-pita {{ position:fixed; left:0; right:0; bottom:0; z-index:999;
