@@ -33,6 +33,7 @@ const BUILTIN = new Set([
   'URLSearchParams', 'Set', 'Map', 'Intl', 'CustomEvent', 'Event',
   'DOMParser', 'localStorage', 'sessionStorage', 'navigator', 'location',
   'history', 'document', 'window', 'google', 'Symbol', 'Reflect', 'Proxy',
+  'FileReader', 'File', 'Image',
   'escape', 'unescape', 'eval', 'Function', 'arguments', 'this', 'event',
   'super', 'import', 'export'
 ]);

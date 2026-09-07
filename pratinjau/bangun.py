@@ -37,6 +37,8 @@ MOCK = r"""
 /* ===== PRATINJAU: mock google.script.run (data contoh, bukan server) ===== */
 (function () {
   var db = {
+    drvFile: 0,
+    gambarSim: {},   /* id -> dataURL (simulasi Drive utk pratinjau) */
     guru: { user_id: 'u-guru', username: 'guru', nama: 'Ustadz Ahmad Fauzi', role: 'guru' },
     murid: { user_id: 'u-m1', username: 'siswa01', nama: 'Rara Aisyah Putri', role: 'murid',
              harus_ganti_password: false,
@@ -539,7 +541,11 @@ MOCK = r"""
                status: item.status, publish_at: item.publish_at || '',
                topic_id: '', ta_id: courseTaId(itemId) || '' },
                quiz: q, soal: daftar.map(function (x) {
-                 return Object.assign({}, x); }), rekap: rekap,
+                 var salin = Object.assign({}, x);
+                 /* simulasi Drive: gambar hasil unggah dirender dari memori */
+                 var m = String(salin.gambar_url || '').match(/\/file\/d\/([A-Za-z0-9-]+)\/view/);
+                 if (m && db.gambarSim[m[1]]) salin.gambar_url = db.gambarSim[m[1]];
+                 return salin; }), rekap: rekap,
                tingkat_tersedia: ['C1','C2','C3','C4','C5','C6'] };
     },
     quizSimpanPengaturan: function (t, itemId, p) {
@@ -553,6 +559,22 @@ MOCK = r"""
       q.acak_opsi = !!p.acak_opsi;
       q.tampilkan_pembahasan = !!p.tampilkan_pembahasan;
       return { disimpan: true };
+    },
+    gambarUnggah: function (t, p) {
+      var ok = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+      if (ok.indexOf(p.mime) === -1)
+        return { ok: false, error: 'VALIDASI_GAGAL',
+                 pesan: 'Jenis berkas harus JPG, PNG, GIF, atau WebP.' };
+      var b64 = String(p.base64 || '').replace(/^data:[^;]+;base64,/, '');
+      if (!b64)
+        return { ok: false, error: 'VALIDASI_GAGAL', pesan: 'Berkas kosong.' };
+      if (b64.length > 4 * 1024 * 1024)
+        return { ok: false, error: 'VALIDASI_GAGAL',
+                 pesan: 'Gambar maksimal 3 MB — pilih gambar lebih kecil.' };
+      var id = 'drv-' + (++db.drvFile);
+      db.gambarSim[id] = 'data:' + p.mime + ';base64,' + b64;
+      return { file_id: id,
+               tautan: 'https://drive.google.com/file/d/' + id + '/view' };
     },
     quizSimpanSoal: function (t, itemId, p) {
       if (!String(p.question || '').trim())

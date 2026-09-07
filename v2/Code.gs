@@ -285,6 +285,13 @@ function quizPindahSoal(token, itemId, questionId, arah) {
   });
 }
 
+/** Unggah gambar (soal quiz; nanti materi) — disimpan di folder Drive guru. */
+function gambarUnggah(token, p) {
+  return _bungkus(token, 'guru', function (sesi) {
+    return Gambar.unggah(sesi, p);
+  });
+}
+
 /** Hapus item dalam topik. */
 function courseHapusItem(token, itemId) {
   return _bungkus(token, 'guru', function (sesi) {

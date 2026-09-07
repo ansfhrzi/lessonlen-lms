@@ -428,6 +428,44 @@ const tunggu = (ms) => new Promise(r => setTimeout(r, ms));
   cek('quiz: gambar gagal muat -> chip peringatan di kartu',
       !!d.querySelector('.qz-gambar-gagal'));
 
+  /* ---- 📤 unggah berkas → tautan drive terisi → soal bergambar masuk ---- */
+  d.getElementById('btn-tambah-soal').click();
+  await tunggu(300);
+  d.getElementById('f-qz-pertanyaan').value = 'Soal hasil unggah berkas';
+  const opsiUnggah = d.querySelectorAll('[data-qz-opsi]');
+  opsiUnggah[0].value = '3';
+  opsiUnggah[1].value = '4';
+  d.querySelector('input[name="f-qz-kunci"][value="A"]').checked = true;
+  const inFileQz = d.getElementById('f-qz-file');
+  const berkas = new w.File(['aGk='], 'kucing.jpg', { type: 'image/jpeg' });
+  Object.defineProperty(inFileQz, 'files', { value: [berkas], configurable: true });
+  inFileQz.dispatchEvent(new w.Event('change', { bubbles: true }));
+  await tunggu(600);
+  cek('quiz: unggah -> isian tautan terisi tautan Drive otomatis',
+      /https:\/\/drive\.google\.com\/file\/d\/drv-\d+\/view/
+        .test(d.getElementById('f-qz-gambar').value));
+  d.querySelector('.kotak-dialog [data-aksi="ya"]').click();
+  await tunggu(600);
+  const imgUnggah = [...d.querySelectorAll('.kartu-soal-qz img.qz-gambar')]
+    .find(function (i) { return String(i.src).indexOf('data:image/jpeg;base64,') === 0; });
+  cek('quiz: soal hasil unggah tampil dgn gambar (rekap 6 soal)',
+      !!imgUnggah && d.getElementById('qz-rekap').textContent.includes('6 soal'));
+
+  /* mime non-gambar ditolak mock seperti produksi */
+  d.getElementById('btn-tambah-soal').click();
+  await tunggu(300);
+  const inFilePdf = d.getElementById('f-qz-file');
+  Object.defineProperty(inFilePdf, 'files',
+    { value: [new w.File(['%%PDF'], 'dok.pdf', { type: 'application/pdf' })],
+      configurable: true });
+  inFilePdf.dispatchEvent(new w.Event('change', { bubbles: true }));
+  await tunggu(400);
+  cek('quiz: unggah PDF ditolak -> pesan di dalam dialog',
+      d.getElementById('f-qz-gambar-gagal').classList.contains('tampil') &&
+      d.getElementById('f-qz-gambar-gagal').textContent.includes('JPG'));
+  d.querySelector('.tirai [data-aksi="batal"]').click();
+  await tunggu(200);
+
   /* gambar dikirim TANPA Referer (situs hotlink-protection jadi izin) */
   const metaRef = d.querySelector('meta[name="referrer"]');
   cek('quiz: halaman kirim gambar tanpa Referer (meta no-referrer + atribut img)',

@@ -45,14 +45,21 @@ yang ada di akar repositori.
 | `js_course.html` | Kelola Course: **kartu course** → **layar Kelola Topik & Item** (poin 1) + **editor per jenis item** rute `item_editor` — dispatcher `renderEditor`: **Materi** (2a: toolbar execCommand + YouTube) & **Quiz** (2b: pengaturan KKM/kesempatan/tenggat/acak, strip rekap, 🔑 kunci, daftar soal + dialog 4 tipe) | — susunan bernomor gabungan Topik + Quiz/Refleksi mandiri; ＋ = form Buat, ▲▼, 👁/🙈, 🕐 jadwal, ✏️, 🗑; ＋ Item = 5 jenis §7.8 |
 | `Topik.gs` | **Tahap 4 poin 1** — logika Topics/Items §7.8/§7.8b: susunan gabungan, buat/ubah/hapus/status/jadwal/pindah (renumber), notifikasi publish eksplisit |
 | `Quiz.gs` | **Tahap 4 poin 2b** — editor Quiz (guru): `muat` lazy baris `Quizzes` (default: kesempatan 1, KKM 75, acak soal+opsi ON, tampil nilai ON, pembahasan OFF), `simpanPengaturan` (tenggat boleh kosong), `simpanSoal`/`hapusSoal`/`pindahSoal` 4 tipe v1 (pg/benar_salah/isian/esai, bobot 1–100, tingkat C1–C6); `answer_key`/`rubric`/`pembahasan` hanya dikirim ke guru |
+| `Gambar.gs` | **Tahap 4 poin 2b.x** — unggah gambar (soal quiz; nanti materi): mime JPG/PNG/GIF/WebP, maks 3 MB (klien kompres dulu ±1280 px), berkas di folder Drive **"LMS v2 — Gambar Soal"** (lazy, id di `FOLDER_GAMBAR_ID`), dibagikan siapa-saja-dengan-tautan agar murid tanpa login Google bisa melihat; kolom `gambar_url` berisi tautan Drive (dirender sbg thumbnail) |
 | `js_rekap.html` | **UI Tahap 3** — Rekap Nilai placeholder "menyusul" |
 | `js_apikey.html` | **UI Tahap 3** — Status API Key: 10 slot + status, timpa daftar, reset cooldown |
-| `test/` | Uji node: `uji-auth-gate0.js` (18) + `uji-murid.js` (65) + `uji-lupa-akses.js` (35) + `uji-kelas.js` (55) + `uji-course.js` (41) + `uji-quiz.js` (33) + `uji-apikey.js` (31) + `uji-beranda.js` (18) + `uji-ui.js` (audit statis fungsi klien; daftar berkas auto) + `uji-ui-extra.js` (audit id/endpoint/CSS/rute) + `uji-alur-ui.js` (opsional: alur klik di jsdom, dilewati bila jsdom/pratinjau tak ada) |
+| `test/` | Uji node: `uji-auth-gate0.js` (18) + `uji-murid.js` (65) + `uji-lupa-akses.js` (35) + `uji-kelas.js` (55) + `uji-course.js` (41) + `uji-quiz.js` (33) + `uji-gambar.js` (14) + `uji-apikey.js` (31) + `uji-beranda.js` (18) + `uji-ui.js` (audit statis fungsi klien; daftar berkas auto) + `uji-ui-extra.js` (audit id/endpoint/CSS/rute) + `uji-alur-ui.js` (opsional: alur klik di jsdom, dilewati bila jsdom/pratinjau tak ada) |
 
 ## Cara pasang (sekali saja)
 
 > **DB lama (dipasang pra-Tahap 4):** jalankan **`migrasiStruktur()`** sekali — menambah kolom `Topics.publish_at`, `Items.ta_id`, `Items.publish_at`,
   `Quizzes.kkm/acak_soal/acak_opsi/tampilkan_pembahasan`, `Quiz_Questions.tingkat/pembahasan/gambar_url` — lalu **`pasangTriggerSesi()`** sekali (pembersihan session tiap jam, §16.3).
+>
+> **Izin Drive:** fitur unggah gambar (2b.x) memakai `DriveApp` — saat otorisasi
+pertama setelah menambah `Gambar.gs`, Apps Script akan meminta izin Drive tambahan.
+Folder "LMS v2 — Gambar Soal" dibuat otomatis pada unggahan pertama; bila domain
+memblockir berbagi "siapa saja dengan tautan", unggahan ditolak dgn pesan jelas —
+gunakan jalur tempel tautan gambar.
 
 1. Buat **project Apps Script baru** (script.google.com → New project).
 2. Salin seluruh berkas folder ini ke project (nama file harus sama persis,
@@ -126,8 +133,8 @@ di deployment `/exec` sungguhan:
   Status API Key**; menu Rekap Nilai tampil sebagai placeholder "menyusul"
 - 🔶 Tahap 4 — Konten course, per poin (prototipe → persetujuan → implement):
   **poin 1 Kelola Topik & Item** (`Topik.gs` + 13 endpoint + UI susunan
-  gabungan) & **poin 2a editor Materi** + **poin 2b editor Quiz** (`Quiz.gs` +
-  5 endpoint + UI) selesai; berikutnya: poin 2c editor Tugas, 2d editor
+  gabungan), **poin 2a editor Materi** & **poin 2b editor Quiz** (`Quiz.gs` +
+  `Gambar.gs` upload gambar + UI) selesai; berikutnya: poin 2c editor Tugas, 2d editor
   Refleksi, poin 3 alur murid (`topikKelasSaya`), poin 4 urutan pengerjaan
 - ⬜ Tahap 5 — Rekap nilai per course + export Excel
 - ⬜ Tahap 6 — Porting `Ai.gs` v1 (Gemini, perilaku tak berubah); API key

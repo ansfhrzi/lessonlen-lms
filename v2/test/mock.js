@@ -2,6 +2,8 @@
 const crypto = require('crypto');
 
 global.Utilities = {
+  base64Decode: (s) => Array.from(Buffer.from(String(s), 'base64')),
+  newBlob: (bytes, mime, nama) => ({ bytes, mime, nama: String(nama || 'blob') }),
   DigestAlgorithm: { SHA_256: 'SHA_256' },
   Charset: { UTF_8: 'UTF_8' },
   getUuid: () => crypto.randomUUID(),
@@ -13,6 +15,52 @@ global.Utilities = {
 
 const _cache = {};
 global.Logger = { log: () => {} };
+
+/* ---- Drive tiruan (folder + berkas + berbagi) ---- */
+const _DRV = { folders: {}, fileId: 0, folderId: 0 };
+global.__driveBersih = () => { _DRV.folders = {}; _DRV.fileId = 0; _DRV.folderId = 0; };
+global.__driveFiles = () => Object.values(_DRV.folders).flatMap(f => f.files);
+global.DriveApp = {
+  Access: { ANYONE_WITH_LINK: 'ANYONE_WITH_LINK' },
+  Permission: { VIEW: 'VIEW' },
+  getFoldersByName: (nama) => {
+    const arr = Object.values(_DRV.folders).filter(f => f.nama === nama);
+    let i = 0;
+    return { hasNext: () => i < arr.length, next: () => arr[i++] };
+  },
+  createFolder: (nama) => {
+    const id = 'fld-' + (++_DRV.folderId);
+    const f = { id, nama, files: [], getId: () => id };
+    _DRV.folders[id] = f; return f;
+  },
+  getFolderById: (id) => {
+    if (!_DRV.folders[id]) throw new Error('tidak ada folder ' + id);
+    return _DRV.folders[id];
+  }
+};
+/* _folder().createFile(blob) — folder tiruan bisa membuat berkas */
+const __buatFile = (fldr, blob) => {
+  const id = 'drv-' + (++_DRV.fileId);
+  const file = {
+    id, mime: blob.mime, nama: blob.nama, bytes: blob.bytes, sharing: null,
+    getId: () => id,
+    setSharing: (a, p) => { file.sharing = { a, p }; return file; }
+  };
+  fldr.files.push(file); return file;
+};
+const __folderAsli = global.DriveApp.createFolder;
+global.DriveApp.createFolder = (nama) => {
+  const f = __folderAsli(nama);
+  if (!f.getId) f.getId = () => f.id;
+  f.createFile = (blob) => __buatFile(f, blob);
+  return f;
+};
+const __folderById = global.DriveApp.getFolderById;
+global.DriveApp.getFolderById = (id) => {
+  const f = __folderById(id);
+  if (!f.createFile) f.createFile = (blob) => __buatFile(f, blob);
+  return f;
+};
 
 global.CacheService = {
   getScriptCache: () => ({

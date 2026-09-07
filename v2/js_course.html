@@ -1037,6 +1037,13 @@ var CourseLayar = (function () {
       '<div class="grup"><label>Tautan gambar <span class="kecil">(opsional)</span></label>' +
       '<input class="isian" id="f-qz-gambar" placeholder="https://…" value="' +
       Core.esc(s ? s.gambar_url : '') + '">' +
+      '<div class="baris-form" style="gap:8px;margin-top:8px">' +
+        '<button type="button" class="btn btn-sekunder btn-kecil" id="btn-qz-unggah">' +
+          '📤 Unggah gambar</button>' +
+        '<span class="kecil lembut">JPG/PNG/GIF/WebP — dikompres otomatis, maks 3 MB</span>' +
+      '</div>' +
+      '<input type="file" id="f-qz-file" hidden ' +
+        'accept="image/jpeg,image/png,image/gif,image/webp">' +
       '<span class="bantuan">Tautan LANGSUNG ke berkas gambar. Tautan Google Drive otomatis dikonversi.</span>' +
       '<img id="f-qz-pratinjau-gambar" class="qz-gambar-pratinjau" referrerpolicy="no-referrer" alt="pratinjau gambar soal" hidden>' +
       '<div class="pesan-salah" id="f-qz-gambar-gagal"></div></div>' +
@@ -1162,6 +1169,72 @@ var CourseLayar = (function () {
         inGambar.addEventListener('input', segarkanGambarQz);
         inGambar.addEventListener('change', segarkanGambarQz);
         segarkanGambarQz();
+
+        /* ---- 📤 Unggah gambar ---- */
+        var btnUnggah = tirai.querySelector('#btn-qz-unggah');
+        var inFile = tirai.querySelector('#f-qz-file');
+        btnUnggah.addEventListener('click', function () { inFile.click(); });
+        inFile.addEventListener('change', function () {
+          var f = this.files && this.files[0];
+          if (!f) return;
+          var selesai = function () {
+            btnUnggah.disabled = false;
+            btnUnggah.textContent = '📤 Unggah gambar';
+          };
+          btnUnggah.disabled = true;
+          btnUnggah.textContent = '⏳ Menyiapkan…';
+          var baca = new FileReader();
+          baca.onerror = function () {
+            gagal.textContent = 'Berkas tidak dapat dibaca.';
+            gagal.classList.add('tampil');
+            selesai();
+          };
+          baca.onload = function () {
+            var dataUrl = String(baca.result);
+            var b64 = dataUrl.slice(dataUrl.indexOf(',') + 1);
+            var mime = f.type;
+            var siap = Promise.resolve({ b64: b64, mime: mime });
+
+            /* Kompres di browser: maks 1280 px → JPEG. Lewati bila
+               canvas tak tersedia (jsdom) — server tetap memvalidasi. */
+            var kanvas = document.createElement('canvas');
+            var ctx = kanvas.getContext && kanvas.getContext('2d');
+            if (ctx) {
+              siap = new Promise(function (ya) {
+                var img = document.createElement('img');
+                img.onload = function () {
+                  try {
+                    var MAKS = 1280;
+                    var skala = Math.min(1, MAKS / Math.max(img.width, img.height));
+                    kanvas.width = Math.max(1, Math.round(img.width * skala));
+                    kanvas.height = Math.max(1, Math.round(img.height * skala));
+                    ctx.drawImage(img, 0, 0, kanvas.width, kanvas.height);
+                    ya({ b64: kanvas.toDataURL('image/jpeg', 0.82).split(',')[1],
+                         mime: 'image/jpeg' });
+                  } catch (e) { ya({ b64: b64, mime: mime }); }
+                };
+                img.onerror = function () { ya({ b64: b64, mime: mime }); };
+                img.src = dataUrl;
+              });
+            }
+
+            btnUnggah.textContent = '⏳ Mengunggah…';
+            siap.then(function (h) {
+              return Core.api('gambarUnggah', Core.ambilToken(),
+                { nama: f.name, mime: h.mime, base64: h.b64 });
+            }).then(function (r) {
+              inGambar.value = r.tautan;
+              segarkanGambarQz();
+              Core.toast('Gambar terunggah — tersimpan di Drive.', 'sukses');
+              selesai();
+            }).catch(function (err) {
+              gagal.textContent = err.message;
+              gagal.classList.add('tampil');
+              selesai();
+            });
+          };
+          baca.readAsDataURL(f);
+        });
       }
     }).then(function (ya) {
       if (!ya) return;
