@@ -402,6 +402,32 @@ const tunggu = (ms) => new Promise(r => setTimeout(r, ms));
         k.querySelector('img.qz-gambar') &&
         k.querySelector('img.qz-gambar').src === 'https://contoh.com/gambar.png'));
 
+  /* tautan Google Drive -> pratinjau live di dialog + thumbnail di kartu */
+  d.getElementById('btn-tambah-soal').click();
+  await tunggu(300);
+  d.getElementById('f-qz-pertanyaan').value = 'Soal tautan Google Drive';
+  const opsiDrive = d.querySelectorAll('[data-qz-opsi]');
+  opsiDrive[0].value = '7';
+  opsiDrive[1].value = '9';
+  d.querySelector('input[name="f-qz-kunci"][value="A"]').checked = true;
+  d.getElementById('f-qz-gambar').value =
+    'https://drive.google.com/file/d/DRIVE123abc/view?usp=sharing';
+  d.getElementById('f-qz-gambar').dispatchEvent(new w.Event('input', { bubbles: true }));
+  await tunggu(100);
+  const pv = d.getElementById('f-qz-pratinjau-gambar');
+  cek('quiz: pratinjau gambar live di dialog (Drive dikonversi thumbnail)',
+      !pv.hidden && pv.src.includes('drive.google.com/thumbnail?id=DRIVE123abc'));
+  d.querySelector('.kotak-dialog [data-aksi="ya"]').click();
+  await tunggu(500);
+  const imgDrive = [...d.querySelectorAll('.kartu-soal-qz img.qz-gambar')]
+    .find(function (i) { return i.src.includes('thumbnail?id=DRIVE123abc'); });
+  cek('quiz: soal tautan Drive dirender sbg thumbnail (rekap 5 soal)',
+      !!imgDrive && d.getElementById('qz-rekap').textContent.includes('5 soal'));
+  /* gambar gagal dimuat -> chip peringatan di kartu (tidak senyap) */
+  imgDrive.dispatchEvent(new w.Event('error'));
+  cek('quiz: gambar gagal muat -> chip peringatan di kartu',
+      !!d.querySelector('.qz-gambar-gagal'));
+
   d.getElementById('in-qz-kkm').value = '80';
   d.getElementById('btn-simpan-qz').click();
   await tunggu(500);

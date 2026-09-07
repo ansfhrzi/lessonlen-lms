@@ -851,6 +851,14 @@ var CourseLayar = (function () {
     Core.$('btn-tambah-soal').addEventListener('click', function () {
       dialogSoalQz(null);
     });
+    /* Gambar soal yang gagal dimuat → chip peringatan (jangan senyap). */
+    Core.$('qz-daftar-soal').addEventListener('error', function (e) {
+      if (!e.target || e.target.tagName !== 'IMG') return;
+      var gagal = document.createElement('div');
+      gagal.className = 'qz-gambar-gagal';
+      gagal.textContent = '⚠️ Gambar gagal dimuat — pastikan tautan langsung ke berkas gambar (bukan halaman web).';
+      e.target.replaceWith(gagal);
+    }, true);
 
     muatQz();
   }
@@ -876,6 +884,16 @@ var CourseLayar = (function () {
         '<div class="kosong-besar"><span class="ikon">⚠️</span><b>Gagal memuat</b>' +
         Core.esc(err.message) + '</div>';
     });
+  }
+
+  /** Tautan Google Drive (…/file/d/ID/…, open?id=, uc?id=) tidak bisa
+      dirender <img> — konversi ke endpoint thumbnail resmi. */
+  function urlGambarQz(u) {
+    u = String(u || '').trim();
+    if (!u || !/drive\.google\.com/.test(u)) return u;
+    var m = u.match(/\/file\/d\/([A-Za-z0-9_-]+)/) ||
+            u.match(/[?&]id=([A-Za-z0-9_-]+)/);
+    return m ? 'https://drive.google.com/thumbnail?id=' + m[1] + '&sz=w1000' : u;
   }
 
   function gambarSoal() {
@@ -929,7 +947,7 @@ var CourseLayar = (function () {
           '<button class="btn-teks kecil merah" data-aksi="hapus" title="Hapus">🗑</button>' +
         '</div>' +
         '<div class="qz-pertanyaan">' + Core.esc(s.question) + '</div>' +
-        (s.gambar_url ? '<img class="qz-gambar" src="' + Core.esc(s.gambar_url) +
+        (s.gambar_url ? '<img class="qz-gambar" loading="lazy" src="' + Core.esc(urlGambarQz(s.gambar_url)) +
           '" alt="gambar soal">' : '') +
         opsi + kunci +
       '</div>';
@@ -1018,7 +1036,10 @@ var CourseLayar = (function () {
       Core.esc(s ? s.question : '') + '</textarea></div>' +
       '<div class="grup"><label>Tautan gambar <span class="kecil">(opsional)</span></label>' +
       '<input class="isian" id="f-qz-gambar" placeholder="https://…" value="' +
-      Core.esc(s ? s.gambar_url : '') + '"></div>' +
+      Core.esc(s ? s.gambar_url : '') + '">' +
+      '<span class="bantuan">Tautan LANGSUNG ke berkas gambar. Tautan Google Drive otomatis dikonversi.</span>' +
+      '<img id="f-qz-pratinjau-gambar" class="qz-gambar-pratinjau" alt="pratinjau gambar soal" hidden>' +
+      '<div class="pesan-salah" id="f-qz-gambar-gagal"></div></div>' +
       '<div id="f-qz-area-kunci"></div>' +
       '<div class="grup"><label>Pembahasan <span class="kecil">(opsional)</span></label>' +
       '<textarea class="isian" id="f-qz-pembahasan" rows="2">' +
@@ -1122,6 +1143,25 @@ var CourseLayar = (function () {
         tirai.querySelector('#f-qz-tipe').addEventListener('change', function () {
           gambarKunciQz(tirai, ulang || s || null);
         });
+        /* Pratinjau gambar live: kelihatan LANGSUNG bila tautannya bekerja. */
+        var inGambar = tirai.querySelector('#f-qz-gambar');
+        var pratinjau = tirai.querySelector('#f-qz-pratinjau-gambar');
+        var gagal = tirai.querySelector('#f-qz-gambar-gagal');
+        function segarkanGambarQz() {
+          var u = urlGambarQz(inGambar.value);
+          gagal.classList.remove('tampil');
+          if (!u) { pratinjau.hidden = true; return; }
+          pratinjau.hidden = false;
+          pratinjau.src = u;
+        }
+        pratinjau.addEventListener('error', function () {
+          pratinjau.hidden = true;
+          gagal.textContent = 'Gambar gagal dimuat — pastikan tautan langsung ke berkas gambar (bukan halaman web).';
+          gagal.classList.add('tampil');
+        });
+        inGambar.addEventListener('input', segarkanGambarQz);
+        inGambar.addEventListener('change', segarkanGambarQz);
+        segarkanGambarQz();
       }
     }).then(function (ya) {
       if (!ya) return;
@@ -1147,6 +1187,8 @@ var CourseLayar = (function () {
       } else {
         p.rubric = Core.$('f-qz-rubrik').value;
       }
+      /* Halaman https memblokir gambar http — naikkan otomatis. */
+      if (p.gambar_url) p.gambar_url = p.gambar_url.replace(/^http:\/\//i, 'https://');
       Core.api('quizSimpanSoal', Core.ambilToken(), QZ.itemId, p)
         .then(function (r) {
           Core.toast(r.baru ? 'Soal ditambahkan.' : 'Soal disimpan.', 'sukses');
