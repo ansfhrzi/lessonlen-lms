@@ -57,9 +57,10 @@ yang ada di akar repositori.
 >
 > **Izin Drive:** fitur unggah gambar (2b.x) memakai `DriveApp` — saat otorisasi
 pertama setelah menambah `Gambar.gs`, Apps Script akan meminta izin Drive tambahan.
-Folder "LMS v2 — Gambar Soal" dibuat otomatis pada unggahan pertama; bila domain
-memblockir berbagi "siapa saja dengan tautan", unggahan ditolak dgn pesan jelas —
-gunakan jalur tempel tautan gambar.
+Folder "LMS v2 — Gambar Soal" dibuat otomatis pada unggahan pertama. **Domain yang
+memblokir berbagi "siapa saja dengan tautan" TIDAK menghalangi unggah**: gambar
+disajikan lewat web app sendiri (`…/exec?gambar=ID`, tanpa sesi — murid tetap bisa
+melihat); jalur tempel tautan tetap tersedia.
 
 1. Buat **project Apps Script baru** (script.google.com → New project).
 2. Salin seluruh berkas folder ini ke project (nama file harus sama persis,

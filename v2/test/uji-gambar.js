@@ -94,6 +94,30 @@ cek('awalan data: URI dibersihkan otomatis', !r.error && r.file_id,
 r = cobalah(function () { return Gambar.unggah(SESI_MURID, { mime: 'image/jpeg', base64: B64_PNG }); });
 cek('murid ditolak', r.error === 'DITOLAK', r.pesan);
 
+console.log('\n== BERBAGI DIBLOKIR DOMAIN (laporan pemilik 2026-09-08) ==');
+
+global.DriveApp.__setSharingGagal = true;
+r = cobalah(function () {
+  return Gambar.unggah(SESI, { nama: 'blokir.jpg', mime: 'image/jpeg', base64: B64_PNG });
+});
+cek('setSharing ditolak domain TIDAK menggagalkan unggah (repro diperbaiki)',
+    !r.error && !!r.tautan && r.berbagi === false, r.pesan || r.error);
+cek('tautan fallback = web app ?gambar=ID',
+    r.tautan === 'https://script.google.com/macros/s/uji/exec?gambar=' + r.file_id,
+    r.tautan);
+const ID_BLOKIR = r.file_id;
+global.DriveApp.__setSharingGagal = false;
+
+let out = Gambar.sajikan(ID_BLOKIR);
+cek('sajikan: bytes gambar + mime sesuai berkas',
+    out && out.data && out.data.length > 0 && out.mime === 'image/jpeg');
+out = Gambar.sajikan('id-tak-kenal');
+cek('sajikan: id tak dikenal -> teks penjelasan',
+    typeof out.data === 'string' && out.data.indexOf('tidak ditemukan') !== -1);
+out = Gambar.sajikan('../etc/passwd');
+cek('sajikan: id tak sah -> teks penolakan',
+    typeof out.data === 'string' && out.data.indexOf('tidak sah') !== -1);
+
 console.log('\n== ENDPOINT ==');
 
 const T = Auth.login('guru', 'guru123').data.token;

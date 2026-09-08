@@ -15,6 +15,13 @@ var APP_IKON  = '\uD83C\uDF31';        /* 🌱 tunas */
  * ============================================================ */
 
 function doGet(e) {
+  /* Gambar hasil unggah disajikan langsung — murid tanpa login Google
+     tetap bisa melihat, TANPA izin berbagi Drive (bebas kebijakan
+     domain yang memblokir "siapa saja dengan tautan"). */
+  if (e && e.parameter && e.parameter.gambar) {
+    return Gambar.sajikan(e.parameter.gambar);
+  }
+
   var t = HtmlService.createTemplateFromFile('index');
   t.appNama = APP_NAMA;
   t.appVersi = APP_VERSI;

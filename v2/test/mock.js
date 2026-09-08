@@ -16,6 +16,19 @@ global.Utilities = {
 const _cache = {};
 global.Logger = { log: () => {} };
 
+global.ScriptApp = {
+  getService: () => ({ getUrl: () => 'https://script.google.com/macros/s/uji/exec' })
+};
+global.ContentService = {
+  MimeType: { TEXT: 'text/plain', JPEG: 'image/jpeg',
+              PNG: 'image/png', GIF: 'image/gif' },
+  createOutput: (data) => ({
+    data, mime: null,
+    setContent(d) { this.data = d; return this; },
+    setMimeType(m) { this.mime = m; return this; }
+  })
+};
+
 /* ---- Drive tiruan (folder + berkas + berbagi) ---- */
 const _DRV = { folders: {}, fileId: 0, folderId: 0 };
 global.__driveBersih = () => { _DRV.folders = {}; _DRV.fileId = 0; _DRV.folderId = 0; };
@@ -36,6 +49,11 @@ global.DriveApp = {
   getFolderById: (id) => {
     if (!_DRV.folders[id]) throw new Error('tidak ada folder ' + id);
     return _DRV.folders[id];
+  },
+  getFileById: (id) => {
+    const f = global.__driveFiles().find(x => x.id === id);
+    if (!f) throw new Error('tidak ada berkas ' + id);
+    return f;
   }
 };
 /* _folder().createFile(blob) — folder tiruan bisa membuat berkas */
@@ -44,7 +62,15 @@ const __buatFile = (fldr, blob) => {
   const file = {
     id, mime: blob.mime, nama: blob.nama, bytes: blob.bytes, sharing: null,
     getId: () => id,
-    setSharing: (a, p) => { file.sharing = { a, p }; return file; }
+    setSharing: (a, p) => {
+      /* simulasikan kebijakan domain (laporan pemilik 2026-09-08):
+         bila saklar aktif, "siapa saja dgn tautan" ditolak Drive */
+      if (global.DriveApp.__setSharingGagal)
+        throw new Error('Sharing is not permitted for this item');
+      file.sharing = { a, p }; return file;
+    },
+    getBlob: () => ({ getBytes: () => file.bytes,
+                      getContentType: () => file.mime })
   };
   fldr.files.push(file); return file;
 };

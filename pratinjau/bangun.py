@@ -573,7 +573,7 @@ MOCK = r"""
                  pesan: 'Gambar maksimal 3 MB — pilih gambar lebih kecil.' };
       var id = 'drv-' + (++db.drvFile);
       db.gambarSim[id] = 'data:' + p.mime + ';base64,' + b64;
-      return { file_id: id,
+      return { file_id: id, berbagi: true,
                tautan: 'https://drive.google.com/file/d/' + id + '/view' };
     },
     quizSimpanSoal: function (t, itemId, p) {

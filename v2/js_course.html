@@ -1225,7 +1225,9 @@ var CourseLayar = (function () {
             }).then(function (r) {
               inGambar.value = r.tautan;
               segarkanGambarQz();
-              Core.toast('Gambar terunggah — tersimpan di Drive.', 'sukses');
+              Core.toast(r.berbagi === false ?
+                'Gambar terunggah — disajikan lewat aplikasi (domain membatasi berbagi Drive).' :
+                'Gambar terunggah — tersimpan di Drive.', 'sukses');
               selesai();
             }).catch(function (err) {
               gagal.textContent = err.message;

@@ -64,19 +64,57 @@ var Gambar = (function () {
     var file;
     try {
       file = _folder().createFile(Utilities.newBlob(bytes, mime, nama));
-      file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
     } catch (e) {
-      _err('DRIVE_BLOKIR', 'Drive menolak berbagi tautan (kemungkinan ' +
-        'kebijakan domain) — pakai tempel tautan gambar saja.');
+      _err('DRIVE_BLOKIR', 'Drive menolak menyimpan berkas — coba lagi ' +
+        'atau pakai tempel tautan gambar.');
     }
 
-    Util.catatLog(sesi.user_id, 'GAMBAR_UNGGAH', nama + ' ' + mime,
+    /* Berbagi "siapa saja dgn tautan" SERING diblokir kebijakan domain
+       (laporan pemilik 2026-09-08). Kegagalan berbagi BUKAN kegagalan
+       unggah: gambar tetap tersimpan (privat) dan disajikan lewat web
+       app sendiri — doGet '?gambar=ID' berjalan "as Me" sehingga murid
+       tanpa login Google tetap dapat melihat gambarnya. */
+    var boleh = true;
+    try {
+      file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+    } catch (e) { boleh = false; }
+
+    var tautan = boleh
+      ? 'https://drive.google.com/file/d/' + file.getId() + '/view'
+      : ScriptApp.getService().getUrl() + '?gambar=' + file.getId();
+
+    Util.catatLog(sesi.user_id, 'GAMBAR_UNGGAH', nama + ' ' + mime +
+        (boleh ? '' : ' (berbagi diblokir domain)'),
       'ok', sesi.role, 'Drive', file.getId());
     return {
       file_id: file.getId(),
-      tautan: 'https://drive.google.com/file/d/' + file.getId() + '/view'
+      tautan: tautan,
+      berbagi: boleh
     };
   }
 
-  return { unggah: unggah };
+  /**
+   * Sajikan berkas gambar lewat doGet (?gambar=ID) — publik, tanpa
+   * sesi: dipanggil <img> murid. Id divalidasi ketat; berkas yang
+   * tidak ada → teks penjelasan (bukan error tanpa pesan).
+   */
+  function sajikan(id) {
+    id = String(id || '');
+    if (!/^[A-Za-z0-9_-]+$/.test(id)) {
+      return ContentService.createOutput('Id gambar tidak sah.')
+        .setMimeType(ContentService.MimeType.TEXT);
+    }
+    var peta = { 'image/jpeg': 'JPEG', 'image/png': 'PNG', 'image/gif': 'GIF' };
+    try {
+      var blob = DriveApp.getFileById(id).getBlob();
+      var mime = String(blob.getContentType() || '');
+      return ContentService.createOutput(blob.getBytes())
+        .setMimeType(ContentService.MimeType[peta[mime] || 'JPEG']);
+    } catch (e) {
+      return ContentService.createOutput('Gambar tidak ditemukan.')
+        .setMimeType(ContentService.MimeType.TEXT);
+    }
+  }
+
+  return { unggah: unggah, sajikan: sajikan };
 })();
