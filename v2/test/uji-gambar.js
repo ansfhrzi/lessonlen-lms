@@ -148,6 +148,17 @@ global.DriveApp.__folderGagal = null;
 r = Gambar.unggah(SESI, { nama: 'pulih.jpg', mime: 'image/jpeg', base64: B64_PNG });
 cek('unggah pulih normal setelah penyebab hilang', !r.error && !!r.tautan);
 
+console.log('\n== PEMANDU IZIN (izinDrive) ==');
+
+cek('izinDrive() → OK dgn izin tiruan',
+    typeof izinDrive === 'function' &&
+    izinDrive().indexOf('OK') === 0, izinDrive());
+global.DriveApp.__folderGagal = 'You do not have permission to call DriveApp.getFoldersByName.';
+cek('izinDrive() → BELUM AKTIF + pesan asli saat izin ditolak',
+    izinDrive().indexOf('BELUM AKTIF') === 0 &&
+    izinDrive().indexOf('getFoldersByName') !== -1);
+global.DriveApp.__folderGagal = null;
+
 console.log('\n== ENDPOINT ==');
 
 const T = Auth.login('guru', 'guru123').data.token;

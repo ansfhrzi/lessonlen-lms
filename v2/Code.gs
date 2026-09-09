@@ -299,6 +299,21 @@ function gambarUnggah(token, p) {
   });
 }
 
+/** Pemandu izin Drive (laporan pemilik: scope drive belum disetujui).
+ *  Jalankan SEKALI dari EDITOR Apps Script: izinDrive → Run →
+ *  Review permissions → setujui. LALU deploy ulang (New version) —
+ *  deployment lama tetap memakai otorisasi lama. */
+function izinDrive() {
+  try {
+    var it = DriveApp.getFoldersByName('LMS v2 — Gambar Soal');
+    return it.hasNext()
+      ? 'OK — izin Drive aktif, folder sudah ada.'
+      : 'OK — izin Drive aktif (folder dibuat saat unggah pertama).';
+  } catch (e) {
+    return 'BELUM AKTIF: ' + e.message;
+  }
+}
+
 /** Hapus item dalam topik. */
 function courseHapusItem(token, itemId) {
   return _bungkus(token, 'guru', function (sesi) {

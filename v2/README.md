@@ -65,6 +65,14 @@ tautan" TIDAK menghalangi unggah — gambar disajikan lewat web app sendiri
 mengutip **kode asli Drive**: izin → setujui ulang otorisasi; `storageQuotaExceeded`
 → kuota penuh; disabled/policy → minta admin mengaktifkan Drive SDK; jalur tempel
 tautan selalu tersedia.
+>
+> **Langkah mengaktifkan izin Drive (WAJIB setelah menyalin `Gambar.gs`):**
+1. Editor Apps Script → pilih fungsi **`izinDrive`** → **Run** →
+   *Review permissions* → pilih akun → **Allow** (kalau muncul "Google hasn't
+   verified this app": *Advanced → Go to … → Allow*).
+2. **Deploy → Manage deployments → Edit → New version** — deployment lama
+   tetap memakai otorisasi lama, wajib naik versi.
+3. Coba unggah gambar lagi; bila masih gagal, kirim teks *(Kode Drive: …)*.
 
 1. Buat **project Apps Script baru** (script.google.com → New project).
 2. Salin seluruh berkas folder ini ke project (nama file harus sama persis,
