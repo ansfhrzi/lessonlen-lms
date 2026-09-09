@@ -37,11 +37,15 @@ global.DriveApp = {
   Access: { ANYONE_WITH_LINK: 'ANYONE_WITH_LINK' },
   Permission: { VIEW: 'VIEW' },
   getFoldersByName: (nama) => {
+    if (global.DriveApp.__folderGagal)
+      throw new Error(global.DriveApp.__folderGagal);
     const arr = Object.values(_DRV.folders).filter(f => f.nama === nama);
     let i = 0;
     return { hasNext: () => i < arr.length, next: () => arr[i++] };
   },
   createFolder: (nama) => {
+    if (global.DriveApp.__folderGagal)
+      throw new Error(global.DriveApp.__folderGagal);
     const id = 'fld-' + (++_DRV.folderId);
     const f = { id, nama, files: [], getId: () => id };
     _DRV.folders[id] = f; return f;
@@ -58,6 +62,8 @@ global.DriveApp = {
 };
 /* _folder().createFile(blob) — folder tiruan bisa membuat berkas */
 const __buatFile = (fldr, blob) => {
+  if (global.DriveApp.__createFileGagal)
+    throw new Error(global.DriveApp.__createFileGagal);
   const id = 'drv-' + (++_DRV.fileId);
   const file = {
     id, mime: blob.mime, nama: blob.nama, bytes: blob.bytes, sharing: null,

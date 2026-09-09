@@ -118,6 +118,36 @@ out = Gambar.sajikan('../etc/passwd');
 cek('sajikan: id tak sah -> teks penolakan',
     typeof out.data === 'string' && out.data.indexOf('tidak sah') !== -1);
 
+console.log('\n== DIAGNOSIS GAGAL SIMPAN (laporan pemilik 2026-09-08b) ==');
+
+global.DriveApp.__createFileGagal = 'storageQuotaExceeded: User cannot create files';
+r = cobalah(function () {
+  return Gambar.unggah(SESI, { nama: 'q.jpg', mime: 'image/jpeg', base64: B64_PNG });
+});
+cek('kuota penuh -> pesan menyebut Kuota + kode asli Drive',
+    r.error === 'DRIVE_BLOKIR' && r.pesan.indexOf('Kuota') !== -1 &&
+    r.pesan.indexOf('storageQuotaExceeded') !== -1, r.pesan);
+
+global.DriveApp.__createFileGagal = 'Authorization is required to perform that action.';
+r = cobalah(function () {
+  return Gambar.unggah(SESI, { nama: 'a.jpg', mime: 'image/jpeg', base64: B64_PNG });
+});
+cek('izin belum penuh -> pesan arahkan setujui izin Drive',
+    r.error === 'DRIVE_BLOKIR' && r.pesan.indexOf('SETUJUI') !== -1, r.pesan);
+
+global.DriveApp.__createFileGagal = null;
+/* buang cache id folder agar _folder() benar-benar membuat folder */
+global.PropertiesService.getScriptProperties().deleteProperty('FOLDER_GAMBAR_ID');
+global.DriveApp.__folderGagal = 'Authorization is required to perform that action.';
+r = cobalah(function () {
+  return Gambar.unggah(SESI, { nama: 'a.jpg', mime: 'image/jpeg', base64: B64_PNG });
+});
+cek('folder gagal -> pesan arahkan setujui izin Drive (tidak meledak mentah)',
+    r.error === 'DRIVE_BLOKIR' && r.pesan.indexOf('SETUJUI') !== -1, r.pesan);
+global.DriveApp.__folderGagal = null;
+r = Gambar.unggah(SESI, { nama: 'pulih.jpg', mime: 'image/jpeg', base64: B64_PNG });
+cek('unggah pulih normal setelah penyebab hilang', !r.error && !!r.tautan);
+
 console.log('\n== ENDPOINT ==');
 
 const T = Auth.login('guru', 'guru123').data.token;

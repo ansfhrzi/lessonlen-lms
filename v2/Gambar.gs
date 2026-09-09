@@ -61,12 +61,36 @@ var Gambar = (function () {
       _err('VALIDASI_GAGAL', 'Gambar maksimal 3 MB — pilih gambar lebih kecil.');
 
     var nama = String(p.nama || 'gambar').slice(0, 100) || 'gambar';
+
+    /* Diagnosis kegagalan Drive (laporan pemilik 2026-09-08b): pesan
+       mentah Drive ditampilkan agar penyebabnya jelas — izin belum
+       disetujui penuh / kuota penuh / Drive SDK dimatikan admin. */
+    function _diagnosis(e) {
+      var asli = String((e && e.message) || e).slice(0, 120);
+      var saran = 'Coba lagi, atau pakai jalur tempel tautan gambar.';
+      if (/auth|permission|scope|unauthoriz/i.test(asli))
+        saran = 'Izin Drive belum disetujui penuh — jalankan unggah lagi lalu ' +
+          'SETUJUI saat Apps Script meminta izin Drive.';
+      else if (/quota|storage/i.test(asli))
+        saran = 'Kuota Drive akun guru kemungkinan penuh — hapus berkas lama ' +
+          'atau pakai jalur tempel tautan gambar.';
+      else if (/disabled|sdk|policy|forbidden|has not been/i.test(asli))
+        saran = 'Drive untuk aplikasi kemungkinan dimatikan admin domain — ' +
+          'hubungi admin sekolah.';
+      return saran + ' (Kode Drive: ' + asli + ')';
+    }
+
     var file;
     try {
-      file = _folder().createFile(Utilities.newBlob(bytes, mime, nama));
+      var folder = _folder();
+      file = folder.createFile(Utilities.newBlob(bytes, mime, nama));
     } catch (e) {
-      _err('DRIVE_BLOKIR', 'Drive menolak menyimpan berkas — coba lagi ' +
-        'atau pakai tempel tautan gambar.');
+      try {
+        Util.catatLog(sesi.user_id, 'GAMBAR_UNGGAH',
+          nama + ' gagal: ' + String((e && e.message) || e).slice(0, 100),
+          'gagal', sesi.role, 'Drive', '');
+      } catch (e2) {}
+      _err('DRIVE_BLOKIR', 'Drive menolak menyimpan berkas. ' + _diagnosis(e));
     }
 
     /* Berbagi "siapa saja dgn tautan" SERING diblokir kebijakan domain

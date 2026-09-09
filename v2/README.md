@@ -56,11 +56,15 @@ yang ada di akar repositori.
   `Quizzes.kkm/acak_soal/acak_opsi/tampilkan_pembahasan`, `Quiz_Questions.tingkat/pembahasan/gambar_url` — lalu **`pasangTriggerSesi()`** sekali (pembersihan session tiap jam, §16.3).
 >
 > **Izin Drive:** fitur unggah gambar (2b.x) memakai `DriveApp` — saat otorisasi
-pertama setelah menambah `Gambar.gs`, Apps Script akan meminta izin Drive tambahan.
-Folder "LMS v2 — Gambar Soal" dibuat otomatis pada unggahan pertama. **Domain yang
-memblokir berbagi "siapa saja dengan tautan" TIDAK menghalangi unggah**: gambar
-disajikan lewat web app sendiri (`…/exec?gambar=ID`, tanpa sesi — murid tetap bisa
-melihat); jalur tempel tautan tetap tersedia.
+pertama setelah menambah `Gambar.gs`, Apps Script akan meminta izin Drive tambahan —
+**SETUJUI sampai selesai** ( Drive API advanced service TIDAK perlu diaktifkan;
+yang dipakai `DriveApp`, layanan bawaan). Folder "LMS v2 — Gambar Soal" dibuat
+otomatis pada unggahan pertama. Domain yang memblokir berbagi "siapa saja dengan
+tautan" TIDAK menghalangi unggah — gambar disajikan lewat web app sendiri
+(`…/exec?gambar=ID`, tanpa sesi). Bila unggah tetap gagal, pesan galat kini
+mengutip **kode asli Drive**: izin → setujui ulang otorisasi; `storageQuotaExceeded`
+→ kuota penuh; disabled/policy → minta admin mengaktifkan Drive SDK; jalur tempel
+tautan selalu tersedia.
 
 1. Buat **project Apps Script baru** (script.google.com → New project).
 2. Salin seluruh berkas folder ini ke project (nama file harus sama persis,
