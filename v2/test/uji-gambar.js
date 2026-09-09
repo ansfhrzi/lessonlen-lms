@@ -158,6 +158,10 @@ cek('izinDrive() → BELUM AKTIF + pesan asli saat izin ditolak',
     izinDrive().indexOf('BELUM AKTIF') === 0 &&
     izinDrive().indexOf('getFoldersByName') !== -1);
 global.DriveApp.__folderGagal = null;
+izinDrive(); /* hasilnya wajib TERTULIS di log editor */
+cek('izinDrive menulis hasil ke log (Execution log editor)',
+    global.__logs.some(function (l) { return l.indexOf('OK') === 0; }),
+    JSON.stringify(global.__logs));
 
 console.log('\n== ENDPOINT ==');
 

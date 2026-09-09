@@ -14,7 +14,8 @@ global.Utilities = {
 };
 
 const _cache = {};
-global.Logger = { log: () => {} };
+global.__logs = [];
+global.Logger = { log: (m) => { global.__logs.push(String(m)); } };
 
 global.ScriptApp = {
   getService: () => ({ getUrl: () => 'https://script.google.com/macros/s/uji/exec' })

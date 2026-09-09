@@ -304,14 +304,18 @@ function gambarUnggah(token, p) {
  *  Review permissions → setujui. LALU deploy ulang (New version) —
  *  deployment lama tetap memakai otorisasi lama. */
 function izinDrive() {
+  var hasil;
   try {
     var it = DriveApp.getFoldersByName('LMS v2 — Gambar Soal');
-    return it.hasNext()
+    hasil = it.hasNext()
       ? 'OK — izin Drive aktif, folder sudah ada.'
       : 'OK — izin Drive aktif (folder dibuat saat unggah pertama).';
   } catch (e) {
-    return 'BELUM AKTIF: ' + e.message;
+    hasil = 'BELUM AKTIF: ' + e.message;
   }
+  Logger.log(hasil); /* nilai return TIDAK tampil di Execution log —
+                        tulis eksplisit agar terlihat di editor */
+  return hasil;
 }
 
 /** Hapus item dalam topik. */
