@@ -1108,7 +1108,8 @@ var CourseLayar = (function () {
     if (tanya.length > 2000) return pesan('Pertanyaan maksimal 2000 karakter.');
 
     var gambar = tirai.querySelector('#f-qz-gambar').value.trim();
-    if (gambar && !/^https?:\/\//i.test(gambar))
+    /* '/…' diizinkan: tautan hasil unggah disajikan web app sendiri */
+    if (gambar && !/^(https?:\/\/|\/)/i.test(gambar))
       return pesan('Tautan gambar harus diawali http:// atau https://');
     if (gambar.length > 500) return pesan('Tautan gambar maksimal 500 karakter.');
 

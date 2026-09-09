@@ -44,9 +44,9 @@ const B64_PNG = Buffer.from('gambar palsu', 'utf8').toString('base64');
 console.log('\n== UNGGAH DASAR ==');
 
 let r = Gambar.unggah(SESI, { nama: 'kucing.jpg', mime: 'image/jpeg', base64: B64_PNG });
-cek('unggah OK → tautan drive format file/d/ID/view',
-    /^https:\/\/drive\.google\.com\/file\/d\/drv-\d+\/view$/.test(r.tautan) &&
-    r.file_id === r.tautan.split('/d/')[1].split('/')[0]);
+cek('unggah OK → tautan web app ?gambar=ID (selalu, bukan drive)',
+    /^https:\/\/script\.google\.com\/macros\/s\/uji\/exec\?gambar=drv-\d+$/.test(r.tautan) &&
+    r.file_id === r.tautan.split('=')[1] && r.berbagi === true);
 cek('berkas tersimpan dgn mime & nama',
     global.__driveFiles().length === 1 &&
     global.__driveFiles()[0].mime === 'image/jpeg' &&
@@ -102,7 +102,7 @@ r = cobalah(function () {
 });
 cek('setSharing ditolak domain TIDAK menggagalkan unggah (repro diperbaiki)',
     !r.error && !!r.tautan && r.berbagi === false, r.pesan || r.error);
-cek('tautan fallback = web app ?gambar=ID',
+cek('tautan tetap web app ?gambar=ID (sama dgn mode berbagi bebas)',
     r.tautan === 'https://script.google.com/macros/s/uji/exec?gambar=' + r.file_id,
     r.tautan);
 const ID_BLOKIR = r.file_id;
@@ -168,7 +168,7 @@ console.log('\n== ENDPOINT ==');
 const T = Auth.login('guru', 'guru123').data.token;
 r = cobalah(function () { return gambarUnggah(T, { nama: 'e.gif', mime: 'image/gif', base64: B64_PNG }); });
 cek('endpoint guru OK (bungkus standar)',
-    r.ok === true && /^https:\/\//.test(r.data.tautan), r.pesan || r.error);
+    r.ok === true && /\?gambar=/.test(r.data.tautan), r.pesan || r.error);
 const TM = Auth.login('siswa01', 'siswa123').data.token;
 r = cobalah(function () { return gambarUnggah(TM, { mime: 'image/jpeg', base64: B64_PNG }); });
 cek('endpoint murid ditolak',

@@ -94,18 +94,17 @@ var Gambar = (function () {
     }
 
     /* Berbagi "siapa saja dgn tautan" SERING diblokir kebijakan domain
-       (laporan pemilik 2026-09-08). Kegagalan berbagi BUKAN kegagalan
-       unggah: gambar tetap tersimpan (privat) dan disajikan lewat web
-       app sendiri — doGet '?gambar=ID' berjalan "as Me" sehingga murid
-       tanpa login Google tetap dapat melihat gambarnya. */
+       (laporan pemilik 2026-09-08), dan thumbnail Drive pun ikut
+       dibatasi — KARENA ITU tautan yang DISIMPAN SELALU lewat web app
+       sendiri (?gambar=ID): berjalan "as Me", bebas kebijakan berbagi.
+       setSharing tetap dicoba sekadar supaya guru bisa membuka berkas
+       dari Drive; hasilnya hanya melaporkan mode (berbagi:true/false). */
     var boleh = true;
     try {
       file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
     } catch (e) { boleh = false; }
 
-    var tautan = boleh
-      ? 'https://drive.google.com/file/d/' + file.getId() + '/view'
-      : ScriptApp.getService().getUrl() + '?gambar=' + file.getId();
+    var tautan = ScriptApp.getService().getUrl() + '?gambar=' + file.getId();
 
     Util.catatLog(sesi.user_id, 'GAMBAR_UNGGAH', nama + ' ' + mime +
         (boleh ? '' : ' (berbagi diblokir domain)'),

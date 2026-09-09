@@ -543,7 +543,7 @@ MOCK = r"""
                quiz: q, soal: daftar.map(function (x) {
                  var salin = Object.assign({}, x);
                  /* simulasi Drive: gambar hasil unggah dirender dari memori */
-                 var m = String(salin.gambar_url || '').match(/\/file\/d\/([A-Za-z0-9-]+)\/view/);
+                 var m = String(salin.gambar_url || '').match(/gambar=([A-Za-z0-9-]+)/);
                  if (m && db.gambarSim[m[1]]) salin.gambar_url = db.gambarSim[m[1]];
                  return salin; }), rekap: rekap,
                tingkat_tersedia: ['C1','C2','C3','C4','C5','C6'] };
@@ -574,12 +574,12 @@ MOCK = r"""
       var id = 'drv-' + (++db.drvFile);
       db.gambarSim[id] = 'data:' + p.mime + ';base64,' + b64;
       return { file_id: id, berbagi: true,
-               tautan: 'https://drive.google.com/file/d/' + id + '/view' };
+               tautan: '/?gambar=' + id }; /* simulasi web app sendiri */
     },
     quizSimpanSoal: function (t, itemId, p) {
       if (!String(p.question || '').trim())
         return { ok: false, error: 'VALIDASI_GAGAL', pesan: 'Pertanyaan wajib diisi.' };
-      if (p.gambar_url && !/^https?:\/\//i.test(p.gambar_url))
+      if (p.gambar_url && !/^(https?:\/\/|\/)/i.test(p.gambar_url))
         return { ok: false, error: 'VALIDASI_GAGAL',
                  pesan: 'Tautan gambar harus diawali http:// atau https://' };
       var daftar = db.soal[itemId] = db.soal[itemId] || [];

@@ -441,9 +441,8 @@ const tunggu = (ms) => new Promise(r => setTimeout(r, ms));
   Object.defineProperty(inFileQz, 'files', { value: [berkas], configurable: true });
   inFileQz.dispatchEvent(new w.Event('change', { bubbles: true }));
   await tunggu(600);
-  cek('quiz: unggah -> isian tautan terisi tautan Drive otomatis',
-      /https:\/\/drive\.google\.com\/file\/d\/drv-\d+\/view/
-        .test(d.getElementById('f-qz-gambar').value));
+  cek('quiz: unggah -> isian tautan terisi tautan web app otomatis',
+      /\?gambar=drv-\d+/.test(d.getElementById('f-qz-gambar').value));
   d.querySelector('.kotak-dialog [data-aksi="ya"]').click();
   await tunggu(600);
   const imgUnggah = [...d.querySelectorAll('.kartu-soal-qz img.qz-gambar')]
