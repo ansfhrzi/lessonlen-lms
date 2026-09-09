@@ -479,11 +479,20 @@ const tunggu = (ms) => new Promise(r => setTimeout(r, ms));
   await tunggu(200);
   cek('quiz: tautan Drive lama -> tombol adopsi tampil',
       !!d.getElementById('btn-qz-adopsi'));
+  d.getElementById('f-qz-pratinjau-gambar')
+    .dispatchEvent(new w.Event('error'));
+  cek('quiz: galat tautan Drive -> pesan mengarah ke tombol adopsi',
+      d.getElementById('f-qz-gambar-gagal').textContent.includes('Sajikan lewat aplikasi'));
   d.getElementById('btn-qz-adopsi').click();
   await tunggu(500);
   cek('quiz: adopsi -> isian jadi /?gambar=ID (penyajian aplikasi)',
       d.getElementById('f-qz-gambar').value === '/?gambar=DRVOLD9' &&
       !d.getElementById('btn-qz-adopsi'));
+  d.getElementById('f-qz-pratinjau-gambar')
+    .dispatchEvent(new w.Event('error'));
+  cek('quiz: galat ?gambar -> pesan New version + uji tab baru',
+      d.getElementById('f-qz-gambar-gagal').textContent.includes('New version') &&
+      !!d.querySelector('#f-qz-gambar-gagal a[target="_blank"]'));
   d.querySelector('.tirai [data-aksi="batal"]').click();
   await tunggu(200);
 

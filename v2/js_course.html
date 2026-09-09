@@ -1196,7 +1196,21 @@ var CourseLayar = (function () {
         }
         pratinjau.addEventListener('error', function () {
           pratinjau.hidden = true;
-          gagal.textContent = 'Gambar gagal dimuat — pastikan tautan langsung ke berkas gambar. Bila situsnya memblokir sematan: unduh gambarnya, unggah ke Google Drive, lalu tempel tautan Drive-nya di sini.';
+          var v = String(inGambar.value || '');
+          if (/drive\.google\.com/.test(v)) {
+            /* thumbnail Drive diblokir domain → jalur perbaikannya adopsi */
+            gagal.innerHTML = 'Tautan Drive tidak dapat dirender di domain ini — ' +
+              'klik tombol <b>📦 Sajikan lewat aplikasi</b> di bawah untuk ' +
+              'memperbaikinya otomatis.';
+          } else if (v.indexOf('gambar=') !== -1) {
+            /* penyajian aplikasi belum termuat: deployment lama / cache */
+            gagal.innerHTML = 'Gambar via aplikasi belum termuat. Pastikan sudah ' +
+              '<b>Deploy → Manage deployments → Edit → New version</b> (Gambar.gs + Code.gs). ' +
+              'Uji cepat: <a href="' + Core.esc(v) + '" target="_blank">buka tautan gambar di tab baru</a> — ' +
+              'bila gambarnya tampil di sana, halaman ini hanya perlu hard-refresh (Ctrl+Shift+R).';
+          } else {
+            gagal.textContent = 'Gambar gagal dimuat — pastikan tautan langsung ke berkas gambar. Bila situsnya memblokir sematan, unggah gambarnya ke Google Drive lalu tempel tautannya.';
+          }
           gagal.classList.add('tampil');
         });
         inGambar.addEventListener('input', segarkanGambarQz);
