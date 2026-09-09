@@ -73,8 +73,17 @@ tautan selalu tersedia.
 2. **Deploy → Manage deployments → Edit → New version** — deployment lama
    tetap memakai otorisasi lama, wajib naik versi.
 3. Coba unggah gambar lagi; bila masih gagal, kirim teks *(Kode Drive: …)*.
+>
+> **Bila `izinDrive` melaporkan “You do not have permission to call
+DriveApp…” dan dialog izin TIDAK pernah muncul** → manifest `appsscript.json`
+project Anda menetapkan `oauthScopes` eksplisit tanpa `drive`. Salin isi
+`appsscript.json` dari folder ini (ada `…/auth/drive`), Save, lalu Run
+`izinDrive` lagi — dialog izin akan muncul → Allow → deploy ulang.
 
 1. Buat **project Apps Script baru** (script.google.com → New project).
+   Lalu **Project Settings ⚙️ → centang “Show `appsscript.json` manifest file
+   in editor”** → salin isi **`appsscript.json`** dari folder ini ke manifest
+   (menjamin scope Sheets/Drive/UrlFetch/Trigger lengkap sejak awal).
 2. Salin seluruh berkas folder ini ke project (nama file harus sama persis,
    tanpa awalan folder). Untuk berkas HTML, nama file di Apps Script adalah
    `index`, `css`, `v_login`, `v_dashboard`, `js_core`, `js_auth`,
