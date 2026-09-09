@@ -148,6 +148,22 @@ global.DriveApp.__folderGagal = null;
 r = Gambar.unggah(SESI, { nama: 'pulih.jpg', mime: 'image/jpeg', base64: B64_PNG });
 cek('unggah pulih normal setelah penyebab hilang', !r.error && !!r.tautan);
 
+console.log('\n== ADOPSI TAUTAN DRIVE LAMA (bank soal tak tampil) ==');
+
+const ID_LAMA = r.file_id; /* berkas terakhir yg sukses diunggah */
+r = cobalah(function () {
+  return Gambar.adopsi(SESI, 'https://drive.google.com/file/d/' + ID_LAMA + '/view?usp=sharing');
+});
+cek('adopsi tautan drive → tautan web app ?gambar=ID',
+    !r.error && r.tautan === 'https://script.google.com/macros/s/uji/exec?gambar=' + ID_LAMA,
+    r.pesan || r.error);
+r = cobalah(function () { return Gambar.adopsi(SESI, ID_LAMA); });
+cek('adopsi langsung id juga diterima', !r.error && r.file_id === ID_LAMA);
+r = cobalah(function () { return Gambar.adopsi(SESI, 'https://drive.google.com/file/d/tidak-ada/view'); });
+cek('berkas drive tak dikenal → TIDAK_DITEMUKAN', r.error === 'TIDAK_DITEMUKAN', r.pesan);
+r = cobalah(function () { return Gambar.adopsi(SESI, 'javascript:alert(1)'); });
+cek('bukan tautan drive → VALIDASI_GAGAL', r.error === 'VALIDASI_GAGAL', r.pesan);
+
 console.log('\n== PEMANDU IZIN (izinDrive) ==');
 
 cek('izinDrive() → OK dgn izin tiruan',

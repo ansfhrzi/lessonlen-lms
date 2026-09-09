@@ -299,6 +299,13 @@ function gambarUnggah(token, p) {
   });
 }
 
+/** Adopsi tautan Drive lama → penyajian via web app (?gambar=ID). */
+function gambarAdopsi(token, tautan) {
+  return _bungkus(token, 'guru', function (sesi) {
+    return Gambar.adopsi(sesi, tautan);
+  });
+}
+
 /** Pemandu izin Drive (laporan pemilik: scope drive belum disetujui).
  *  Jalankan SEKALI dari EDITOR Apps Script: izinDrive → Run →
  *  Review permissions → setujui. LALU deploy ulang (New version) —

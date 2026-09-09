@@ -465,6 +465,28 @@ const tunggu = (ms) => new Promise(r => setTimeout(r, ms));
   d.querySelector('.tirai [data-aksi="batal"]').click();
   await tunggu(200);
 
+  /* tautan Drive lama -> tombol adopsi -> diganti penyajian aplikasi */
+  d.getElementById('btn-tambah-soal').click();
+  await tunggu(300);
+  d.getElementById('f-qz-pertanyaan').value = 'Soal tautan lama diadopsi';
+  const opsiAdopsi = d.querySelectorAll('[data-qz-opsi]');
+  opsiAdopsi[0].value = '12';
+  opsiAdopsi[1].value = '13';
+  d.querySelector('input[name="f-qz-kunci"][value="A"]').checked = true;
+  d.getElementById('f-qz-gambar').value =
+    'https://drive.google.com/file/d/DRVOLD9/view?usp=sharing';
+  d.getElementById('f-qz-gambar').dispatchEvent(new w.Event('input', { bubbles: true }));
+  await tunggu(200);
+  cek('quiz: tautan Drive lama -> tombol adopsi tampil',
+      !!d.getElementById('btn-qz-adopsi'));
+  d.getElementById('btn-qz-adopsi').click();
+  await tunggu(500);
+  cek('quiz: adopsi -> isian jadi /?gambar=ID (penyajian aplikasi)',
+      d.getElementById('f-qz-gambar').value === '/?gambar=DRVOLD9' &&
+      !d.getElementById('btn-qz-adopsi'));
+  d.querySelector('.tirai [data-aksi="batal"]').click();
+  await tunggu(200);
+
   /* gambar dikirim TANPA Referer (situs hotlink-protection jadi izin) */
   const metaRef = d.querySelector('meta[name="referrer"]');
   cek('quiz: halaman kirim gambar tanpa Referer (meta no-referrer + atribut img)',

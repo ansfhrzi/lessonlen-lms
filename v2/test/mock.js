@@ -69,6 +69,7 @@ const __buatFile = (fldr, blob) => {
   const file = {
     id, mime: blob.mime, nama: blob.nama, bytes: blob.bytes, sharing: null,
     getId: () => id,
+    getName: () => file.nama,
     setSharing: (a, p) => {
       /* simulasikan kebijakan domain (laporan pemilik 2026-09-08):
          bila saklar aktif, "siapa saja dgn tautan" ditolak Drive */

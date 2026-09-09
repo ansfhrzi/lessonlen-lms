@@ -139,5 +139,27 @@ var Gambar = (function () {
     }
   }
 
-  return { unggah: unggah, sajikan: sajikan };
+  /**
+   * Adopsi tautan Drive lama → penyajian via web app (?gambar=ID).
+   * Soal yang dibuat sebelum 308f074 masih menyimpan tautan
+   * drive.google.com/file/d/ID/view yang di domain pembatas tidak
+   * dapat dirender; guru tinggal klik tombol adopsi di dialog soal.
+   */
+  function adopsi(sesi, tautanAtauId) {
+    if (sesi.role !== 'guru') _err('DITOLAK', 'Hanya guru.');
+    var m = String(tautanAtauId || '')
+      .match(/(?:\/file\/d\/|[?&]id=)([A-Za-z0-9_-]+)/);
+    var id = m ? m[1] : String(tautanAtauId || '').trim();
+    if (!/^[A-Za-z0-9_-]+$/.test(id))
+      _err('VALIDASI_GAGAL', 'Tautan Drive tidak dikenal.');
+    try { DriveApp.getFileById(id).getName(); }
+    catch (e) {
+      _err('TIDAK_DITEMUKAN', 'Berkas Drive tidak ditemukan — ' +
+        'kemungkinan sudah terhapus atau milik akun lain.');
+    }
+    return { file_id: id,
+             tautan: ScriptApp.getService().getUrl() + '?gambar=' + id };
+  }
+
+  return { unggah: unggah, sajikan: sajikan, adopsi: adopsi };
 })();

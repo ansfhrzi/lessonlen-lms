@@ -576,6 +576,12 @@ MOCK = r"""
       return { file_id: id, berbagi: true,
                tautan: '/?gambar=' + id }; /* simulasi web app sendiri */
     },
+    gambarAdopsi: function (t, tautan) {
+      var m = String(tautan || '').match(/(?:\/file\/d\/|[?&]id=)([A-Za-z0-9-]+)/);
+      if (!m) return { ok: false, error: 'VALIDASI_GAGAL',
+                       pesan: 'Tautan Drive tidak dikenal.' };
+      return { file_id: m[1], tautan: '/?gambar=' + m[1] };
+    },
     quizSimpanSoal: function (t, itemId, p) {
       if (!String(p.question || '').trim())
         return { ok: false, error: 'VALIDASI_GAGAL', pesan: 'Pertanyaan wajib diisi.' };

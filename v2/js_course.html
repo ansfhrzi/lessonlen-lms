@@ -1045,6 +1045,7 @@ var CourseLayar = (function () {
       '<input type="file" id="f-qz-file" hidden ' +
         'accept="image/jpeg,image/png,image/gif,image/webp">' +
       '<span class="bantuan">Tautan LANGSUNG ke berkas gambar. Tautan Google Drive otomatis dikonversi.</span>' +
+      '<div id="f-qz-adopsi"></div>' +
       '<img id="f-qz-pratinjau-gambar" class="qz-gambar-pratinjau" referrerpolicy="no-referrer" alt="pratinjau gambar soal" hidden>' +
       '<div class="pesan-salah" id="f-qz-gambar-gagal"></div></div>' +
       '<div id="f-qz-area-kunci"></div>' +
@@ -1155,9 +1156,40 @@ var CourseLayar = (function () {
         var inGambar = tirai.querySelector('#f-qz-gambar');
         var pratinjau = tirai.querySelector('#f-qz-pratinjau-gambar');
         var gagal = tirai.querySelector('#f-qz-gambar-gagal');
+        /* Tautan Drive lama (pra-308f074) tak terrender di domain
+           pembatas → tawarkan tombol adopsi ke penyajian aplikasi. */
+        var adopsi = tirai.querySelector('#f-qz-adopsi');
+        function segarkanAdopsiQz() {
+          var v = String(inGambar.value || '');
+          adopsi.innerHTML =
+            (/drive\.google\.com/.test(v) && v.indexOf('gambar=') === -1) ?
+              '<button type="button" class="btn btn-sekunder btn-kecil" ' +
+              'id="btn-qz-adopsi">📦 Sajikan lewat aplikasi (perbaiki ' +
+              'tautan lama)</button>' : '';
+        }
+        adopsi.addEventListener('click', function (e) {
+          var b = e.target.closest('#btn-qz-adopsi');
+          if (!b) return;
+          b.disabled = true;
+          b.textContent = '⏳ Memproses…';
+          Core.api('gambarAdopsi', Core.ambilToken(), inGambar.value.trim())
+            .then(function (r) {
+              inGambar.value = r.tautan;
+              segarkanGambarQz();
+              segarkanAdopsiQz();
+              Core.toast('Tautan diganti — penyajian lewat aplikasi.', 'sukses');
+            })
+            .catch(function (err) {
+              adopsi.innerHTML = '';
+              gagal.textContent = err.message;
+              gagal.classList.add('tampil');
+            });
+        });
+
         function segarkanGambarQz() {
           var u = urlGambarQz(inGambar.value);
           gagal.classList.remove('tampil');
+          segarkanAdopsiQz();
           if (!u) { pratinjau.hidden = true; return; }
           pratinjau.hidden = false;
           pratinjau.src = u;
