@@ -117,27 +117,42 @@ var Gambar = (function () {
   }
 
   /**
-   * Sajikan berkas gambar lewat doGet (?gambar=ID) — publik, tanpa
-   * sesi: dipanggil <img> murid. Id divalidasi ketat; berkas yang
-   * tidak ada → teks penjelasan (bukan error tanpa pesan).
-   * CATATAN: nama metode asli GAS = createTextOutput (ralat 2026-09-10:
-   * sebelumnya createOutput — hanya ada di mock, bukan di API).
+   * Sajikan lewat doGet (?gambar=ID) — untuk UJI TAB BARU guru:
+   * GAS tak bisa mengembalikan byte biner, jadi kirim halaman HTML
+   * yang memuat gambar sbg data URI. (Di dalam aplikasi, kartu soal
+   * memakai muatBase64 — bukan jalur ini.)
    */
   function sajikan(id) {
     id = String(id || '');
-    if (!/^[A-Za-z0-9_-]+$/.test(id)) {
-      return ContentService.createTextOutput('Id gambar tidak sah.')
-        .setMimeType(ContentService.MimeType.TEXT);
+    function salah(teks) {
+      return HtmlService.createHtmlOutput(
+        '<p style="font-family:sans-serif">' + teks + '</p>');
     }
-    var peta = { 'image/jpeg': 'JPEG', 'image/png': 'PNG', 'image/gif': 'GIF' };
+    if (!/^[A-Za-z0-9_-]+$/.test(id)) return salah('Id gambar tidak sah.');
     try {
       var blob = DriveApp.getFileById(id).getBlob();
-      var mime = String(blob.getContentType() || '');
-      return ContentService.createTextOutput(blob.getBytes())
-        .setMimeType(ContentService.MimeType[peta[mime] || 'JPEG']);
+      return HtmlService.createHtmlOutput(
+        '<img alt="gambar" style="max-width:100%" src="data:' +
+        String(blob.getContentType() || 'image/jpeg') + ';base64,' +
+        Utilities.base64Encode(blob.getBytes()) + '">');
     } catch (e) {
-      return ContentService.createTextOutput('Gambar tidak ditemukan.')
-        .setMimeType(ContentService.MimeType.TEXT);
+      return salah('Gambar tidak ditemukan.');
+    }
+  }
+
+  /** Isi gambar utk <img> dalam aplikasi (guru & murid): base64 + mime. */
+  function muatBase64(id) {
+    id = String(id || '');
+    if (!/^[A-Za-z0-9_-]+$/.test(id))
+      _err('VALIDASI_GAGAL', 'Id gambar tidak sah.');
+    try {
+      var blob = DriveApp.getFileById(id).getBlob();
+      return {
+        mime: String(blob.getContentType() || 'image/jpeg'),
+        base64: Utilities.base64Encode(blob.getBytes())
+      };
+    } catch (e) {
+      _err('TIDAK_DITEMUKAN', 'Gambar tidak ditemukan.');
     }
   }
 
@@ -163,5 +178,6 @@ var Gambar = (function () {
              tautan: ScriptApp.getService().getUrl() + '?gambar=' + id };
   }
 
-  return { unggah: unggah, sajikan: sajikan, adopsi: adopsi };
+  return { unggah: unggah, sajikan: sajikan, adopsi: adopsi,
+    muatBase64: muatBase64 };
 })();

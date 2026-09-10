@@ -3,6 +3,8 @@ const crypto = require('crypto');
 
 global.Utilities = {
   base64Decode: (s) => Array.from(Buffer.from(String(s), 'base64')),
+  base64Encode: (arr) => Buffer.from(Array.isArray(arr) ? new Uint8Array(arr)
+    : String(arr), arr instanceof Uint8Array || Array.isArray(arr) ? null : 'utf8').toString('base64'),
   newBlob: (bytes, mime, nama) => ({ bytes, mime, nama: String(nama || 'blob') }),
   DigestAlgorithm: { SHA_256: 'SHA_256' },
   Charset: { UTF_8: 'UTF_8' },
@@ -17,6 +19,9 @@ const _cache = {};
 global.__logs = [];
 global.Logger = { log: (m) => { global.__logs.push(String(m)); } };
 
+global.HtmlService = {
+  createHtmlOutput: (html) => ({ html, getContent: () => html })
+};
 global.ScriptApp = {
   getService: () => ({ getUrl: () => 'https://script.google.com/macros/s/uji/exec' })
 };

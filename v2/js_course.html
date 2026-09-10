@@ -854,10 +854,7 @@ var CourseLayar = (function () {
     /* Gambar soal yang gagal dimuat → chip peringatan (jangan senyap). */
     Core.$('qz-daftar-soal').addEventListener('error', function (e) {
       if (!e.target || e.target.tagName !== 'IMG') return;
-      var gagal = document.createElement('div');
-      gagal.className = 'qz-gambar-gagal';
-      gagal.textContent = '⚠️ Gambar gagal dimuat — pastikan tautan langsung ke berkas gambar. Bila situsnya memblokir sematan, unggah gambarnya ke Google Drive lalu tempel tautannya.';
-      e.target.replaceWith(gagal);
+      chipGagalQz(e.target);
     }, true);
 
     muatQz();
@@ -894,6 +891,51 @@ var CourseLayar = (function () {
     var m = u.match(/\/file\/d\/([A-Za-z0-9_-]+)/) ||
             u.match(/[?&]id=([A-Za-z0-9_-]+)/);
     return m ? 'https://drive.google.com/thumbnail?id=' + m[1] + '&sz=w1000' : u;
+  }
+
+  /* Gambar penyajian aplikasi (?gambar=ID) tidak bisa dipakai <img src>
+     — GAS tak bisa mengembalikan byte biner; isinya diambil base64
+     lewat google.script.run lalu dijadikan data URI. */
+  var CACHE_GMB = {};
+
+  function uriGambarQz(id) {
+    return new Promise(function (ya) {
+      if (CACHE_GMB[id]) return ya(CACHE_GMB[id]);
+      Core.api('gambarMuat', Core.ambilToken(), id)
+        .then(function (r) {
+          var uri = 'data:' + (r.mime || 'image/jpeg') + ';base64,' + r.base64;
+          CACHE_GMB[id] = uri;
+          ya(uri);
+        })
+        .catch(function () { ya(null); });
+    });
+  }
+
+  function chipGagalQz(img) {
+    var chip = document.createElement('div');
+    chip.className = 'qz-gambar-gagal';
+    chip.textContent = '⚠️ Gambar gagal dimuat — unggah ulang lewat 📤 atau periksa tautannya.';
+    img.replaceWith(chip);
+  }
+
+  /** Pasang sumber gambar kartu: ?gambar= → base64; Drive → thumbnail;
+      URL lain → langsung. */
+  function pasangGambarQz(akar) {
+    Array.prototype.forEach.call(akar.querySelectorAll('img[data-srcqz]'),
+      function (img) {
+        var u = img.getAttribute('data-srcqz');
+        img.removeAttribute('data-srcqz');
+        var m = u.match(/[?&]gambar=([A-Za-z0-9_-]+)/);
+        if (m) {
+          uriGambarQz(m[1]).then(function (uri) {
+            if (uri) img.src = uri; else chipGagalQz(img);
+          });
+        } else if (/drive\.google\.com/.test(u)) {
+          img.src = urlGambarQz(u);
+        } else {
+          img.src = u;
+        }
+      });
   }
 
   function gambarSoal() {
@@ -947,8 +989,8 @@ var CourseLayar = (function () {
           '<button class="btn-teks kecil merah" data-aksi="hapus" title="Hapus">🗑</button>' +
         '</div>' +
         '<div class="qz-pertanyaan">' + Core.esc(s.question) + '</div>' +
-        (s.gambar_url ? '<img class="qz-gambar" loading="lazy" referrerpolicy="no-referrer" src="' + Core.esc(urlGambarQz(s.gambar_url)) +
-          '" alt="gambar soal">' : '') +
+        (s.gambar_url ? '<img class="qz-gambar" loading="lazy" referrerpolicy="no-referrer" alt="gambar soal" data-srcqz="' +
+          Core.esc(s.gambar_url) + '">' : '') +
         opsi + kunci +
       '</div>';
     }).join('');
@@ -958,6 +1000,7 @@ var CourseLayar = (function () {
         aksiSoalQz(b.dataset.aksi, b.closest('[data-soal]').dataset.soal);
       });
     });
+    pasangGambarQz(wadah);
   }
 
   function aksiSoalQz(aksi, soalId) {
@@ -1187,9 +1230,23 @@ var CourseLayar = (function () {
         });
 
         function segarkanGambarQz() {
-          var u = urlGambarQz(inGambar.value);
+          var v = String(inGambar.value || '').trim();
+          var m = v.match(/[?&]gambar=([A-Za-z0-9_-]+)/);
           gagal.classList.remove('tampil');
           segarkanAdopsiQz();
+          if (m) {
+            /* penyajian aplikasi: muat base64 → data URI */
+            pratinjau.hidden = false;
+            uriGambarQz(m[1]).then(function (uri) {
+              if (uri) { pratinjau.src = uri; pratinjau.hidden = false; return; }
+              pratinjau.hidden = true;
+              gagal.textContent = 'Gambar aplikasi (id ' + m[1] +
+                ') tidak dapat dimuat — pastikan berkasnya masih ada di folder gambar.';
+              gagal.classList.add('tampil');
+            });
+            return;
+          }
+          var u = urlGambarQz(v);
           if (!u) { pratinjau.hidden = true; return; }
           pratinjau.hidden = false;
           pratinjau.src = u;

@@ -109,14 +109,30 @@ const ID_BLOKIR = r.file_id;
 global.DriveApp.__setSharingGagal = false;
 
 let out = Gambar.sajikan(ID_BLOKIR);
-cek('sajikan: bytes gambar + mime sesuai berkas',
-    out && out.data && out.data.length > 0 && out.mime === 'image/jpeg');
+cek('sajikan: HTML berisi data URI gambar (uji tab baru)',
+    typeof out.getContent === 'function' &&
+    out.getContent().indexOf('data:image/jpeg;base64,') !== -1);
 out = Gambar.sajikan('id-tak-kenal');
-cek('sajikan: id tak dikenal -> teks penjelasan',
-    typeof out.data === 'string' && out.data.indexOf('tidak ditemukan') !== -1);
+cek('sajikan: id tak dikenal -> HTML penjelasan',
+    out.getContent().indexOf('tidak ditemukan') !== -1);
 out = Gambar.sajikan('../etc/passwd');
-cek('sajikan: id tak sah -> teks penolakan',
-    typeof out.data === 'string' && out.data.indexOf('tidak sah') !== -1);
+cek('sajikan: id tak sah -> HTML penolakan',
+    out.getContent().indexOf('tidak sah') !== -1);
+
+console.log('\n== MUAT BASE64 (img dalam aplikasi) ==');
+
+const isi = Gambar.muatBase64(ID_BLOKIR);
+cek('muatBase64: mime + base64 konsisten dgn berkas',
+    isi.mime === 'image/jpeg' &&
+    Buffer.from(isi.base64, 'base64').toString('utf8') === 'gambar palsu');
+r = cobalah(function () { return Gambar.muatBase64('id-tak-kenal'); });
+cek('muatBase64: id tak dikenal -> TIDAK_DITEMUKAN', r.error === 'TIDAK_DITEMUKAN', r.pesan);
+r = cobalah(function () { return Gambar.muatBase64('../x'); });
+cek('muatBase64: id tak sah -> VALIDASI_GAGAL', r.error === 'VALIDASI_GAGAL', r.pesan);
+const TMX = Auth.login('siswa01', 'siswa123').data.token;
+r = gambarMuat(TMX, ID_BLOKIR);
+cek('endpoint gambarMuat dibuka utk murid (apa_saja)',
+    r.ok === true && r.data.mime === 'image/jpeg');
 
 console.log('\n== DIAGNOSIS GAGAL SIMPAN (laporan pemilik 2026-09-08b) ==');
 

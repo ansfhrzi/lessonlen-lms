@@ -306,6 +306,13 @@ function gambarAdopsi(token, tautan) {
   });
 }
 
+/** Isi gambar (base64+mime) utk <img> dalam aplikasi — guru & murid. */
+function gambarMuat(token, id) {
+  return _bungkus(token, 'apa_saja', function () {
+    return Gambar.muatBase64(id);
+  });
+}
+
 /** Pemandu izin Drive (laporan pemilik: scope drive belum disetujui).
  *  Jalankan SEKALI dari EDITOR Apps Script: izinDrive → Run →
  *  Review permissions → setujui. LALU deploy ulang (New version) —

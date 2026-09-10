@@ -443,6 +443,10 @@ const tunggu = (ms) => new Promise(r => setTimeout(r, ms));
   await tunggu(600);
   cek('quiz: unggah -> isian tautan terisi tautan web app otomatis',
       /\?gambar=drv-\d+/.test(d.getElementById('f-qz-gambar').value));
+  await tunggu(400);
+  cek('quiz: pratinjau dialog gambar aplikasi = data URI (bukan ?gambar=)',
+      String(d.getElementById('f-qz-pratinjau-gambar').src)
+        .indexOf('data:image/jpeg;base64,') === 0);
   d.querySelector('.kotak-dialog [data-aksi="ya"]').click();
   await tunggu(600);
   const imgUnggah = [...d.querySelectorAll('.kartu-soal-qz img.qz-gambar')]
@@ -488,11 +492,16 @@ const tunggu = (ms) => new Promise(r => setTimeout(r, ms));
   cek('quiz: adopsi -> isian jadi /?gambar=ID (penyajian aplikasi)',
       d.getElementById('f-qz-gambar').value === '/?gambar=DRVOLD9' &&
       !d.getElementById('btn-qz-adopsi'));
-  d.getElementById('f-qz-pratinjau-gambar')
-    .dispatchEvent(new w.Event('error'));
-  cek('quiz: galat ?gambar -> pesan New version + uji tab baru',
-      d.getElementById('f-qz-gambar-gagal').textContent.includes('New version') &&
-      !!d.querySelector('#f-qz-gambar-gagal a[target="_blank"]'));
+  await tunggu(300);
+  cek('quiz: adopsi -> pratinjau dialog memuat gambar via data URI',
+      String(d.getElementById('f-qz-pratinjau-gambar').src)
+        .indexOf('data:image/') === 0);
+  d.getElementById('f-qz-gambar').value = '/?gambar=TAKADA99';
+  d.getElementById('f-qz-gambar').dispatchEvent(new w.Event('input', { bubbles: true }));
+  await tunggu(300);
+  cek('quiz: gambar aplikasi tak dikenal -> pesan jelas (bukan senyap)',
+      d.getElementById('f-qz-gambar-gagal').classList.contains('tampil') &&
+      d.getElementById('f-qz-gambar-gagal').textContent.includes('tidak dapat dimuat'));
   d.querySelector('.tirai [data-aksi="batal"]').click();
   await tunggu(200);
 

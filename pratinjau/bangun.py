@@ -580,7 +580,17 @@ MOCK = r"""
       var m = String(tautan || '').match(/(?:\/file\/d\/|[?&]id=)([A-Za-z0-9-]+)/);
       if (!m) return { ok: false, error: 'VALIDASI_GAGAL',
                        pesan: 'Tautan Drive tidak dikenal.' };
+      /* simulasi Drive: id lama pun punya isi gambar utk gambarMuat */
+      if (!db.gambarSim[m[1]])
+        db.gambarSim[m[1]] = 'data:image/jpeg;base64,RE1ZSU1H';
       return { file_id: m[1], tautan: '/?gambar=' + m[1] };
+    },
+    gambarMuat: function (t, id) {
+      var u = db.gambarSim[String(id || '')];
+      if (!u) return { ok: false, error: 'TIDAK_DITEMUKAN',
+                       pesan: 'Gambar tidak ditemukan.' };
+      var m = u.match(/^data:([^;]+);base64,(.*)$/);
+      return { mime: m ? m[1] : 'image/jpeg', base64: m ? m[2] : u };
     },
     quizSimpanSoal: function (t, itemId, p) {
       if (!String(p.question || '').trim())
