@@ -8,6 +8,12 @@
 
 var Core = (function () {
 
+  /* Penanda versi klien — cek lewat F12 > Console di app nyata:
+     bila baris ini tidak muncul, browser masih memakai JS lama (cache). */
+  var VERSI_KLIEN = '2026-09-10';
+  try { console.log('[LMS v2] klien ' + VERSI_KLIEN +
+    ' — gambar soal via gambarMuat (base64)'); } catch (e) {}
+
   var KUNCI_TOKEN = 'lmsv2_token';
 
   var state = {

@@ -502,8 +502,19 @@ const tunggu = (ms) => new Promise(r => setTimeout(r, ms));
   cek('quiz: gambar aplikasi tak dikenal -> pesan jelas (bukan senyap)',
       d.getElementById('f-qz-gambar-gagal').classList.contains('tampil') &&
       d.getElementById('f-qz-gambar-gagal').textContent.includes('tidak dapat dimuat'));
-  d.querySelector('.tirai [data-aksi="batal"]').click();
-  await tunggu(200);
+  /* disimpan apa adanya: kartu WAJIB menampilkan chip (tidak pernah senyap) */
+  d.querySelector('.kotak-dialog [data-aksi="ya"]').click();
+  await tunggu(800);
+  cek('quiz: soal gambar tak dikenal tersimpan (rekap 7 soal)',
+      d.getElementById('qz-rekap').textContent.includes('7 soal') &&
+      !d.querySelector('.kotak-dialog'));
+  const kartuGagal = [...d.querySelectorAll('.kartu-soal-qz')]
+    .find(function (k) {
+      return k.textContent.includes('Soal tautan lama diadopsi');
+    });
+  cek('quiz: gambar gagal di KARTU -> chip selalu tampak (bukan senyap)',
+      !!kartuGagal && !!kartuGagal.querySelector('.qz-gambar-gagal') &&
+      !kartuGagal.querySelector('img.qz-gambar'));
 
   /* gambar dikirim TANPA Referer (situs hotlink-protection jadi izin) */
   const metaRef = d.querySelector('meta[name="referrer"]');
