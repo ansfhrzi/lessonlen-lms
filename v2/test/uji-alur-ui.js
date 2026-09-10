@@ -57,6 +57,9 @@ const tunggu = (ms) => new Promise(r => setTimeout(r, ms));
   await tunggu(400);                       // DOMContentLoaded → tanpa token → login
 
   cek('boot menampilkan form login', !!d.getElementById('form-login'));
+  cek('login: penanda versi TERLIHAT di kartu login (server+klien)',
+      d.getElementById('versi-klien-login').textContent.includes('klien 2026-09-10') &&
+      d.getElementById('versi-klien-login').textContent.includes('server v'));
   cek('merek = LessonLen', d.getElementById('merek-nama-login').textContent === 'LessonLen');
 
   // --- §5.8: masuk pakai Nomor WA (murid) ---
@@ -136,6 +139,9 @@ const tunggu = (ms) => new Promise(r => setTimeout(r, ms));
   d.getElementById('btn-masuk').click();
   await tunggu(700);
   cek('login guru → sidebar tampil', !!d.getElementById('sidebar'));
+  cek('dashboard: penanda versi gabungan server+klien di sidebar',
+      d.getElementById('versi-app').textContent.includes('klien 2026-09-10') &&
+      d.getElementById('versi-app').textContent.includes('2.0.1'));
   cek('guru: nav tidak memuat Biodata Saya',
       !d.querySelector('#menu-utama a[data-rute="biodata"]'));
   d.getElementById('profil-akun').click();

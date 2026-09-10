@@ -7,7 +7,7 @@
  */
 
 var APP_NAMA  = 'LessonLen';
-var APP_VERSI = '2.0.0';
+var APP_VERSI = '2.0.1';  /* naik tiap rilis — penanda versi server di sidebar */
 var APP_IKON  = '\uD83C\uDF31';        /* 🌱 tunas */
 
 /* ============================================================

@@ -236,7 +236,10 @@ var Core = (function () {
       if (el) el.textContent = nama;
     });
     var v = $('versi-app');
-    if (v) v.textContent = 'v' + TYDATA.versi;
+    if (v) v.textContent = 'v' + TYDATA.versi + ' · klien ' + VERSI_KLIEN;
+    var vl = $('versi-klien-login');
+    if (vl) vl.textContent = 'server v' + TYDATA.versi +
+      ' · klien ' + VERSI_KLIEN;
   }
 
   /* ---------- router layar ---------- */

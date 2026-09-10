@@ -30,7 +30,7 @@ def isi_include(m):
 idx = re.sub(r"<\?!= include\('([\w]+)'\) \?>", isi_include, idx)
 idx = (idx
        .replace("<?= appNama ?>", "LessonLen")
-       .replace("<?= appVersi ?>", "2.0.0")
+       .replace("<?= appVersi ?>", "2.0.1")
        .replace("<?= appIkon ?>", "\U0001F331"))
 
 MOCK = r"""
