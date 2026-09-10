@@ -23,7 +23,9 @@ global.ScriptApp = {
 global.ContentService = {
   MimeType: { TEXT: 'text/plain', JPEG: 'image/jpeg',
               PNG: 'image/png', GIF: 'image/gif' },
-  createOutput: (data) => ({
+  /* NAMA API ASLI Apps Script (docs) — jangan diubah sekadar
+     agar kode penelepon lulus; bila tak yakin, cek docs GAS. */
+  createTextOutput: (data) => ({
     data, mime: null,
     setContent(d) { this.data = d; return this; },
     setMimeType(m) { this.mime = m; return this; }

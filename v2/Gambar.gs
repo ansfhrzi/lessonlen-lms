@@ -120,21 +120,23 @@ var Gambar = (function () {
    * Sajikan berkas gambar lewat doGet (?gambar=ID) — publik, tanpa
    * sesi: dipanggil <img> murid. Id divalidasi ketat; berkas yang
    * tidak ada → teks penjelasan (bukan error tanpa pesan).
+   * CATATAN: nama metode asli GAS = createTextOutput (ralat 2026-09-10:
+   * sebelumnya createOutput — hanya ada di mock, bukan di API).
    */
   function sajikan(id) {
     id = String(id || '');
     if (!/^[A-Za-z0-9_-]+$/.test(id)) {
-      return ContentService.createOutput('Id gambar tidak sah.')
+      return ContentService.createTextOutput('Id gambar tidak sah.')
         .setMimeType(ContentService.MimeType.TEXT);
     }
     var peta = { 'image/jpeg': 'JPEG', 'image/png': 'PNG', 'image/gif': 'GIF' };
     try {
       var blob = DriveApp.getFileById(id).getBlob();
       var mime = String(blob.getContentType() || '');
-      return ContentService.createOutput(blob.getBytes())
+      return ContentService.createTextOutput(blob.getBytes())
         .setMimeType(ContentService.MimeType[peta[mime] || 'JPEG']);
     } catch (e) {
-      return ContentService.createOutput('Gambar tidak ditemukan.')
+      return ContentService.createTextOutput('Gambar tidak ditemukan.')
         .setMimeType(ContentService.MimeType.TEXT);
     }
   }
